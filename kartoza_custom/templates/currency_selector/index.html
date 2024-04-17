@@ -1,0 +1,19 @@
+{% set currency_list = frappe.db.get_all("Multi Currency Settings", fields='*') %}
+
+{%if currency_list%}
+<div class="dropdown" id="currency-dropdown">
+    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    Choose Currency
+    </button>
+    <div class="dropdown-menu"  aria-labelledby="dropdownMenuButton">
+        <form id="currencyChange">
+            {% for currency in currency_list %}
+            <div class="form-group" style="display: flex;">
+                <input type="radio" name="currency" value="{{currency.price_list}}" class="dropdown-item" >
+                <label style="margin-left: 2px;">{{currency.currency}}</label>
+            </div>
+            {% endfor %}
+        </form>
+    </div>
+</div>
+{%endif%}

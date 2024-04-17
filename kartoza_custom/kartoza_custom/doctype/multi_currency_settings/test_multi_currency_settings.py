@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestSalesInvoiceOverwrite(FrappeTestCase):
+class TestMultiCurrencySettings(FrappeTestCase):
 	pass

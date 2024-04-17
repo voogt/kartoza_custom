@@ -1,3 +1,4 @@
+from datetime import datetime
 app_name = "kartoza_custom"
 app_title = "Kartoza Custom"
 app_publisher = "Kartoza"
@@ -13,8 +14,8 @@ app_license = "MIT"
 # app_include_js = "/assets/kartoza_custom/js/kartoza_custom.js"
 
 # include js, css files in header of web template
-# web_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
-# web_include_js = "/assets/kartoza_custom/js/kartoza_custom.js"
+web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
+web_include_js = f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}"
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "kartoza_custom/public/scss/website"
@@ -108,9 +109,10 @@ app_license = "MIT"
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+	# "ToDo": "custom_app.overrides.CustomToDo"
+    "E Commerce Settings": "kartoza_shop.overrides.MultiCurrency"
+}
 
 # Document Events
 # ---------------

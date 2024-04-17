@@ -1,28 +1,42 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2024-04-17 09:38:26.225886",
+ "creation": "2024-04-17 15:55:07.217373",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "overwrite_sales_invoice"
+  "price_list",
+  "currency",
+  "enabled"
  ],
  "fields": [
   {
+   "fieldname": "price_list",
+   "fieldtype": "Link",
+   "label": "Price List",
+   "options": "Price List"
+  },
+  {
+   "fetch_from": "price_list.currency",
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "label": "Currency"
+  },
+  {
    "default": "0",
-   "fieldname": "overwrite_sales_invoice",
+   "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Overwrite Sales Invoice"
+   "label": "Enabled"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-04-17 09:38:26.225886",
+ "modified": "2024-04-17 15:55:07.217373",
  "modified_by": "Administrator",
  "module": "Kartoza Custom",
- "name": "Sales Invoice Overwrite",
+ "name": "Multi Currency Settings",
  "owner": "Administrator",
  "permissions": [
   {
