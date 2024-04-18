@@ -12,7 +12,6 @@ frappe.ui.form.on("Sales Order", {
 		}
 		
 		function make_sales_invoice(){
-			console.log(frm)
 			frappe.model.open_mapped_doc({
 				method: "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
 				frm: frm
