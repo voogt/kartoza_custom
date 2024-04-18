@@ -1,5 +1,6 @@
 {% set currency_list = frappe.db.get_all("Multi Currency Settings", fields='*') %}
 
+
 {%if currency_list%}
 <div class="dropdown" id="currency-dropdown">
     <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
