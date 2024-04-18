@@ -11,7 +11,7 @@ app_license = "MIT"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
-# app_include_js = "/assets/kartoza_custom/js/kartoza_custom.js"
+app_include_js = [f"/assets/kartoza_custom/js/sales_order_override.js?v={datetime.now()}",]
 
 # include js, css files in header of web template
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
@@ -28,7 +28,7 @@ web_include_js = f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+# doctype_js = {"Sales Order" : f"public/js/sales_order_override.js?v={datetime.now()}"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
