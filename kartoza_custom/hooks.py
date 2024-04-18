@@ -111,7 +111,7 @@ web_include_js = f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now
 
 override_doctype_class = {
 	# "ToDo": "custom_app.overrides.CustomToDo"
-    "E Commerce Settings": "kartoza_shop.overrides.MultiCurrency"
+    "E Commerce Settings": "kartoza_custom.overrides.MultiCurrency"
 }
 
 # Document Events
