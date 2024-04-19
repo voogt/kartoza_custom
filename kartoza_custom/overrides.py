@@ -25,6 +25,7 @@ def get_shopping_cart_settings_f():
 
 	if frappe.cache().get_value('currency') == None:
 		frappe.cache().set_value("currency", settings.price_list)
+		frappe.cache().set_value("payment_account", settings.payment_gateway_account)
 
 	price_list = frappe.cache().get_value('currency')
 
@@ -71,6 +72,7 @@ def apply_cart_settings_f(party=None, quotation=None):
 		quotation = _cart_settings._get_cart_quotation(party)
 
 	cart_settings = frappe.get_doc("E Commerce Settings")
+	print(f"CART SETTINGS {cart_settings.payment_gateway_account}")
 
 	if frappe.cache().get_value('currency') == None:
 		frappe.cache().set_value("currency", cart_settings.price_list)
@@ -78,6 +80,7 @@ def apply_cart_settings_f(party=None, quotation=None):
 	price_list = frappe.cache().get_value('currency')
 
 	cart_settings.price_list = price_list
+	# cart_settings.payment_gateway_account = 'Paystack ZAR - USD'
 
 	_cart_settings.set_price_list_and_rate(quotation, cart_settings)
 

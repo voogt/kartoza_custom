@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "field:price_list",
  "creation": "2024-04-17 15:55:07.217373",
  "default_view": "List",
  "doctype": "DocType",
@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "price_list",
+  "payment_gateway_account",
   "currency",
   "enabled"
  ],
@@ -15,8 +16,11 @@
   {
    "fieldname": "price_list",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Price List",
-   "options": "Price List"
+   "options": "Price List",
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fetch_from": "price_list.currency",
@@ -29,14 +33,23 @@
    "fieldname": "enabled",
    "fieldtype": "Check",
    "label": "Enabled"
+  },
+  {
+   "fieldname": "payment_gateway_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Payment Gateway Account",
+   "options": "Payment Gateway Account",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-04-17 15:55:07.217373",
+ "modified": "2024-04-19 11:09:05.343154",
  "modified_by": "Administrator",
  "module": "Kartoza Custom",
  "name": "Multi Currency Settings",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
