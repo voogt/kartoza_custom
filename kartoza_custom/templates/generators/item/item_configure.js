@@ -325,7 +325,7 @@ function set_continue_configuration() {
 	if (localStorage.getItem(`configure:${itemCode}`)) {
 		$btn_configure.text(__('Continue Selection'));
 	} else {
-		$btn_configure.text(__('Select Variant'));
+		$btn_configure.text(__('Select Item'));
 	}
 }
 
