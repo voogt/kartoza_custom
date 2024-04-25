@@ -76,7 +76,6 @@ def apply_cart_settings_f(party=None, quotation=None):
 		quotation = _cart_settings._get_cart_quotation(party)
 
 	cart_settings = frappe.get_doc("E Commerce Settings")
-	print(f"CART SETTINGS {cart_settings.payment_gateway_account}")
 
 	if frappe.cache().get_value('currency') == None:
 		frappe.cache().set_value("currency", cart_settings.price_list)
@@ -199,15 +198,12 @@ def make_payment_request_f(**args):
 			'currency': ['=', currency]
 		}, fields='*', order_by="name")
 
-		print(f"multicurrency_setting {multicurrency_setting}")
-
 		gateway_account = frappe.get_doc("Payment Gateway Account",multicurrency_setting[0]['payment_gateway_account'])
 	except:
 		gateway_account = make_payment_request_settings.get_gateway_details(args) or frappe._dict()
 
 	grand_total = make_payment_request_settings.get_amount(ref_doc, gateway_account.get("payment_account"))
-	print(f"GRAND TOTAL ref_doc {ref_doc.currency}")
-	print(f"GATEWAY ACCOUNT {gateway_account}")
+	
 	if args.loyalty_points and args.dt == "Sales Order":
 		from erpnext.accounts.doctype.loyalty_program.loyalty_program import validate_loyalty_points
 

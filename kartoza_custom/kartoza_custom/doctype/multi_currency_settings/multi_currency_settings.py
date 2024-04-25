@@ -6,7 +6,11 @@ from frappe.model.document import Document
 import frappe
 
 class MultiCurrencySettings(Document):
-	pass
+	def validate(self):
+		isEnabled = frappe.db.get_value("Multi Currency Settings", {'currency': self.currency, 'enabled': 1})
+		if isEnabled and self.enabled == 1:
+			frappe.throw((f"{self.currency} is already enabled in {self.name}"))
+		
 
 @frappe.whitelist(methods=["GET"], allow_guest=True)
 def set_currency_cache(currency):
