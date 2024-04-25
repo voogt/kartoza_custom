@@ -13,6 +13,10 @@ from frappe.model.mapper import get_mapped_doc
 from frappe.model.utils import get_fetch_values
 from frappe.query_builder.functions import Sum
 from frappe.utils import add_days, cint, cstr, flt, get_link_to_form, getdate, nowdate, strip_html
+import erpnext.accounts.doctype.payment_request.payment_request as make_payment_request_settings
+from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+	get_accounting_dimensions,
+)
 
 class MultiCurrency(Document):
     def onload(self):
@@ -178,7 +182,115 @@ def make_sales_invoice_f(source_name, target_doc=None, ignore_permissions=False)
 
 	return doclist
 
+@frappe.whitelist(allow_guest=True)
+def make_payment_request_f(**args):
+	"""Make payment request"""
+
+	args = frappe._dict(args)
+
+	ref_doc = frappe.get_doc(args.dt, args.dn)
 	
+	#get currency
+	try:
+
+		currency = ref_doc.currency
+		multicurrency_setting = frappe.db.get_all("Multi Currency Settings", filters={
+			'enabled': ['=', 1],
+			'currency': ['=', currency]
+		}, fields='*', order_by="name")
+
+		print(f"multicurrency_setting {multicurrency_setting}")
+
+		gateway_account = frappe.get_doc("Payment Gateway Account",multicurrency_setting[0]['payment_gateway_account'])
+	except:
+		gateway_account = make_payment_request_settings.get_gateway_details(args) or frappe._dict()
+
+	grand_total = make_payment_request_settings.get_amount(ref_doc, gateway_account.get("payment_account"))
+	print(f"GRAND TOTAL ref_doc {ref_doc.currency}")
+	print(f"GATEWAY ACCOUNT {gateway_account}")
+	if args.loyalty_points and args.dt == "Sales Order":
+		from erpnext.accounts.doctype.loyalty_program.loyalty_program import validate_loyalty_points
+
+		loyalty_amount = validate_loyalty_points(ref_doc, int(args.loyalty_points))
+		frappe.db.set_value(
+			"Sales Order", args.dn, "loyalty_points", int(args.loyalty_points), update_modified=False
+		)
+		frappe.db.set_value(
+			"Sales Order", args.dn, "loyalty_amount", loyalty_amount, update_modified=False
+		)
+		grand_total = grand_total - loyalty_amount
+
+	bank_account = (
+		make_payment_request_settings.get_party_bank_account(args.get("party_type"), args.get("party"))
+		if args.get("party_type")
+		else ""
+	)
+
+	draft_payment_request = frappe.db.get_value(
+		"Payment Request",
+		{"reference_doctype": args.dt, "reference_name": args.dn, "docstatus": 0},
+	)
+
+	existing_payment_request_amount = make_payment_request_settings.get_existing_payment_request_amount(args.dt, args.dn)
+
+	if existing_payment_request_amount:
+		grand_total -= existing_payment_request_amount
+
+	if draft_payment_request:
+		frappe.db.set_value(
+			"Payment Request", draft_payment_request, "grand_total", grand_total, update_modified=False
+		)
+		pr = frappe.get_doc("Payment Request", draft_payment_request)
+	else:
+		pr = frappe.new_doc("Payment Request")
+		pr.update(
+			{
+				"payment_gateway_account": gateway_account.get("name"),
+				"payment_gateway": gateway_account.get("payment_gateway"),
+				"payment_account": gateway_account.get("payment_account"),
+				"payment_channel": gateway_account.get("payment_channel"),
+				"payment_request_type": args.get("payment_request_type"),
+				"currency": ref_doc.currency,
+				"grand_total": grand_total,
+				"mode_of_payment": args.mode_of_payment,
+				"email_to": args.recipient_id or ref_doc.owner,
+				"subject": _("Payment Request for {0}").format(args.dn),
+				"message": gateway_account.get("message") or make_payment_request_settings.get_dummy_message(ref_doc),
+				"reference_doctype": args.dt,
+				"reference_name": args.dn,
+				"party_type": args.get("party_type") or "Customer",
+				"party": args.get("party") or ref_doc.get("customer"),
+				"bank_account": bank_account,
+			}
+		)
+
+		# Update dimensions
+		pr.update(
+			{
+				"cost_center": ref_doc.get("cost_center"),
+				"project": ref_doc.get("project"),
+			}
+		)
+
+		for dimension in get_accounting_dimensions():
+			pr.update({dimension: ref_doc.get(dimension)})
+
+		if args.order_type == "Shopping Cart" or args.mute_email:
+			pr.flags.mute_email = True
+
+		pr.insert(ignore_permissions=True)
+		if args.submit_doc:
+			pr.submit()
+
+	if args.order_type == "Shopping Cart":
+		frappe.db.commit()
+		frappe.local.response["type"] = "redirect"
+		frappe.local.response["location"] = pr.get_payment_url()
+
+	if args.return_doc:
+		return pr
+
+	return pr.as_dict()
 
 	
 # Override methods
@@ -186,3 +298,4 @@ e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
 _cart_settings.apply_cart_settings = apply_cart_settings_f
 _cart_settings.get_cart_quotation = get_cart_quotation_f
 _sales_order.make_sales_invoice = make_sales_invoice_f
+make_payment_request_settings.make_payment_request = make_payment_request_f
