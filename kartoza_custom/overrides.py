@@ -89,10 +89,41 @@ def apply_cart_settings_f(party=None, quotation=None):
 
 	quotation.run_method("calculate_taxes_and_totals")
 
-	_cart_settings.set_taxes(quotation, cart_settings)
+	set_taxes_f(quotation, cart_settings)
 
 	_cart_settings._apply_shipping_rule(party, quotation, cart_settings)
 
+def set_taxes_f(quotation, cart_settings):
+	"""set taxes based on billing territory"""
+	from erpnext.accounts.party import set_taxes
+
+	customer_group = frappe.db.get_value("Customer", quotation.party_name, "customer_group")
+
+	if quotation.price_list_currency != 'ZAR':
+		quotation.taxes_and_charges = None
+	else:
+		quotation.taxes_and_charges = set_taxes(
+			quotation.party_name,
+			"Customer",
+			quotation.transaction_date,
+			quotation.company,
+			customer_group=customer_group,
+			supplier_group=None,
+			tax_category=quotation.tax_category,
+			billing_address=quotation.customer_address,
+			shipping_address=quotation.shipping_address_name,
+			use_for_shopping_cart=1,
+		)
+	
+	# clear table
+	quotation.set("taxes", [])
+	
+	# append taxes
+	quotation.append_taxes_from_master()
+	
+	print(f"TAXES SETTING {quotation.taxes_and_charges}")
+	print(f"TAXES tax_category {quotation.tax_category}")
+	print(f"quotation.shipping_address_name {quotation.shipping_address_name}")
 
 @frappe.whitelist()
 def make_sales_invoice_f(source_name, target_doc=None, ignore_permissions=False):
@@ -293,5 +324,6 @@ def make_payment_request_f(**args):
 e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
 _cart_settings.apply_cart_settings = apply_cart_settings_f
 _cart_settings.get_cart_quotation = get_cart_quotation_f
+_cart_settings.set_taxes = set_taxes_f
 _sales_order.make_sales_invoice = make_sales_invoice_f
 make_payment_request_settings.make_payment_request = make_payment_request_f
