@@ -1,5 +1,9 @@
 $(document).ready(function(){
 
+    $('.address-container').on('DOMSubtreeModified', function(){
+        location.reload()
+    });
+
     frappe.call({
         method: "kartoza_custom.kartoza_custom.doctype.multi_currency_settings.multi_currency_settings.retrieve_currency_cache", //dotted path to server method
         type: "GET",
@@ -46,4 +50,6 @@ $(document).ready(function(){
 
         
     });
+
+   
 });
