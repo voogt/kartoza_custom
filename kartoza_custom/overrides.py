@@ -99,9 +99,12 @@ def set_taxes_f(quotation, cart_settings):
 
 	customer_group = frappe.db.get_value("Customer", quotation.party_name, "customer_group")
 
+	print(f"quotation.price_list_currency over {quotation.price_list_currency}")
+
 	if quotation.price_list_currency != 'ZAR':
+		pass
 		# quotation.taxes_and_charges = None
-  		pass
+  		
 	else:
 		quotation.taxes_and_charges = set_taxes(
 			quotation.party_name,
