@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
-                                <button type="button" class="btn btn-secondary" id="declineCookies">Decline</button>
+                                <button type="button" class="btn btn-primary" id="declineCookies">Decline</button>
                             </div>
                         </div>
                     </div>
