@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-    if (!getCookie('cookieConsent')) {
+    if (!getCookie('cookieConsent') && !getCookie('cookieDecline')) {
         // Inject modal HTML if not already present
         if (!document.getElementById('cookieConsentModal')) {
             var modalHtml = `
@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
+                                <button type="button" class="btn btn-secondary" id="declineCookies">Decline</button>
                             </div>
                         </div>
                     </div>
@@ -27,6 +28,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('acceptCookies').onclick = function () {
             setCookie('cookieConsent', 'true', 365);
+            $('#cookieConsentModal').modal('hide');
+        };
+
+        document.getElementById('declineCookies').onclick = function () {
+            setCookie('cookieDecline', 'true', 365);
             $('#cookieConsentModal').modal('hide');
         };
     }
