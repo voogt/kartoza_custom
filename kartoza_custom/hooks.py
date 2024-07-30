@@ -11,11 +11,16 @@ app_license = "MIT"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
-app_include_js = f"/assets/kartoza_custom/js/sales_order_override.js?v={datetime.now()}"
+app_include_js = [
+    f"/assets/kartoza_custom/js/sales_order_override.js?v={datetime.now()}",
+]
 
 # include js, css files in header of web template
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
-web_include_js = f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}"
+web_include_js = [
+    f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}",    
+]
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "kartoza_custom/public/scss/website"
