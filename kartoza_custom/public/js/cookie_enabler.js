@@ -1,16 +1,16 @@
 document.addEventListener('DOMContentLoaded', function () {
     if (!getCookie('cookieConsent') && !getCookie('cookieDecline')) {
-        // Inject modal HTML if not already present
-        if (!document.getElementById('cookieConsentModal')) {
-            var modalHtml = `
-                <div class="modal" id="cookieConsentModal">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
+        // Inject banner HTML if not already present
+        if (!document.getElementById('cookieConsentBanner')) {
+            var bannerHtml = `
+                <div id="cookieConsentBanner">
+                    <div class="container" style="border:none">
+                        <div class="modal-content" style="border:none">
+                            <div class="modal-header" style="border:none">
                                 <h4 class="modal-title">Cookie Consent</h4>
-                                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                <button type="button" class="close" id="closeBanner">&times;</button>
                             </div>
-                            <div class="modal-body">
+                            <div class="modal-body" style="border:none"> 
                                 This website uses cookies to ensure you get the best experience.
                             </div>
                             <div class="modal-footer">
@@ -20,20 +20,24 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                     </div>
                 </div>`;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.body.insertAdjacentHTML('beforeend', bannerHtml);
         }
 
-        // Show modal
-        $('#cookieConsentModal').modal('show');
+        // Show banner
+        document.getElementById('cookieConsentBanner').style.display = 'block';
 
         document.getElementById('acceptCookies').onclick = function () {
             setCookie('cookieConsent', 'true', 365);
-            $('#cookieConsentModal').modal('hide');
+            document.getElementById('cookieConsentBanner').style.display = 'none';
         };
 
         document.getElementById('declineCookies').onclick = function () {
             setCookie('cookieDecline', 'true', 365);
-            $('#cookieConsentModal').modal('hide');
+            document.getElementById('cookieConsentBanner').style.display = 'none';
+        };
+
+        document.getElementById('closeBanner').onclick = function () {
+            document.getElementById('cookieConsentBanner').style.display = 'none';
         };
     }
 });
