@@ -21,8 +21,8 @@
 
 		{% for address in billing_addresses %}
 			{% if doc.customer_address == address.name %}
-			<div class="row no-gutters" data-fieldname="shipping_address_name" >
-				<div class="w-100 address-container" data-address-name="{{address.name}}" data-address-type="shipping" data-active>
+			<div class="row no-gutters" data-fieldname="billing_address_name" >
+				<div class="w-100 address-container" data-address-name="{{address.name}}" data-address-type="billing" data-active>
 					{% include "templates/includes/cart/address_card.html" %}
 				</div>
 			</div>
@@ -111,7 +111,6 @@
 						fieldtype: 'Select',
 						options: [
 							'Billing',
-							'Shipping'
 						],
 						reqd: 1
 					},
