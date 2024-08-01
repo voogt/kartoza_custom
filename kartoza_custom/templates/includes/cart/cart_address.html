@@ -19,8 +19,8 @@
 
 	{% if doc.customer_address%}
 
-		{% for address in shipping_addresses %}
-			{% if doc.shipping_address_name == address.name %}
+		{% for address in billing_addresses %}
+			{% if doc.customer_address == address.name %}
 			<div class="row no-gutters" data-fieldname="shipping_address_name" >
 				<div class="w-100 address-container" data-address-name="{{address.name}}" data-address-type="shipping" data-active>
 					{% include "templates/includes/cart/address_card.html" %}
@@ -29,15 +29,15 @@
 			{% endif %}
 		{% endfor %}
 
-		{% else %}
-			{% if billing_addresses %}
-				<div class="row no-gutters" data-fieldname="customer_address">
-					<div class="w-100 address-container" data-address-name="{{ billing_addresses[0].name }}" data-address-type="billing" data-active>
-						{% set address = billing_addresses[0] %}
-						{% include "templates/includes/cart/address_card.html" %}
-					</div>
+	{% else %}
+		{% if billing_addresses %}
+			<div class="row no-gutters" data-fieldname="customer_address">
+				<div class="w-100 address-container" data-address-name="{{ billing_addresses[0].name }}" data-address-type="billing" data-active>
+					{% set address = billing_addresses[0] %}
+					{% include "templates/includes/cart/address_card.html" %}
 				</div>
-			{% endif %}
+			</div>
+		{% endif %}
 	{% endif %}
 </div>
 
