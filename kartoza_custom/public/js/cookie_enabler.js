@@ -5,17 +5,23 @@ document.addEventListener('DOMContentLoaded', function () {
             var bannerHtml = `
                 <div id="cookieConsentBanner">
                     <div class="container" style="border:none">
-                        <div class="modal-content" style="border:none">
-                            <div class="modal-header" style="border:none">
-                                <h4 class="modal-title">Cookie Consent</h4>
-                                <button type="button" class="close" id="closeBanner">&times;</button>
-                            </div>
-                            <div class="modal-body" style="border:none"> 
-                                This website uses cookies to ensure you get the best experience.
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
-                                <button type="button" class="btn btn-primary" id="declineCookies">Decline</button>
+                        <div class="modal-content"  style="border:none">
+                            <div class="modal-body" id="modal-cookie" style="border:none"> 
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        <h5 class="modal-title">Cookie Consent</h5>
+                                    </div>
+                                    <div class='col-md-6'>
+                                        <p>This website uses cookies to ensure you get the best experience.</p>
+                                    </div>
+                                    <div class='col-md-3'>
+                                        <div>
+                                            <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
+                                            <button type="button" class="btn btn-primary" id="declineCookies">Decline</button>
+                                            <button type="button" class="close" id="closeBanner">&times;</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
