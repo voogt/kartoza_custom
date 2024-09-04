@@ -32,27 +32,26 @@
 	</label>
 </div>
 
-{% if billing_addresses %}
-	<div class="mb-3 frappe-card p-5" data-section="billing-address" id="billing_addres_info_container">
-		<div class="d-flex">
-			<div class="col-6 address-header"><h6>{{ _("Billing Address") }}</h6></div>
-			<div class="col-6" style="padding: 0;">
-				<a class="ml-4 btn-new-address" role="button">{{ _("Add a new address") }}</a>
-			</div>
-		</div>
 
-		<hr>
-		{% for address in billing_addresses %}
-			{% if doc.customer_address == address.name %}
-			<div class="row no-gutters" data-fieldname="customer_address">
-				<div class="w-100 address-container" data-address-name="{{address.name}}" data-address-type="billing" data-active>
-						{% include "templates/includes/cart/address_card.html" %}
-					</div>
-			</div>
-			{% endif %}
-		{% endfor %}
+<div class="mb-3 frappe-card p-5" data-section="billing-address" id="billing_addres_info_container">
+	<div class="d-flex">
+		<div class="col-6 address-header"><h6>{{ _("Billing Address") }}</h6></div>
+		<div class="col-6" style="padding: 0;">
+			<a class="ml-4 btn-new-address" role="button">{{ _("Add a new address") }}</a>
+		</div>
 	</div>
-{% endif %}
+
+	<hr>
+	{% for address in billing_addresses %}
+		{% if doc.customer_address == address.name %}
+		<div class="row no-gutters" data-fieldname="customer_address">
+			<div class="w-100 address-container" data-address-name="{{address.name}}" data-address-type="billing" data-active>
+					{% include "templates/includes/cart/address_card.html" %}
+				</div>
+		</div>
+		{% endif %}
+	{% endfor %}
+</div>
 
 <script>
 frappe.ready(() => {
@@ -266,8 +265,6 @@ frappe.ready(() => {
 			);
 
 			d.show();
-
-			
 		});
 	});
 </script>
