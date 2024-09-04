@@ -325,9 +325,9 @@ def make_payment_request_f(**args):
 
 	
 # Override methods
-e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
-_cart_settings.apply_cart_settings = apply_cart_settings_f
-_cart_settings.get_cart_quotation = get_cart_quotation_f
-_cart_settings.set_taxes = set_taxes_f
+# e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
+# _cart_settings.apply_cart_settings = apply_cart_settings_f
+# _cart_settings.get_cart_quotation = get_cart_quotation_f
+# _cart_settings.set_taxes = set_taxes_f
 _sales_order.make_sales_invoice = make_sales_invoice_f
-make_payment_request_settings.make_payment_request = make_payment_request_f
+#make_payment_request_settings.make_payment_request = make_payment_request_f
