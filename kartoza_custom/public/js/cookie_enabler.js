@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var bannerHtml = `
                 <div id="cookieConsentBanner">
                     <div class="container" style="border:none">
-                        <div class="modal-content"  style="border:none">
+                        <div class="modal-content" style="border:none">
                             <div class="modal-body" id="modal-cookie" style="border:none"> 
                                 <div class="row">
                                     <div class="col-md-2">
@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('acceptCookies').onclick = function () {
             setCookie('cookieConsent', 'true', 365);
+            loadGoogleTagManager();
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
 
@@ -45,6 +46,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('closeBanner').onclick = function () {
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
+    } else if (getCookie('cookieConsent')) {
+        loadGoogleTagManager(); // Load GTM if the user has already accepted cookies
     }
 });
 
@@ -67,4 +70,13 @@ function getCookie(name) {
         if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
     }
     return null;
+}
+
+function loadGoogleTagManager() {
+    // Google Tag Manager code insertion
+    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-K5ZVLM25'); // Replace 'GTM-XXXXXX' with your actual GTM ID
 }
