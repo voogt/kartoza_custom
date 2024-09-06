@@ -96,12 +96,23 @@
             event.preventDefault();
             event.stopPropagation();
 
-            // Fetch the current cart (Quotation) for the user
+            // Fetch the latest Quotation (cart) for the current user
             frappe.call({
-                method: 'erpnext.shopping_cart.cart.get_cart_quotation',
+                method: 'frappe.client.get_list',
+                args: {
+                    doctype: 'Quotation',
+                    fields: ['name', 'items', 'net_total', 'grand_total'],
+                    filters: {
+                        owner: frappe.session.user,  // Filter by the current user
+                        docstatus: 0,                // Ensure it's a draft (unsubmitted) cart
+                        status: 'Draft'
+                    },
+                    limit: 1,  // We only need the latest one
+                    order_by: 'creation desc'  // Get the most recently created Quotation
+                },
                 callback: function (r) {
-                    if (r.message) {
-                        const doc = r.message;  // Get the current cart (quotation) document
+                    if (r.message && r.message.length > 0) {
+                        const doc = r.message[0];  // Get the latest Quotation document
 
                         // Show dialog for Request for Quotation
                         const d = new frappe.ui.Dialog({
@@ -137,7 +148,7 @@
                                             customer_name: values.recipient_name,
                                             contact_email: values.email,
                                             contact_mobile: values.phone_number,
-                                            items: doc.items,
+                                            items: doc.items,  // Use the fetched cart items
                                             net_total: doc.net_total,
                                             grand_total: doc.grand_total
                                         }
@@ -160,7 +171,7 @@
                         // Show the dialog
                         d.show();
                     } else {
-                        frappe.msgprint(__('No active cart found.'));
+                        frappe.msgprint(__('No active cart (quotation) found.'));
                     }
                 }
             });
