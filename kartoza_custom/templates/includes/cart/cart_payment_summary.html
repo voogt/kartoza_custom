@@ -88,8 +88,11 @@
 
 <script>
     frappe.ready(() => {
-        // When "Request for Quote" is clicked, open the dialog
-        $('#get-quote-button').click(() => {
+        // Add an event listener to prevent default behavior and show the dialog
+        $('#get-quote-button').on('click', function (event) {
+            // Prevent any default action like form submission or page reload
+            event.preventDefault();
+
             const d = new frappe.ui.Dialog({
                 title: __('Request for Quotation'),
                 fields: [
