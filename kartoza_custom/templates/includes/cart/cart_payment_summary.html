@@ -90,9 +90,15 @@
     frappe.ready(() => {
         // Add an event listener to prevent default behavior and show the dialog
         $('#get-quote-button').on('click', function (event) {
+            console.log('Button clicked'); // Debugging step to confirm the event listener is working
+
             // Prevent any default action like form submission or page reload
             event.preventDefault();
 
+            // Explicitly stop event propagation
+            event.stopPropagation();
+
+            // Show dialog
             const d = new frappe.ui.Dialog({
                 title: __('Request for Quotation'),
                 fields: [
@@ -145,6 +151,9 @@
 
             // Show the dialog
             d.show();
+
+            // Ensure no default behavior happens
+            return false;
         });
     });
 </script>
