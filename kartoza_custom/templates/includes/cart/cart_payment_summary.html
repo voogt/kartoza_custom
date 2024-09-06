@@ -153,7 +153,7 @@
                                         ],
                                         primary_action_label: 'Submit',
                                         primary_action(values) {
-                                            // Submit the form using frappe.call
+                                            // Submit the form using frappe.call with ignore_permissions
                                             frappe.call({
                                                 method: 'frappe.client.insert',
                                                 args: {
@@ -165,7 +165,8 @@
                                                         items: items,  // Use the fetched cart items
                                                         net_total: doc.net_total,
                                                         grand_total: doc.grand_total
-                                                    }
+                                                    },
+                                                    ignore_permissions: true  // Bypass permission check
                                                 },
                                                 callback: (r) => {
                                                     if (!r.exc) {
@@ -199,7 +200,6 @@
         });
     });
 </script>
-
 
 <script>
 	// Function to remove the element with id "freeze" if it exists
