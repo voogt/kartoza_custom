@@ -56,7 +56,7 @@
 			<button id="place-order-button" class="btn btn-primary btn-place-order font-md w-100" type="button">
 				{{ _('Place Order') }}
 			</button>
-			<button class="btn btn-primary btn-request-for-quotation font-md w-100" type="button">
+			<button id="get-quote-button" class="btn btn-primary btn-request-for-quotation font-md w-100" type="button">
 				{{ _('Request for Quote') }}
 			</button>
 		{% else %}
@@ -85,6 +85,66 @@
 		});
 	});
 </script> -->
+
+<script>
+    frappe.ready(() => {
+        // When "Request for Quote" is clicked, open the dialog
+        $('#get-quote-button').click(() => {
+            const d = new frappe.ui.Dialog({
+                title: __('Request for Quotation'),
+                fields: [
+                    {
+                        label: 'Recipient Name',
+                        fieldname: 'recipient_name',
+                        fieldtype: 'Data',
+                        reqd: 1
+                    },
+                    {
+                        label: 'Email',
+                        fieldname: 'email',
+                        fieldtype: 'Data',
+                        reqd: 1
+                    },
+                    {
+                        label: 'Phone Number',
+                        fieldname: 'phone_number',
+                        fieldtype: 'Data',
+                        reqd: 1
+                    }
+                ],
+                primary_action_label: 'Submit',
+                primary_action(values) {
+                    // Submit the form using frappe.call
+                    frappe.call({
+                        method: 'frappe.client.insert',
+                        args: {
+                            doc: {
+                                doctype: 'Quotation',
+                                customer_name: values.recipient_name,
+                                contact_email: values.email,
+                                contact_mobile: values.phone_number,
+                                items: doc.items,  // Assuming doc.items holds the cart items
+                                net_total: doc.net_total,
+                                grand_total: doc.grand_total
+                            }
+                        },
+                        callback: (r) => {
+                            if (!r.exc) {
+                                frappe.msgprint(__('Quotation submitted successfully.'));
+                                d.hide();
+                            } else {
+                                frappe.msgprint(__('There was an error submitting the quotation.'));
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Show the dialog
+            d.show();
+        });
+    });
+</script>
 
 <script>
 	// Function to remove the element with id "freeze" if it exists
