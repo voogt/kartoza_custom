@@ -21,7 +21,7 @@ def get_latest_quotation_items():
 import frappe
 
 @frappe.whitelist()
-def get_or_create_customer(recipient_name, recipient_email, contact_phone):
+def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_id):
     # Check if customer exists
     customer = frappe.db.get_value('Customer', {'customer_name': recipient_name}, 'name')
 
@@ -36,7 +36,9 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone):
         'customer_group': 'Individual', # Adjust as needed
         'territory': 'All Territories', # Adjust as needed
         'email_id': recipient_email,
-        'mobile_no': contact_phone
+        'mobile_no': contact_phone,
+        'tax_id': tax_id,
+        'tax_category': "VAT"
     })
     
     new_customer.insert()
