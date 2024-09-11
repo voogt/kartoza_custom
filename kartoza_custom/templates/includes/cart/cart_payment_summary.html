@@ -56,9 +56,9 @@
 			<button id="place-order-button" class="btn btn-primary btn-place-order font-md w-100" type="button">
 				{{ _('Place Order') }}
 			</button>
-			<!-- <button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
+			<button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
 				{{ _('Request for Quote') }}
-			</button> -->
+			</button>
 		{% else %}
 			<button class="btn btn-primary btn-request-for-quotation font-md w-100" type="button">
 				{{ _('Request for Quote') }}
@@ -85,93 +85,127 @@
 		});
 	});
 </script> -->
-
 <script>
     frappe.ready(() => {
-        // Add an event listener to prevent default behavior and show the dialog
-        $('#get-quote-button').on('click', function (event) {
-            console.log('Button clicked'); // Debugging step to confirm the event listener is working
+        $('#get-quote-button, .btn-request-for-quotation').click(() => {
+            // Retrieve cart data via an API call (if required), or pass it directly if available
+            const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
 
-            // Prevent any default action like form submission or page reload
-            event.preventDefault();
-            event.stopPropagation();
-
-            // Fetch the latest Quotation (cart) for the current user
-            frappe.call({
-				method: 'kartoza_custom.api.get_latest_quotation_items',
-                callback: function (r) {
-                    if (r.message && r.message.length > 0) {
-                        const doc = r.message[0];  // Get the latest Quotation document
-
-                        const items = res.message;  // Get the related items
-
-						// Show dialog for Request for Quotation
-						const d = new frappe.ui.Dialog({
-							title: __('Request for Quotation'),
-							fields: [
-								{
-									label: 'Recipient Name',
-									fieldname: 'recipient_name',
-									fieldtype: 'Data',
-									reqd: 1
-								},
-								{
-									label: 'Email',
-									fieldname: 'email',
-									fieldtype: 'Data',
-									reqd: 1
-								},
-								{
-									label: 'Phone Number',
-									fieldname: 'phone_number',
-									fieldtype: 'Data',
-									reqd: 1
-								}
-							],
-							primary_action_label: 'Submit',
-							primary_action(values) {
-								// Submit the form using frappe.call with ignore_permissions
-								frappe.call({
-									method: 'frappe.client.insert',
-									args: {
-										doc: {
-											doctype: 'Quotation',
-											customer_name: values.recipient_name,
-											contact_email: values.email,
-											contact_mobile: values.phone_number,
-											items: items,  // Use the fetched cart items
-											net_total: doc.net_total,
-											grand_total: doc.grand_total
-										},
-										ignore_permissions: true  // Bypass permission check
-									},
-									callback: (r) => {
-										if (!r.exc) {
-											frappe.msgprint(__('Quotation submitted successfully.'));
-											d.hide();
-
-											// Redirect to the Quotation page
-											frappe.set_route('Form', 'Quotation', r.message.name);
-										} else {
-											frappe.msgprint(__('There was an error submitting the quotation.'));
-										}
-									}
-								});
-							}
-						});
-
-						// Show the dialog
-						d.show();
-                    } else {
-                        frappe.msgprint(__('No active cart (quotation) found.'));
+            const d = new frappe.ui.Dialog({
+                title: __('Create Quote'),
+                fields: [
+                    {
+                        fieldname: 'recipient_name',
+                        fieldtype: 'Data',
+                        label: __('Recipient Name'),
+                        reqd: 1
+                    },
+                    {
+                        fieldname: 'recipient_email',
+                        fieldtype: 'Data',
+                        label: __('Recipient Email'),
+                        reqd: 1,
+                        options: 'Email'
+                    },
+                    {
+                        fieldname: 'contact_phone',
+                        fieldtype: 'Data',
+                        label: __('Contact Phone No'),
+                        reqd: 1
+                    },
+                    {
+                        fieldname: 'address',
+                        fieldtype: 'Text',
+                        label: __('Address'),
+                        reqd: 1,
+                        placeholder: __('Enter the recipient\'s address')
+                    },
+                    {
+                        fieldname: 'tax_id',
+                        fieldtype: 'Data',
+                        label: __('Tax ID'),
+                        placeholder: __('Enter the recipient\'s tax ID')
+                    },
+                    {
+                        fieldname: 'message',
+                        fieldtype: 'Small Text',
+                        label: __('Message'),
+                        placeholder: __('Optional message for the recipient')
                     }
+                ],
+                primary_action_label: __('Create Quote'),
+                primary_action(values) {
+                    // Custom email validation
+                    if (!validateEmail(values.recipient_email)) {
+                        frappe.msgprint(__('Please enter a valid email address.'));
+                        return;
+                    }
+
+                    // Call the server-side method to get or create a customer
+                    frappe.call({
+                        method: 'kartoza_custom.api.get_or_create_customer', // Adjust with your actual app name
+                        args: {
+                            recipient_name: values.recipient_name,
+                            recipient_email: values.recipient_email,
+                            contact_phone: values.contact_phone,
+                            address: values.address,
+                            tax_id: values.tax_id
+                        },
+                        callback: function(response) {
+                            const customer_name = response.message.customer_name;
+                            
+                            // Now create the quotation for the customer
+                            create_quotation(customer_name, values, cartData);
+                        }
+                    });
                 }
             });
 
-            return false;
+            d.show();
         });
+
+        // Function to create a new quotation
+        function create_quotation(customer_name, values, cartData) {
+            const quotationData = {
+                doctype: 'Quotation',
+                quotation_to: 'Customer',
+                party_name: customer_name,
+                contact_email: values.recipient_email,
+                contact_mobile: values.contact_phone,
+                address: values.address,  // Include address in the quotation data
+                tax_id: values.tax_id,    // Include tax_id in the quotation data
+                items: cartData.items,    // Assuming items are in the cartData
+                message_for_recipient: values.message
+            };
+
+            frappe.call({
+                method: 'frappe.client.insert',
+                args: {
+                    doc: quotationData
+                },
+                callback: function(response) {
+                    if (response.message) {
+                        const quotation = response.message;
+
+                        // Show success message
+                        frappe.msgprint(__('Quotation has been created successfully.'));
+
+                        // Redirect to the customer-facing quotation page (frontend URL)
+                        const quotation_url = '/quotations/' + quotation.name;  // Example: /quotations/QTN-0001
+                        window.location.href = quotation_url;
+                    }
+                }
+            });
+        }
+
+        // Custom email validation function
+        function validateEmail(email) {
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailPattern.test(email);
+        }
     });
 </script>
+
 
 <script>
 	// Function to remove the element with id "freeze" if it exists

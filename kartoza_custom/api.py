@@ -17,3 +17,29 @@ def get_latest_quotation_items():
                            fields=['item_code', 'item_name', 'qty', 'rate'])
 
     return {'quotation': quotation, 'items': items}
+
+import frappe
+
+@frappe.whitelist()
+def get_or_create_customer(recipient_name, recipient_email, contact_phone):
+    # Check if customer exists
+    customer = frappe.db.get_value('Customer', {'customer_name': recipient_name}, 'name')
+
+    if customer:
+        return {'customer_name': customer}
+
+    # If customer does not exist, create a new customer
+    new_customer = frappe.get_doc({
+        'doctype': 'Customer',
+        'customer_name': recipient_name,
+        'customer_type': 'Individual',  # Adjust as needed
+        'customer_group': 'Individual', # Adjust as needed
+        'territory': 'All Territories', # Adjust as needed
+        'email_id': recipient_email,
+        'mobile_no': contact_phone
+    })
+    
+    new_customer.insert()
+    frappe.db.commit()
+    
+    return {'customer_name': new_customer.name}
