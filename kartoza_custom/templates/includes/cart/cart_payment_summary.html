@@ -56,9 +56,9 @@
 			<button id="place-order-button" class="btn btn-primary btn-place-order font-md w-100" type="button">
 				{{ _('Place Order') }}
 			</button>
-			<button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
+			<!-- <button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
 				{{ _('Request for Quote') }}
-			</button>
+			</button> -->
 		{% else %}
 			<button class="btn btn-primary btn-request-for-quotation font-md w-100" type="button">
 				{{ _('Request for Quote') }}
@@ -149,7 +149,7 @@
                             recipient_email: values.recipient_email,
                             contact_phone: values.contact_phone,
                             address: values.address,
-                            tax_id: values.tax_id
+                            tax_id: values.tax_id,
                         },
                         callback: function(response) {
                             const customer_name = response.message.customer_name;
