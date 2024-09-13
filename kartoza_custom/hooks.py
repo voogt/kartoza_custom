@@ -19,7 +19,7 @@ app_include_js = [
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
 web_include_js = [
     f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}",
-    f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}",    
+    f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}"
 ]
 
 # include custom scss in every website theme (without file extension ".scss")
@@ -220,3 +220,17 @@ override_doctype_class = {
 # auth_hooks = [
 # 	"kartoza_custom.auth.validate"
 # ]
+
+website_route_rules = [
+	
+	{"from_route": "/proforma-quotations", "to_route": "Quotation"},
+	{
+		"from_route": "/proforma-quotations/<path:name>",
+		"to_route": "order_",
+		"defaults": {
+			"doctype": "Quotation",
+			"parents": [{"label": "Quotations", "route": "quotations"}],
+		},
+	},
+	
+]

@@ -56,9 +56,9 @@
 			<button id="place-order-button" class="btn btn-primary btn-place-order font-md w-100" type="button">
 				{{ _('Place Order') }}
 			</button>
-			<!-- <button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
+			<button id="get-quote-button" class="btn btn-primary font-md w-100" type="button" onclick="return false;">
 				{{ _('Request for Quote') }}
-			</button> -->
+			</button>
 		{% else %}
 			<button class="btn btn-primary btn-request-for-quotation font-md w-100" type="button">
 				{{ _('Request for Quote') }}
@@ -87,6 +87,21 @@
 </script> -->
 <script>
     frappe.ready(() => {
+		const currentUrl = window.location.href;
+        const quoteButton = document.getElementById('get-quote-button');
+
+        if (currentUrl.includes('kartoza-staging-v14') || currentUrl.includes('http://127.0.0.1/') || currentUrl.includes('localhost')) {
+            // Show the 'get-quote-button'
+            if (quoteButton) {
+                quoteButton.style.display = 'block';
+            }
+        } else {
+            // Hide the 'get-quote-button'
+            if (quoteButton) {
+                quoteButton.style.display = 'none';
+            }
+        }
+
         $('#get-quote-button, .btn-request-for-quotation').click(() => {
             // Retrieve cart data via an API call (if required), or pass it directly if available
             const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
@@ -124,7 +139,8 @@
                         fieldname: 'tax_id',
                         fieldtype: 'Data',
                         label: __('Tax ID'),
-                        placeholder: __('Enter the recipient\'s tax ID')
+                        placeholder: __('Enter the recipient\'s tax ID'),
+						reqd: 1
                     },
                     {
                         fieldname: 'message',
@@ -170,6 +186,8 @@
                 doctype: 'Quotation',
                 quotation_to: 'Customer',
                 party_name: customer_name,
+				order_type: "Shopping Cart",
+				status: "Draft",
                 contact_email: values.recipient_email,
                 contact_mobile: values.contact_phone,
                 address: values.address,  // Include address in the quotation data
@@ -191,7 +209,7 @@
                         frappe.msgprint(__('Quotation has been created successfully.'));
 
                         // Redirect to the customer-facing quotation page (frontend URL)
-                        const quotation_url = '/quotations/' + quotation.name;  // Example: /quotations/QTN-0001
+                        const quotation_url = '/proforma-quotations/' + quotation.name;  // Example: /quotations/QTN-0001
                         window.location.href = quotation_url;
                     }
                 }
