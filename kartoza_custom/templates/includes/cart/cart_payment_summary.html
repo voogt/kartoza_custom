@@ -87,23 +87,20 @@
 </script> -->
 <script>
     frappe.ready(() => {
-		const currentUrl = window.location.href;
+        const currentUrl = window.location.href;
         const quoteButton = document.getElementById('get-quote-button');
 
-        if (currentUrl.includes('kartoza-staging-v14') || currentUrl.includes('http://127.0.0.1/') || currentUrl.includes('localhost')) {
-            // Show the 'get-quote-button'
+        if (currentUrl.includes('kartoza-staging-v14') || currentUrl.includes('cart') || currentUrl.includes('localhost')) {
             if (quoteButton) {
                 quoteButton.style.display = 'block';
             }
         } else {
-            // Hide the 'get-quote-button'
             if (quoteButton) {
                 quoteButton.style.display = 'none';
             }
         }
 
         $('#get-quote-button, .btn-request-for-quotation').click(() => {
-            // Retrieve cart data via an API call (if required), or pass it directly if available
             const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
 
             const d = new frappe.ui.Dialog({
@@ -136,11 +133,18 @@
                         placeholder: __('Enter the recipient\'s address')
                     },
                     {
+                        fieldname: 'country',
+                        fieldtype: 'Select',
+                        label: __('Country'),
+                        options: ['South Africa', 'Other'],
+                        reqd: 1
+                    },
+                    {
                         fieldname: 'tax_id',
                         fieldtype: 'Data',
                         label: __('Tax ID'),
                         placeholder: __('Enter the recipient\'s tax ID'),
-						reqd: 1
+                        reqd: 1
                     },
                     {
                         fieldname: 'message',
@@ -151,15 +155,14 @@
                 ],
                 primary_action_label: __('Create Quote'),
                 primary_action(values) {
-                    // Custom email validation
                     if (!validateEmail(values.recipient_email)) {
                         frappe.msgprint(__('Please enter a valid email address.'));
                         return;
                     }
 
-                    // Call the server-side method to get or create a customer
+                    // Call server-side method to get or create customer
                     frappe.call({
-                        method: 'kartoza_custom.api.get_or_create_customer', // Adjust with your actual app name
+                        method: 'kartoza_custom.api.get_or_create_customer',
                         args: {
                             recipient_name: values.recipient_name,
                             recipient_email: values.recipient_email,
@@ -169,9 +172,23 @@
                         },
                         callback: function(response) {
                             const customer_name = response.message.customer_name;
-                            
-                            // Now create the quotation for the customer
-                            create_quotation(customer_name, values, cartData);
+
+                            // Fetch the default Sales Taxes and Charges Template for the company
+                            frappe.call({
+                                method: 'frappe.client.get_value',
+                                args: {
+                                    doctype: 'Sales Taxes and Charges Template',
+                                    fieldname: 'name',
+                                    filters: {
+                                        company: 'Kartoza (Pty) Ltd',
+                                        is_default: 1
+                                    }
+                                },
+                                callback: function(tax_response) {
+                                    const tax_template = tax_response.message ? tax_response.message.name : null;
+                                    create_quotation(customer_name, values, cartData, tax_template);
+                                }
+                            });
                         }
                     });
                 }
@@ -180,50 +197,81 @@
             d.show();
         });
 
-        // Function to create a new quotation
-        function create_quotation(customer_name, values, cartData) {
-            const quotationData = {
-                doctype: 'Quotation',
-                quotation_to: 'Customer',
-                party_name: customer_name,
+        function create_quotation(customer_name, values, cartData, tax_template) {
+			const quotationData = {
+				doctype: 'Quotation',
+				quotation_to: 'Customer',
+				party_name: customer_name,
 				order_type: "Shopping Cart",
 				status: "Draft",
-                contact_email: values.recipient_email,
-                contact_mobile: values.contact_phone,
-                address: values.address,  // Include address in the quotation data
-                tax_id: values.tax_id,    // Include tax_id in the quotation data
-                items: cartData.items,    // Assuming items are in the cartData
-                message_for_recipient: values.message
-            };
+				contact_email: values.recipient_email,
+				contact_mobile: values.contact_phone,
+				address: values.address,
+				tax_id: values.tax_id,
+				items: cartData.items,
+				taxes_and_charges: tax_template, // Sales Taxes and Charges Template
+				message_for_recipient: values.message,
+				company: "Kartoza (Pty) Ltd"
+			};
 
-            frappe.call({
-                method: 'frappe.client.insert',
-                args: {
-                    doc: quotationData
-                },
-                callback: function(response) {
-                    if (response.message) {
-                        const quotation = response.message;
+			// Create the Quotation
+			frappe.call({
+				method: 'frappe.client.insert',
+				args: {
+					doc: quotationData
+				},
+				callback: function(response) {
+					if (response.message) {
+						const quotation = response.message;
 
-                        // Show success message
-                        frappe.msgprint(__('Quotation has been created successfully.'));
+						// Fetch the created quotation to manually add tax lines
+						frappe.call({
+							method: 'frappe.client.get',
+							args: {
+								doctype: 'Quotation',
+								name: quotation.name
+							},
+							callback: function(get_response) {
+								const updated_quotation = get_response.message;
 
-                        // Redirect to the customer-facing quotation page (frontend URL)
-                        const quotation_url = '/proforma-quotations/' + quotation.name;  // Example: /quotations/QTN-0001
-                        window.location.href = quotation_url;
-                    }
-                }
-            });
-        }
+								// Manually add tax lines (if not added automatically by the template)
+								if (!updated_quotation.taxes || updated_quotation.taxes.length === 0) {
+									updated_quotation.taxes = [{
+										charge_type: "On Net Total",  // Change as per your tax rules
+										account_head: "2604 - VAT Payable - K",  // Set the correct tax account
+										rate: 15.0,  // Example tax rate (adjust accordingly)
+										description: "VAT 15%",
+										included_in_print_rate: 0,
+										cost_center: "Main - K"  // Set the appropriate cost center
+									}];
+								}
 
-        // Custom email validation function
+								// Save the updated quotation with taxes
+								frappe.call({
+									method: 'frappe.client.save',
+									args: {
+										doc: updated_quotation
+									},
+									callback: function(save_response) {
+										frappe.msgprint(__('Quotation has been created successfully.'));
+										const quotation_url = '/proforma-quotations/' + updated_quotation.name;
+										window.location.href = quotation_url;
+									}
+								});
+							}
+						});
+					}
+				}
+			});
+		}
+
+
         function validateEmail(email) {
             const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailPattern.test(email);
         }
     });
 </script>
-
 
 <script>
 	// Function to remove the element with id "freeze" if it exists
