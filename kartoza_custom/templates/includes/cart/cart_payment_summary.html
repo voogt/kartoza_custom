@@ -1,9 +1,17 @@
+
 <!-- Payment -->
 {% if cart_settings.enable_checkout or cart_settings.show_price_in_quotation %}
 <h6>
 	{{ _("Payment Summary") }}
 </h6>
 {% endif %}
+
+<style>
+    .frappe-control .dropdown-menu {
+        max-height: 200px; /* Adjust as per your need */
+        overflow-y: auto; /* Add vertical scroll if needed */
+    }
+</style>
 
 <div class="card h-100">
 	<div class="card-body p-0">
@@ -101,101 +109,105 @@
         }
 
         $('#get-quote-button, .btn-request-for-quotation').click(() => {
-            const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
+			const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
 
-            const d = new frappe.ui.Dialog({
-                title: __('Create Quote'),
-                fields: [
-                    {
-                        fieldname: 'recipient_name',
-                        fieldtype: 'Data',
-                        label: __('Recipient Name'),
-                        reqd: 1
-                    },
-                    {
-                        fieldname: 'recipient_email',
-                        fieldtype: 'Data',
-                        label: __('Recipient Email'),
-                        reqd: 1,
-                        options: 'Email'
-                    },
-                    {
-                        fieldname: 'contact_phone',
-                        fieldtype: 'Data',
-                        label: __('Contact Phone No'),
-                        reqd: 1
-                    },
-                    {
-                        fieldname: 'address',
-                        fieldtype: 'Text',
-                        label: __('Address'),
-                        reqd: 1,
-                        placeholder: __('Enter the recipient\'s address')
-                    },
-                    {
-                        fieldname: 'country',
-                        fieldtype: 'Select',
-                        label: __('Country'),
-                        options: ['South Africa', 'Other'],
-                        reqd: 1
-                    },
-                    {
-                        fieldname: 'tax_id',
-                        fieldtype: 'Data',
-                        label: __('Tax ID'),
-                        placeholder: __('Enter the recipient\'s tax ID'),
-                        reqd: 1
-                    },
-                    {
-                        fieldname: 'message',
-                        fieldtype: 'Small Text',
-                        label: __('Message'),
-                        placeholder: __('Optional message for the recipient')
-                    }
-                ],
-                primary_action_label: __('Create Quote'),
-                primary_action(values) {
-                    if (!validateEmail(values.recipient_email)) {
-                        frappe.msgprint(__('Please enter a valid email address.'));
-                        return;
-                    }
+			// Fetch the list of countries from ERPNext
+			frappe.call({
+				method: 'frappe.client.get_list',
+				args: {
+					doctype: 'Country',
+					fields: ['country_name']
+				},
+				callback: function(response) {
+					const countries = response.message.map(country => country.country_name);
 
-                    // Call server-side method to get or create customer
-                    frappe.call({
-                        method: 'kartoza_custom.api.get_or_create_customer',
-                        args: {
-                            recipient_name: values.recipient_name,
-                            recipient_email: values.recipient_email,
-                            contact_phone: values.contact_phone,
-                            address: values.address,
-                            tax_id: values.tax_id,
-                        },
-                        callback: function(response) {
-                            const customer_name = response.message.customer_name;
+					// Create a dialog after fetching countries
+					const d = new frappe.ui.Dialog({
+						title: __('Create Quote'),
+						fields: [
+							{
+								fieldname: 'recipient_name',
+								fieldtype: 'Data',
+								label: __('Recipient Name'),
+								reqd: 1
+							},
+							{
+								fieldname: 'recipient_email',
+								fieldtype: 'Data',
+								label: __('Recipient Email'),
+								reqd: 1,
+								options: 'Email'
+							},
+							{
+								fieldname: 'contact_phone',
+								fieldtype: 'Data',
+								label: __('Contact Phone No'),
+								reqd: 1
+							},
+							{
+								fieldname: 'address',
+								fieldtype: 'Text',
+								label: __('Address'),
+								reqd: 1,
+								placeholder: __('Enter the recipient\'s address')
+							},
+							{
+								label: __('Country'),
+								fieldname: 'country',
+								fieldtype: 'Link',
+								options: 'Country',
+								only_select: true,
+								reqd: 1
+							},
+							{
+								fieldname: 'tax_id',
+								fieldtype: 'Data',
+								label: __('Tax ID'),
+								placeholder: __('Enter the recipient\'s tax ID'),
+								reqd: 1
+							},
+							{
+								fieldname: 'message',
+								fieldtype: 'Small Text',
+								label: __('Message'),
+								placeholder: __('Optional message for the recipient')
+							}
+						],
+						primary_action_label: __('Create Quote'),
+						primary_action(values) {
+							if (!validateEmail(values.recipient_email)) {
+								frappe.msgprint(__('Please enter a valid email address.'));
+								return;
+							}
 
-                            // Fetch the default Sales Taxes and Charges Template for the company
-                            frappe.call({
-                                method: 'frappe.client.get_value',
-                                args: {
-                                    doctype: 'Sales Taxes and Charges Template',
-                                    fieldname: 'name',
-                                    filters: {
-                                        company: 'Kartoza (Pty) Ltd',
-                                        is_default: 1
-                                    }
-                                },
-                                callback: function(tax_response) {
-                                    const tax_template = tax_response.message ? tax_response.message.name : null;
-                                    create_quotation(customer_name, values, cartData, tax_template);
-                                }
-                            });
-                        }
-                    });
-                }
-            });
+							// Determine the tax template based on the country
+							let tax_template = null;
+							if (values.country === 'South Africa') {
+								tax_template = 'South Africa Tax 1';
+							}
 
-            d.show();
-        });
+							// Call server-side method to get or create customer
+							frappe.call({
+								method: 'kartoza_custom.api.get_or_create_customer',
+								args: {
+									recipient_name: values.recipient_name,
+									recipient_email: values.recipient_email,
+									contact_phone: values.contact_phone,
+									address: values.address,
+									tax_id: values.tax_id,
+								},
+								callback: function(response) {
+									const customer_name = response.message.customer_name;
+									create_quotation(customer_name, values, cartData, tax_template);
+								}
+							});
+						}
+					});
+
+					d.show();
+				}
+			});
+		});
 
         function create_quotation(customer_name, values, cartData, tax_template) {
 			const quotationData = {
