@@ -98,7 +98,7 @@
         const currentUrl = window.location.href;
         const quoteButton = document.getElementById('get-quote-button');
 
-        if (currentUrl.includes('kartoza-staging-v14') ) {
+        if (currentUrl.includes('cart') ) {
             if (quoteButton) {
                 quoteButton.style.display = 'block';
             }
@@ -221,7 +221,7 @@
 				address: values.address,
 				tax_id: values.tax_id,
 				items: cartData.items,
-				taxes_and_charges: tax_template, // Sales Taxes and Charges Template
+				// taxes_and_charges: tax_template, // Sales Taxes and Charges Template
 				message_for_recipient: values.message,
 				company: "Kartoza (Pty) Ltd"
 			};
