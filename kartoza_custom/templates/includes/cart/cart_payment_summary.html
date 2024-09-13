@@ -198,7 +198,7 @@
 								},
 								callback: function(response) {
 									const customer_name = response.message.customer_name;
-									create_quotation(customer_name, values, cartData, tax_template);
+									create_quotation(customer_name, values, cartData, tax_template, values.country);
 								}
 							});
 						}
@@ -209,7 +209,7 @@
 			});
 		});
 
-        function create_quotation(customer_name, values, cartData, tax_template) {
+        function create_quotation(customer_name, values, cartData, tax_template, country) {
 			const quotationData = {
 				doctype: 'Quotation',
 				quotation_to: 'Customer',
@@ -236,42 +236,50 @@
 					if (response.message) {
 						const quotation = response.message;
 
-						// Fetch the created quotation to manually add tax lines
-						frappe.call({
-							method: 'frappe.client.get',
-							args: {
-								doctype: 'Quotation',
-								name: quotation.name
-							},
-							callback: function(get_response) {
-								const updated_quotation = get_response.message;
+						if(country == "South Africa"){
+							// Fetch the created quotation to manually add tax lines
+							frappe.call({
+								method: 'frappe.client.get',
+								args: {
+									doctype: 'Quotation',
+									name: quotation.name
+								},
+								callback: function(get_response) {
+									const updated_quotation = get_response.message;
 
-								// Manually add tax lines (if not added automatically by the template)
-								if (!updated_quotation.taxes || updated_quotation.taxes.length === 0) {
-									updated_quotation.taxes = [{
-										charge_type: "On Net Total",  // Change as per your tax rules
-										account_head: "2604 - VAT Payable - K",  // Set the correct tax account
-										rate: 15.0,  // Example tax rate (adjust accordingly)
-										description: "VAT 15%",
-										included_in_print_rate: 0,
-										cost_center: "Main - K"  // Set the appropriate cost center
-									}];
-								}
-
-								// Save the updated quotation with taxes
-								frappe.call({
-									method: 'frappe.client.save',
-									args: {
-										doc: updated_quotation
-									},
-									callback: function(save_response) {
-										frappe.msgprint(__('Quotation has been created successfully.'));
-										const quotation_url = '/proforma-quotations/' + updated_quotation.name;
-										window.location.href = quotation_url;
+									// Manually add tax lines (if not added automatically by the template)
+									if (!updated_quotation.taxes || updated_quotation.taxes.length === 0) {
+										updated_quotation.taxes = [{
+											charge_type: "On Net Total",  // Change as per your tax rules
+											account_head: "2604 - VAT Payable - K",  // Set the correct tax account
+											rate: 15.0,  // Example tax rate (adjust accordingly)
+											description: "VAT 15%",
+											included_in_print_rate: 0,
+											cost_center: "Main - K"  // Set the appropriate cost center
+										}];
 									}
-								});
-							}
-						});
+
+									// Save the updated quotation with taxes
+									frappe.call({
+										method: 'frappe.client.save',
+										args: {
+											doc: updated_quotation
+										},
+										callback: function(save_response) {
+											frappe.msgprint(__('Quotation has been created successfully.'));
+											const quotation_url = '/proforma-quotations/' + updated_quotation.name;
+											window.location.href = quotation_url;
+										}
+									});
+								}
+							});
+						}
+
+						else{
+							frappe.msgprint(__('Quotation has been created successfully.'));
+							const quotation_url = '/proforma-quotations/' + quotation.name;
+							window.location.href = quotation_url;
+						}
 					}
 				}
 			});
