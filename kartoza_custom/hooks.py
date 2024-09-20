@@ -221,6 +221,11 @@ override_doctype_class = {
 # 	"kartoza_custom.auth.validate"
 # ]
 
+fixtures = [
+    {"doctype": "Property Setter", "filters": [["name", "in", ["Moodle Course Settings"]]]},
+    {"doctype": "Moodle Course Settings"}
+]
+
 website_route_rules = [
 	
 	{"from_route": "/proforma-quotations", "to_route": "Quotation"},
