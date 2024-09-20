@@ -222,7 +222,6 @@ override_doctype_class = {
 # ]
 
 fixtures = [
-    {"doctype": "Property Setter", "filters": [["name", "in", ["Moodle Course Settings"]]]},
     {"doctype": "Moodle Course Settings"}
 ]
 
