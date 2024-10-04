@@ -12,6 +12,7 @@ frappe.ready(function() {
         callback: function(response) {
             if (response && response.message) {
                 document.getElementById('request-btn').style.display = 'block'
+                document.getElementById('contact-btn').style.display = 'none'
                 $('#request-btn').on('click', function() {
                     // Create a dialog to ask for the email
                     const dialog = new frappe.ui.Dialog({
