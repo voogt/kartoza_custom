@@ -10,7 +10,8 @@
  "field_order": [
   "item",
   "enrollment_key",
-  "course_link"
+  "course_link",
+  "zero_rated"
  ],
  "fields": [
   {
@@ -34,11 +35,17 @@
    "in_list_view": 1,
    "label": "Course Link",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "zero_rated",
+   "fieldtype": "Check",
+   "label": "Zero Rated"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-09-19 14:34:03.706245",
+ "modified": "2024-10-04 09:42:37.354097",
  "modified_by": "Administrator",
  "module": "Kartoza Custom",
  "name": "Moodle Course Settings",
