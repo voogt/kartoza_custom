@@ -14,6 +14,7 @@ frappe.ready(function() {
             if (response.message.length != 0) {
                 document.getElementById('request-btn').style.display = 'block'
                 document.getElementById('contact-btn').style.display = 'none'
+                const doc_details = response.message;
                 $('#request-btn').on('click', function() {
                     // Create a dialog to ask for the email
                     const dialog = new frappe.ui.Dialog({
@@ -36,7 +37,6 @@ frappe.ready(function() {
                                 return;
                             }
                 
-                            const doc_details = response.message; // If this script runs within a form, else fetch details separately
                 
                             // Send email with details from Doctype
                             frappe.call({
