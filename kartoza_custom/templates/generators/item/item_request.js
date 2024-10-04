@@ -43,12 +43,12 @@ frappe.ready(function() {
                                 method: 'frappe.core.doctype.communication.email.make',
                                 args: {
                                     recipients: values.email,
-                                    subject: `Details for ${doc_details.item}`,
+                                    subject: `Details for ${doc_details[0].item}`,
                                     content: `<p>Here are the details you requested:</p>
-                                              <p>Course Enrollment key: ${doc_details.enrollment_key}</p>
-                                              <p>Course Link: ${doc_details.course_link}</p>`,
-                                    doctype: doc_details.item,
-                                    name: doc_details.item, // Assuming the 'name' field holds the identifier
+                                              <p>Course Enrollment key: ${doc_details[0].enrollment_key}</p>
+                                              <p>Course Link: ${doc_details[0].course_link}</p>`,
+                                    doctype: doc_details[0].item,
+                                    name: doc_details[0].item, // Assuming the 'name' field holds the identifier
                                     send_email: 1
                                 },
                                 callback: function(response) {
