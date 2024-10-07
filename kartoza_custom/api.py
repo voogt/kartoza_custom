@@ -1,3 +1,4 @@
+import json
 import frappe
 from frappe import whitelist
 from frappe import _
@@ -59,6 +60,10 @@ def get_moodle_course_settings(item):
 @frappe.whitelist(allow_guest=True)
 def send_course_details_email(email, doc_details):
     try:
+        # Parse doc_details if it's a JSON string
+        if isinstance(doc_details, str):
+            doc_details = json.loads(doc_details)
+        
         subject = f"Details for {doc_details.get('item')}"
         message = f"""
             <p>Here are the details you requested:</p>
@@ -71,7 +76,7 @@ def send_course_details_email(email, doc_details):
             recipients=email,
             subject=subject,
             message=message,
-            sender="notifications@erpnext.com"
+            sender="Kartoza <notifications@erpnext.com>"
         )
         return {"status": "success", "message": _("Email sent successfully.")}
     
