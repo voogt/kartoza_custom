@@ -5,11 +5,11 @@ frappe.ready(function() {
             item: item
         },
         callback: function(response) {
-            console.log(response)
+            console.log(response);
             if (response.message.length != 0) {
-                document.getElementById('request-btn').style.display = 'block'
-                document.getElementById('contact-btn').style.display = 'none'
-                const doc_details = response.message;
+                document.getElementById('request-btn').style.display = 'block';
+                document.getElementById('contact-btn').style.display = 'none';
+                const doc_details = response.message[0];
                 $('#request-btn').on('click', function() {
                     // Create a dialog to ask for the email
                     const dialog = new frappe.ui.Dialog({
@@ -32,25 +32,19 @@ frappe.ready(function() {
                                 return;
                             }
                 
-                
-                            // Send email with details from Doctype
+                            // Call the server-side method to send email
                             frappe.call({
-                                method: 'frappe.core.doctype.communication.email.make',
+                                method: 'kartoza_custom.api.send_course_details_email',
                                 args: {
-                                    recipients: values.email,
-                                    subject: `Details for ${doc_details[0].item}`,
-                                    content: `<p>Here are the details you requested:</p>
-                                              <p>Course Enrollment key: ${doc_details[0].enrollment_key}</p>
-                                              <p>Course Link: ${doc_details[0].course_link}</p>`,
-                                    doctype: 'Moodle Course Settings',
-                                    name: doc_details[0].item, // Assuming the 'name' field holds the identifier
-                                    sender_full_name: 'Kartoza',
-                                    send_email: 1
+                                    email: values.email,
+                                    doc_details: doc_details
                                 },
                                 callback: function(response) {
-                                    if (!response.exc) {
+                                    if (response.message.status === 'success') {
                                         frappe.msgprint(`Email sent successfully to ${values.email}`);
                                         dialog.hide();
+                                    } else {
+                                        frappe.msgprint('Failed to send email.');
                                     }
                                 }
                             });
@@ -61,13 +55,11 @@ frappe.ready(function() {
                     dialog.show();
                 });
             } else {
-                console.log("None found")
+                console.log("None found");
             }
         },
         error: function(err) {
             console.error("Error fetching records:", err);
         }
     });
-
-    
 });

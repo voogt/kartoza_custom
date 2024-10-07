@@ -54,3 +54,25 @@ def get_moodle_course_settings(item):
         fields=['item', 'enrollment_key', 'course_link'],
         filters={'item': item, 'zero_rated': 1}
     )
+
+@frappe.whitelist(allow_guest=True)
+def send_course_details_email(email, doc_details):
+    try:
+        subject = f"Details for {doc_details.get('item')}"
+        message = f"""
+            <p>Here are the details you requested:</p>
+            <p>Course Enrollment key: {doc_details.get('enrollment_key')}</p>
+            <p>Course Link: {doc_details.get('course_link')}</p>
+        """
+
+        # Send the email
+        frappe.sendmail(
+            recipients=email,
+            subject=subject,
+            message=message,
+            sender="Kartoza"
+        )
+        return {"status": "success", "message": _("Email sent successfully.")}
+    
+    except Exception as e:
+        frappe.throw(_("Unable to send email. Please try again later."))
