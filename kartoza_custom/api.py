@@ -71,7 +71,7 @@ def send_course_details_email(email, doc_details):
             recipients=email,
             subject=subject,
             message=message,
-            sender="Kartoza"
+            sender="Kartoza <notifications@erpnext.com>"
         )
         return {"status": "success", "message": _("Email sent successfully.")}
     
