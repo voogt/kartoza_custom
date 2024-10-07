@@ -35,7 +35,7 @@ frappe.ready(function() {
                 
                             // Send email with details from Doctype
                             frappe.call({
-                                method: 'frappe.core.doctype.communication.email.sendmail',
+                                method: 'frappe.core.doctype.communication.email.make',
                                 args: {
                                     recipients: values.email,
                                     subject: `Details for ${doc_details[0].item}`,
