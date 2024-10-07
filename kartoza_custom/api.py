@@ -76,4 +76,4 @@ def send_course_details_email(email, doc_details):
         return {"status": "success", "message": _("Email sent successfully.")}
     
     except Exception as e:
-        frappe.throw(_("Unable to send email. Please try again later."))
+        frappe.throw(_(f"Unable to send email. Please try again later. {e}"))
