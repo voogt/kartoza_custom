@@ -1,5 +1,6 @@
 import frappe
 from frappe import whitelist
+from frappe import _
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
