@@ -1,4 +1,5 @@
 import frappe
+from frappe import whitelist
 
 @frappe.whitelist()
 def get_latest_quotation_items():
