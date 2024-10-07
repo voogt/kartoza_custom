@@ -1,7 +1,7 @@
 import frappe
 from frappe import whitelist
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
     # Fetch the latest Quotation for the current user (customer)
     user = frappe.session.user
@@ -21,7 +21,7 @@ def get_latest_quotation_items():
 
 import frappe
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_id):
     # Check if customer exists
     customer = frappe.db.get_value('Customer', {'customer_name': recipient_name}, 'name')
@@ -47,7 +47,7 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_i
     
     return {'customer_name': new_customer.name}
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_moodle_course_settings(item):
     return frappe.get_list(
         'Moodle Course Settings',
