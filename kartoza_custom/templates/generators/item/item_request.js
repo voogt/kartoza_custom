@@ -44,6 +44,7 @@ frappe.ready(function() {
                                               <p>Course Link: ${doc_details[0].course_link}</p>`,
                                     doctype: 'Moodle Course Settings',
                                     name: doc_details[0].item, // Assuming the 'name' field holds the identifier
+                                    sender_full_name: 'Kartoza',
                                     send_email: 1
                                 },
                                 callback: function(response) {
