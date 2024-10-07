@@ -1,13 +1,8 @@
 frappe.ready(function() {
     frappe.call({
-        method: 'frappe.client.get_list',
+        method: 'kartoza_custom.api.get_moodle_course_settings',
         args: {
-            doctype: 'Moodle Course Settings',
-            fields: ['item', 'enrollment_key', 'course_link'],
-            filters: {
-                item: item,
-                zero_rated: 1
-            }
+            item: item
         },
         callback: function(response) {
             console.log(response)
@@ -40,7 +35,7 @@ frappe.ready(function() {
                 
                             // Send email with details from Doctype
                             frappe.call({
-                                method: 'frappe.core.doctype.communication.email.make',
+                                method: 'frappe.core.doctype.communication.email.sendmail',
                                 args: {
                                     recipients: values.email,
                                     subject: `Details for ${doc_details[0].item}`,

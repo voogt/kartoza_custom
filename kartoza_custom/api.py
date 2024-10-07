@@ -45,3 +45,11 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_i
     frappe.db.commit()
     
     return {'customer_name': new_customer.name}
+
+@frappe.whitelist()
+def get_moodle_course_settings(item):
+    return frappe.get_list(
+        'Moodle Course Settings',
+        fields=['item', 'enrollment_key', 'course_link'],
+        filters={'item': item, 'zero_rated': 1}
+    )
