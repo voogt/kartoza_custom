@@ -76,7 +76,8 @@ def send_course_details_email(email, doc_details):
             recipients=email,
             subject=subject,
             message=message,
-            sender="Kartoza <notifications@erpnext.com>"
+            sender="Kartoza <notifications@erpnext.com>",
+            now=True
         )
         return {"status": "success", "message": _(f"""Email being sent to {email}. Please allow a few minutes for the email to reach your inbox. If it doesn't appear after a while, kindly check your spam folder or contact us for assistance.""")}
     
