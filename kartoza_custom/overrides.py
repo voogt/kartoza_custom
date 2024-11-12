@@ -28,12 +28,12 @@ def get_shopping_cart_settings_f():
 	settings = frappe.get_cached_doc('E Commerce Settings')
 
 	if frappe.cache().get_value('currency') == None:
-		frappe.cache().set_value("currency", settings.price_list)
+		frappe.cache().set_value("currency", '2025 Standard Selling - ZAR')
 		frappe.cache().set_value("payment_account", settings.payment_gateway_account)
 
 	price_list = frappe.cache().get_value('currency')
 
-	settings.price_list = price_list
+	settings.price_list = '2025 Standard Selling - ZAR'
 	
 	return settings
 
@@ -325,9 +325,9 @@ def make_payment_request_f(**args):
 
 	
 # Override methods
-# e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
-# _cart_settings.apply_cart_settings = apply_cart_settings_f
-# _cart_settings.get_cart_quotation = get_cart_quotation_f
-# _cart_settings.set_taxes = set_taxes_f
-# _sales_order.make_sales_invoice = make_sales_invoice_f
-# make_payment_request_settings.make_payment_request = make_payment_request_f
+e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
+_cart_settings.apply_cart_settings = apply_cart_settings_f
+_cart_settings.get_cart_quotation = get_cart_quotation_f
+_cart_settings.set_taxes = set_taxes_f
+_sales_order.make_sales_invoice = make_sales_invoice_f
+make_payment_request_settings.make_payment_request = make_payment_request_f
