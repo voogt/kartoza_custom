@@ -69,6 +69,7 @@ def send_course_details_email(email, doc_details):
             <p>Here are the details you requested:</p>
             <p>Course Enrollment key: {doc_details.get('enrollment_key')}</p>
             <p>Course Link: {doc_details.get('course_link')}</p>
+            <p>Please access the course as a guest.</p>
         """
 
         # Send the email
