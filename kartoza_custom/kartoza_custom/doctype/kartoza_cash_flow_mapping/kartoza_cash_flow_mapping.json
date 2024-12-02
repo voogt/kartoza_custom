@@ -17,7 +17,8 @@
   "is_finance_cost_adjustment",
   "is_income_tax_liability",
   "is_income_tax_expense",
-  "is_asset_purchase"
+  "is_asset_purchase",
+  "is_asset_sale"
  ],
  "fields": [
   {
@@ -82,11 +83,17 @@
    "fieldname": "is_asset_purchase",
    "fieldtype": "Check",
    "label": "Is Asset Purchase"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_asset_sale",
+   "fieldtype": "Check",
+   "label": "is Asset Sale"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-12-02 08:17:06.085390",
+ "modified": "2024-12-02 09:21:40.438992",
  "modified_by": "Administrator",
  "module": "Kartoza Custom",
  "name": "Kartoza Cash Flow Mapping",
