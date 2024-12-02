@@ -20,7 +20,8 @@ from erpnext.accounts.utils import get_fiscal_year
 
 
 def execute(filters=None):
-	if cint(frappe.db.get_single_value("Accounts Settings", "use_custom_cash_flow")):
+	use_custom_cash_flow = True
+	if use_custom_cash_flow:
 		from kartoza_custom.kartoza_custom.report.kartoza_cash_flow.custom_kartoza_cash_flow import execute as execute_custom
 
 		return execute_custom(filters=filters)
