@@ -229,7 +229,10 @@ fixtures = [
     {"doctype": "Kartoza Cash Flow Mapping Template Details"},
     {"doctype": "Kartoza Cash Flow Mapping Accounts"},
     {"doctype": "Kartoza Reports"},
-    {"dt": "Report", "filters": [["name", "in", ["Kartoza Cash Flow"]]]}
+	{
+	"doctype": "Report",
+	"filters": [["name", "in", ["Kartoza Cash Flow"]]]
+   }
 ]
 
 website_route_rules = [
