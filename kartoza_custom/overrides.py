@@ -323,6 +323,7 @@ def make_payment_request_f(**args):
 
 	return pr.as_dict()
 
+
 	
 # Override methods
 # e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
