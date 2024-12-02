@@ -1,0 +1,131 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:mapping_name",
+ "creation": "2024-11-27 10:35:31.470525",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "mapping_name",
+  "label",
+  "accounts",
+  "sb_1",
+  "is_finance_cost",
+  "is_working_capital",
+  "is_finance_cost_adjustment",
+  "is_income_tax_liability",
+  "is_income_tax_expense",
+  "is_asset_purchase",
+  "is_asset_sale"
+ ],
+ "fields": [
+  {
+   "fieldname": "mapping_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label",
+   "reqd": 1
+  },
+  {
+   "fieldname": "accounts",
+   "fieldtype": "Table",
+   "label": "Accounts",
+   "options": "Kartoza Cash Flow Mapping Accounts",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sb_1",
+   "fieldtype": "Section Break",
+   "label": "Select Maximum Of 1"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_finance_cost",
+   "fieldtype": "Check",
+   "label": "Is Finance Cost"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_working_capital",
+   "fieldtype": "Check",
+   "label": "Is Working Capital"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_finance_cost_adjustment",
+   "fieldtype": "Check",
+   "label": "Is Finance Cost Adjustment"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_income_tax_liability",
+   "fieldtype": "Check",
+   "label": "Is Income Tax Liability"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_income_tax_expense",
+   "fieldtype": "Check",
+   "label": "Is Income Tax Expense"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_asset_purchase",
+   "fieldtype": "Check",
+   "label": "Is Asset Purchase"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_asset_sale",
+   "fieldtype": "Check",
+   "label": "is Asset Sale"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2024-12-02 09:21:40.438992",
+ "modified_by": "Administrator",
+ "module": "Kartoza Custom",
+ "name": "Kartoza Cash Flow Mapping",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

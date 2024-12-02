@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:section_name",
+ "creation": "2024-11-27 10:28:00.452326",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_name",
+  "section_header",
+  "section_leader",
+  "section_subtotal",
+  "section_footer",
+  "accounts",
+  "position"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Section Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_header",
+   "fieldtype": "Data",
+   "label": "Section Header"
+  },
+  {
+   "fieldname": "section_leader",
+   "fieldtype": "Data",
+   "label": "Section Leader"
+  },
+  {
+   "fieldname": "section_subtotal",
+   "fieldtype": "Data",
+   "label": "Section Subtotal"
+  },
+  {
+   "fieldname": "section_footer",
+   "fieldtype": "Data",
+   "label": "Section Footer"
+  },
+  {
+   "fieldname": "accounts",
+   "fieldtype": "Table",
+   "label": "Accounts",
+   "options": "Kartoza Cash Flow Mapping Template Details"
+  },
+  {
+   "fieldname": "position",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Position",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2024-11-27 12:18:36.698448",
+ "modified_by": "Administrator",
+ "module": "Kartoza Custom",
+ "name": "Kartoza Cash Flow Mapper",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

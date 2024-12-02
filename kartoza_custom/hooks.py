@@ -222,7 +222,17 @@ override_doctype_class = {
 # ]
 
 fixtures = [
-    {"doctype": "Moodle Course Settings"}
+    {"doctype": "Moodle Course Settings"},
+    {"doctype": "Kartoza Cash Flow Mapping"},
+    {"doctype": "Kartoza Cash Flow Mapping Template"},
+    {"doctype": "Kartoza Cash Flow Mapper"},
+    {"doctype": "Kartoza Cash Flow Mapping Template Details"},
+    {"doctype": "Kartoza Cash Flow Mapping Accounts"},
+    {"doctype": "Kartoza Reports"},
+	{
+	"doctype": "Report",
+	"filters": [["name", "in", ["Kartoza Cash Flow"]]]
+   }
 ]
 
 website_route_rules = [
