@@ -166,8 +166,8 @@ function get_filters() {
 			fieldname: "filter_based_on",
 			label: __("Filter Based On"),
 			fieldtype: "Select",
-			options: [ "Date Range"],
-			// default: ["Fiscal Year"],
+			options: ["Fiscal Year", "Date Range"],
+			default: ["Fiscal Year"],
 			reqd: 1,
 			on_change: function () {
 				let filter_based_on = frappe.query_report.get_filter_value("filter_based_on");
@@ -207,7 +207,7 @@ function get_filters() {
 			label: __("Start Year"),
 			fieldtype: "Link",
 			options: "Fiscal Year",
-			// default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
+			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
 			reqd: 1,
 			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
 		},
@@ -216,7 +216,7 @@ function get_filters() {
 			label: __("End Year"),
 			fieldtype: "Link",
 			options: "Fiscal Year",
-			// default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
+			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
 			reqd: 1,
 			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
 		},
