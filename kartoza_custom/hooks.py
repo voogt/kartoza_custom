@@ -229,6 +229,7 @@ fixtures = [
     {"doctype": "Kartoza Cash Flow Mapping Template Details"},
     {"doctype": "Kartoza Cash Flow Mapping Accounts"},
     {"doctype": "Kartoza Reports"},
+    {"doctype": "EasyFile txt generator"},
 	{
 	"doctype": "Report",
 	"filters": [["name", "in", ["Kartoza Cash Flow"]]]
