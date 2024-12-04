@@ -172,12 +172,16 @@ def export_report_to_text(start_date, end_date, transaction_year):
     export_lines = []
 
     for line in output_lines:
-        # Format the line as a comma-separated string
-        formatted_line = ','.join(map(str, line))
+        # Format each item in the line
+        formatted_line = ','.join(
+            f'"{item}"' if not isinstance(item, (int, float)) else str(item)
+            for item in line
+        )
         export_lines.append(formatted_line)
 
     # Return the formatted lines
     return '\n'.join(export_lines)
+
 
 
 def get_initials(name):
