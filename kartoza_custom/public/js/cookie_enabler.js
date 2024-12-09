@@ -7,18 +7,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="container" style="border:none">
                         <div class="modal-content" style="border:none">
                             <div class="modal-body" id="modal-cookie" style="border:none"> 
-                                <div class="row">
-                                    <div class="col-md-2">
+                                <button type="button" class="close" id="closeBanner">&times;</button>
+                                <div class="row" style="align-items: center;">
+                                    <div class="col-md-2 col-sm-12" id="cookie-header">
                                         <h5 class="modal-title">Cookie Consent</h5>
                                     </div>
-                                    <div class='col-md-6'>
-                                        <p>This website uses cookies to ensure you get the best experience.</p>
+                                    <div class='col-md-6 col-sm-12' id="cookie-text">
+                                        <p style='margin-bottom:0px !important;'> This website uses cookies to ensure you get the best experience.</p>
                                     </div>
-                                    <div class='col-md-3'>
+                                    <div class='col-md-3 col-sm-12'>
                                         <div>
                                             <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
                                             <button type="button" class="btn btn-primary" id="declineCookies">Decline</button>
-                                            <button type="button" class="close" id="closeBanner">&times;</button>
+                                            
                                         </div>
                                     </div>
                                 </div>
