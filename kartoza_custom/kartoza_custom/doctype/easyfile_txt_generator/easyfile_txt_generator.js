@@ -13,11 +13,27 @@ frappe.ui.form.on('EasyFile txt generator', {
 		},
 		callback: function(r) {
 			if (r.message) {
+				const inputFormatB = "YYYY-MM-DD"; // Input format for reference
+				const dateObject = new Date(frm.doc.end_date); // Converts the string to a Date object
+
+				// Extract the month (0-based index in JavaScript, so we add 1)
+				const month = dateObject.getMonth() + 1;
+
+				let fileName = "";
+				const transactionYear = frm.doc.transaction_year // Get the year from the date
+
+				// Check the month and set the file name accordingly
+				if (month === 2) {
+					fileName = `YE_${transactionYear}`;
+				} else if (month === 8) {
+					fileName = `Mid_${transactionYear}`;
+				}
+
 				const blob = new Blob([r.message], { type: "text/plain" });
 				console.log("BLOB", blob)
 				const link = document.createElement("a");
 				link.href = window.URL.createObjectURL(blob);
-				link.download = `EMP501 Reconciliation.txt`;
+				link.download = fileName;
 				link.click();
 			}
 		},
