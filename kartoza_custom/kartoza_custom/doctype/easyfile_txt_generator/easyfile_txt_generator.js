@@ -24,9 +24,9 @@ frappe.ui.form.on('EasyFile txt generator', {
 
 				// Check the month and set the file name accordingly
 				if (month === 2) {
-					fileName = `YE_${transactionYear}`;
+					fileName = `YE_${transactionYear}.txt`;
 				} else if (month === 8) {
-					fileName = `Mid_${transactionYear}`;
+					fileName = `Mid_${transactionYear}.txt`;
 				}
 
 				const blob = new Blob([r.message], { type: "text/plain" });
