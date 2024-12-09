@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <div class='col-md-6 col-sm-12' id="cookie-text">
                                         <p style='margin-bottom:0px !important;'> This website uses cookies to ensure you get the best experience.</p>
                                     </div>
-                                    <div class='col-md-3 col-sm-12'>
+                                    <div class='col-md-3 col-sm-12' id="cookie-btn">
                                         <div>
                                             <button type="button" class="btn btn-primary" id="acceptCookies">Accept</button>
                                             <button type="button" class="btn btn-primary" id="declineCookies">Decline</button>

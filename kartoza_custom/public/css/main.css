@@ -35,17 +35,46 @@
     height: 100%;
 }
 
-
-@media only screen and (max-width: 874px) {
+/* @media only screen and (max-width: 990px) {
     #cookieConsentBanner {
-        height: 200px;
+        height: 120px;
     }
 
     #cookie-header{
+        flex: 0 0 100%;
+        max-width: 100% !important;
         height: 50px;
     }
 
     #cookie-text{
+        flex: 0 0 100%;
+        max-width: 100% !important;
+        height: 80px;
+    }
+} */
+
+
+@media only screen and (max-width: 992px) {
+    #cookieConsentBanner {
+        height: 200px;
+        
+    }
+
+    #cookie-header{
         height: 50px;
+        flex: 0 0 100%;
+        max-width: 100% !important;
+    }
+
+    #cookie-text{
+        height: 80px;
+        flex: 0 0 100%;
+        max-width: 100% !important;
+    }
+
+    #cookie-btn{
+        height: 80px;
+        flex: 0 0 100%;
+        max-width: 100% !important;
     }
 }
