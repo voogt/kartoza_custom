@@ -232,7 +232,7 @@ fixtures = [
     {"doctype": "EasyFile txt generator"},
 	{
 	"doctype": "Report",
-	"filters": [["name", "in", ["Kartoza Cash Flow"]]]
+	"filters": [["name", "in", ["Kartoza Cash Flow", "Consolidated Financial Statement (All Companies)"]]]
    }
 ]
 
