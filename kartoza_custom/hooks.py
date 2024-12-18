@@ -19,7 +19,8 @@ app_include_js = [
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
 web_include_js = [
     f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}",
-    f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}"
+    f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/shopping_cart.js?v={datetime.now()}"
 ]
 
 # include custom scss in every website theme (without file extension ".scss")
