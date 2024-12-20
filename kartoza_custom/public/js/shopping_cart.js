@@ -21,8 +21,6 @@ var getParams = function (url) {
 frappe.ready(function () {
 	var user = frappe.session && frappe.session.user;
 
-    console.log(user)
-
     if (user && user !== 'Guest') {
 
         if (localStorage.getItem("guest_cart")) {

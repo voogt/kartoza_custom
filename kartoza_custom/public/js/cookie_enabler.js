@@ -1,30 +1,24 @@
-// Function to dynamically add GTM script to the page
 function loadGTM() {
     const script = document.createElement('script');
     script.src = 'https://www.googletagmanager.com/gtag/js?id=GTM-K5ZVLM2';
     script.async = true;
     document.head.appendChild(script);
 
-    // // Once the script is loaded, initialize gtag
-    // script.onload = function() {
-    //     // Initialize gtag function
-    //     window.dataLayer = window.dataLayer || [];
-    //     function gtag() {
-    //         window.dataLayer.push(arguments);
-    //     }
-    //     gtag('js', new Date());
-
-    //     // Example of using gtag to track pageview
-    //     gtag('config', 'GTM-K5ZVLM2');
-    // };
+    // Initialize gtag after the script is loaded
+    script.onload = function() {
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function() {
+            window.dataLayer.push(arguments);
+        };
+        gtag('js', new Date());
+        gtag('config', 'GTM-K5ZVLM2');
+    };
 }
-
-// Load GTM when the page is ready or as needed
 
 document.addEventListener('DOMContentLoaded', function () {
     loadGTM();
+
     if (!getCookie('cookieConsent') && !getCookie('cookieDecline')) {
-        // Inject banner HTML if not already present
         if (!document.getElementById('cookieConsentBanner')) {
             var bannerHtml = `
                 <div id="cookieConsentBanner">
@@ -54,7 +48,6 @@ document.addEventListener('DOMContentLoaded', function () {
             document.body.insertAdjacentHTML('beforeend', bannerHtml);
         }
 
-        // Show banner
         document.getElementById('cookieConsentBanner').style.display = 'block';
 
         document.getElementById('acceptCookies').onclick = function () {
@@ -73,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
     } else if (getCookie('cookieConsent')) {
-        loadGoogleTagManagerGranted(); // Load GTM if the user has already accepted cookies
+        loadGoogleTagManagerGranted();
     }
 });
 
@@ -99,21 +92,27 @@ function getCookie(name) {
 }
 
 function loadGoogleTagManagerGranted() {
-    // Google Tag Manager code insertion
-    gtag('consent', 'update', {
-        'ad_user_data': 'granted',
-        'ad_personalization': 'granted',
-        'ad_storage': 'granted',
-        'analytics_storage': 'granted'
-    });
+    if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+            'ad_user_data': 'granted',
+            'ad_personalization': 'granted',
+            'ad_storage': 'granted',
+            'analytics_storage': 'granted'
+        });
+    } else {
+        console.error('gtag is not defined yet.');
+    }
 }
 
 function loadGoogleTagManagerDenied() {
-    // Google Tag Manager code insertion
-    gtag('consent', 'update', {
-        'ad_user_data': 'denied',
-        'ad_personalization': 'denied',
-        'ad_storage': 'denied',
-        'analytics_storage': 'denied'
-    });
+    if (typeof gtag === 'function') {
+        gtag('consent', 'update', {
+            'ad_user_data': 'denied',
+            'ad_personalization': 'denied',
+            'ad_storage': 'denied',
+            'analytics_storage': 'denied'
+        });
+    } else {
+        console.error('gtag is not defined yet.');
+    }
 }
