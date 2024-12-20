@@ -1,4 +1,28 @@
+// Function to dynamically add GTM script to the page
+function loadGTM() {
+    const script = document.createElement('script');
+    script.src = 'https://www.googletagmanager.com/gtag/js?id=GTM-K5ZVLM2';
+    script.async = true;
+    document.head.appendChild(script);
+
+    // // Once the script is loaded, initialize gtag
+    // script.onload = function() {
+    //     // Initialize gtag function
+    //     window.dataLayer = window.dataLayer || [];
+    //     function gtag() {
+    //         window.dataLayer.push(arguments);
+    //     }
+    //     gtag('js', new Date());
+
+    //     // Example of using gtag to track pageview
+    //     gtag('config', 'GTM-K5ZVLM2');
+    // };
+}
+
+// Load GTM when the page is ready or as needed
+
 document.addEventListener('DOMContentLoaded', function () {
+    loadGTM();
     if (!getCookie('cookieConsent') && !getCookie('cookieDecline')) {
         // Inject banner HTML if not already present
         if (!document.getElementById('cookieConsentBanner')) {
