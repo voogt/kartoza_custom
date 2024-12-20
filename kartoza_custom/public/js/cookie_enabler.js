@@ -1,7 +1,7 @@
 // Function to dynamically add GTM script to the page
 function loadGTM(callback) {
     const script = document.createElement('script');
-    script.src = 'https://www.googletagmanager.com/gtag/js?id=GTM-K5ZVLM2';
+    script.src = 'https://www.googletagmanager.com/gtag/js?id=G-Q0PPBT1N7V';
     script.async = true;
 
     // Initialize gtag after the script has loaded
@@ -12,7 +12,7 @@ function loadGTM(callback) {
         }
         window.gtag = gtag; // Make gtag globally accessible
         gtag('js', new Date());
-        gtag('config', 'GTM-K5ZVLM2');
+        gtag('config', 'G-Q0PPBT1N7V');
 
         if (typeof callback === 'function') {
             callback(); // Trigger the callback after gtag is initialized
@@ -46,6 +46,27 @@ function loadGoogleTagManagerDenied() {
     } else {
         console.error('gtag is not defined yet.');
     }
+}
+
+function setCookie(name, value, days) {
+    var expires = "";
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "") + expires + "; path=/";
+}
+
+function getCookie(name) {
+    var nameEQ = name + "=";
+    var ca = document.cookie.split(';');
+    for (var i = 0; i < ca.length; i++) {
+        var c = ca[i];
+        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
 }
 
 // Load GTM when the page is ready or as needed
@@ -103,23 +124,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
-function setCookie(name, value, days) {
-    var expires = "";
-    if (days) {
-        var date = new Date();
-        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "") + expires + "; path=/";
-}
 
-function getCookie(name) {
-    var nameEQ = name + "=";
-    var ca = document.cookie.split(';');
-    for (var i = 0; i < ca.length; i++) {
-        var c = ca[i];
-        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-    }
-    return null;
-}
