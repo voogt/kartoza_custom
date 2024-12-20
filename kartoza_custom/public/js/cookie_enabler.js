@@ -35,12 +35,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('acceptCookies').onclick = function () {
             setCookie('cookieConsent', 'true', 365);
-            loadGoogleTagManager();
+            loadGoogleTagManagerGranted();
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
 
         document.getElementById('declineCookies').onclick = function () {
             setCookie('cookieDecline', 'true', 365);
+            loadGoogleTagManagerDenied();
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
 
@@ -48,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('cookieConsentBanner').style.display = 'none';
         };
     } else if (getCookie('cookieConsent')) {
-        loadGoogleTagManager(); // Load GTM if the user has already accepted cookies
+        loadGoogleTagManagerGranted(); // Load GTM if the user has already accepted cookies
     }
 });
 
@@ -73,11 +74,22 @@ function getCookie(name) {
     return null;
 }
 
-function loadGoogleTagManager() {
+function loadGoogleTagManagerGranted() {
     // Google Tag Manager code insertion
-    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-K5ZVLM25'); // Replace 'GTM-XXXXXX' with your actual GTM ID
+    gtag('consent', 'update', {
+        'ad_user_data': 'granted',
+        'ad_personalization': 'granted',
+        'ad_storage': 'granted',
+        'analytics_storage': 'granted'
+    });
+}
+
+function loadGoogleTagManagerDenied() {
+    // Google Tag Manager code insertion
+    gtag('consent', 'update', {
+        'ad_user_data': 'denied',
+        'ad_personalization': 'denied',
+        'ad_storage': 'denied',
+        'analytics_storage': 'denied'
+    });
 }
