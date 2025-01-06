@@ -20,14 +20,27 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
 	execute as get_ageing,
 )
+from frappe.utils.pdf import get_pdf
 
-from erpnext.accounts.doctype.process_statement_of_accounts import process_statement_of_accounts
+from erpnext.accounts.doctype.process_statement_of_accounts import process_statement_of_accounts as _process_statement_of_accounts
 
 
 class MultiCurrency(Document):
     def onload(self):
         pass
 		
+def get_report_pdf_f(doc, consolidated=True):
+	statement_dict = _process_statement_of_accounts.get_statement_dict(doc)
+	if not bool(statement_dict):
+		return False
+	elif consolidated:
+		delimiter = '<div style="page-break-before: always;"></div>' if doc.include_break else ""
+		result = delimiter.join(list(statement_dict.values()))
+		return get_pdf(result, {"orientation": doc.orientation})
+	else:
+		for customer, statement_html in statement_dict.items():
+			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation})
+		return statement_dict
 
 def set_ageing_f(doc, entry):
 	print("PICKED UP")
@@ -360,4 +373,4 @@ _cart_settings.get_cart_quotation = get_cart_quotation_f
 _cart_settings.set_taxes = set_taxes_f
 _sales_order.make_sales_invoice = make_sales_invoice_f
 make_payment_request_settings.make_payment_request = make_payment_request_f
-process_statement_of_accounts.set_ageing = set_ageing_f
+_process_statement_of_accounts.set_ageing = set_ageing_f
