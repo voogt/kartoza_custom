@@ -43,7 +43,6 @@ def get_report_pdf_f(doc, consolidated=True):
 		return statement_dict
 
 def set_ageing_f(doc, entry):
-	print("PICKED UP")
 	ageing_filters = frappe._dict(
 		{
 			"company": doc.company,
@@ -70,7 +69,7 @@ def get_shopping_cart_settings_f():
 	settings = frappe.get_cached_doc('E Commerce Settings')
 
 	if frappe.cache().get_value('currency') == None:
-		frappe.cache().set_value("currency", '2025 Standard Selling - ZAR')
+		frappe.cache().set_value("currency", settings.price_list)
 		frappe.cache().set_value("payment_account", settings.payment_gateway_account)
 
 	price_list = frappe.cache().get_value('currency')
