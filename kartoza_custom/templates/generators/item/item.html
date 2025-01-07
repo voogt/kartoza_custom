@@ -77,6 +77,13 @@
 {% block base_scripts %}
 <!-- js should be loaded in body! -->
 <script type="text/javascript" src="/assets/frappe/js/lib/jquery/jquery.min.js"></script>
+<script>
+	gtag('event', 'add_to_cart', {
+		'event_category': 'ecommerce',
+		'event_label': '{{ item_name }}',
+		'value': '{{ item_price }}'
+		});
+</script>
 {{ include_script("frappe-web.bundle.js") }}
 {{ include_script("controls.bundle.js") }}
 {{ include_script("dialog.bundle.js") }}

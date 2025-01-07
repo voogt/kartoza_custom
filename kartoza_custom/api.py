@@ -43,7 +43,7 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_i
         'tax_id': tax_id,
         'tax_category': "VAT"
     })
-    
+    new_customer.flags.ignore_permissions = True
     new_customer.insert()
     frappe.db.commit()
     

@@ -95,202 +95,179 @@
 </script> -->
 <script>
     frappe.ready(() => {
-        const currentUrl = window.location.href;
-        const quoteButton = document.getElementById('get-quote-button');
+    const currentUrl = window.location.href;
+    const quoteButton = document.getElementById('get-quote-button');
 
-        if (currentUrl.includes('kartoza-staging-v14') ) {
-            if (quoteButton) {
-                quoteButton.style.display = 'block';
-            }
-        } else {
-            if (quoteButton) {
-                quoteButton.style.display = 'none';
-            }
+    if (currentUrl.includes('kartoza-staging-v14') || currentUrl.includes('localhost')) {
+        if (quoteButton) {
+            quoteButton.style.display = 'block';
         }
+    }
 
-        $('#get-quote-button, .btn-request-for-quotation').click(() => {
-			const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
+    $('#get-quote-button, .btn-request-for-quotation').click(() => {
+        const cartData = {{ doc | json }}; // Assuming 'doc' contains cart data
 
-			// Fetch the list of countries from ERPNext
-			frappe.call({
-				method: 'frappe.client.get_list',
-				args: {
-					doctype: 'Country',
-					fields: ['country_name']
-				},
-				callback: function(response) {
-					const countries = response.message.map(country => country.country_name);
+        // Fetch the list of countries from ERPNext
+        frappe.call({
+            method: 'frappe.client.get_list',
+            args: {
+                doctype: 'Country',
+                fields: ['country_name']
+            },
+            callback: function(response) {
+                const countries = response.message.map(country => country.country_name);
 
-					// Create a dialog after fetching countries
-					const d = new frappe.ui.Dialog({
-						title: __('Create Quote'),
-						fields: [
-							{
-								fieldname: 'recipient_name',
-								fieldtype: 'Data',
-								label: __('Recipient Name'),
-								reqd: 1
-							},
-							{
-								fieldname: 'recipient_email',
-								fieldtype: 'Data',
-								label: __('Recipient Email'),
-								reqd: 1,
-								options: 'Email'
-							},
-							{
-								fieldname: 'contact_phone',
-								fieldtype: 'Data',
-								label: __('Contact Phone No'),
-								reqd: 1
-							},
-							{
-								fieldname: 'address',
-								fieldtype: 'Text',
-								label: __('Address'),
-								reqd: 1,
-								placeholder: __('Enter the recipient\'s address')
-							},
-							{
-								label: __('Country'),
-								fieldname: 'country',
-								fieldtype: 'Link',
-								options: 'Country',
-								only_select: true,
-								reqd: 1
-							},
-							{
-								fieldname: 'tax_id',
-								fieldtype: 'Data',
-								label: __('Tax ID'),
-								placeholder: __('Enter the recipient\'s tax ID'),
-								reqd: 1
-							},
-							{
-								fieldname: 'message',
-								fieldtype: 'Small Text',
-								label: __('Message'),
-								placeholder: __('Optional message for the recipient')
-							}
-						],
-						primary_action_label: __('Create Quote'),
-						primary_action(values) {
-							if (!validateEmail(values.recipient_email)) {
-								frappe.msgprint(__('Please enter a valid email address.'));
-								return;
-							}
+                // Create a dialog after fetching countries
+                const d = new frappe.ui.Dialog({
+                    title: __('Create Quote'),
+                    fields: [
+                        {
+                            fieldname: 'recipient_type',
+                            fieldtype: 'Select',
+                            label: __('Recipient Type'),
+                            reqd: 1,
+                            options: ['Private', 'Business'],
+                            default: 'Private'
+                        },
+                        {
+                            fieldname: 'recipient_name',
+                            fieldtype: 'Data',
+                            label: __('Recipient Name'),
+                            reqd: 1
+                        },
+                        {
+                            fieldname: 'recipient_email',
+                            fieldtype: 'Data',
+                            label: __('Recipient Email'),
+                            reqd: 1,
+                            options: 'Email'
+                        },
+                        {
+                            fieldname: 'contact_phone',
+                            fieldtype: 'Data',
+                            label: __('Contact Phone No'),
+                            reqd: 1
+                        },
+                        {
+                            fieldname: 'address',
+                            fieldtype: 'Text',
+                            label: __('Address'),
+                            reqd: 1,
+                            placeholder: __('Enter the recipient\'s address')
+                        },
+                        {
+                            label: __('Country'),
+                            fieldname: 'country',
+                            fieldtype: 'Link',
+                            options: 'Country',
+                            only_select: true,
+                            reqd: 1
+                        },
+                        {
+                            fieldname: 'tax_id',
+                            fieldtype: 'Data',
+                            label: __('Tax ID'),
+                            placeholder: __('Enter the recipient\'s tax ID'),
+                            depends_on: 'eval: doc.recipient_type == "Business"',
+                            reqd: 0 // Will be set dynamically
+                        },
+                        {
+                            fieldname: 'message',
+                            fieldtype: 'Small Text',
+                            label: __('Message'),
+                            placeholder: __('Optional message for the recipient')
+                        }
+                    ],
+                    primary_action_label: __('Create Quote'),
+                    primary_action(values) {
+                        // Validate email
+                        if (!validateEmail(values.recipient_email)) {
+                            frappe.msgprint(__('Please enter a valid email address.'));
+                            return;
+                        }
 
-							// Determine the tax template based on the country
-							let tax_template = null;
-							if (values.country === 'South Africa') {
-								tax_template = 'South Africa Tax';
-							}
+                        // Ensure Tax ID is provided if recipient type is Business
+                        if (values.recipient_type === 'Business' && !values.tax_id) {
+                            frappe.msgprint(__('Tax ID is mandatory for Business recipients.'));
+                            return;
+                        }
 
-							// Call server-side method to get or create customer
-							frappe.call({
-								method: 'kartoza_custom.api.get_or_create_customer',
-								args: {
-									recipient_name: values.recipient_name,
-									recipient_email: values.recipient_email,
-									contact_phone: values.contact_phone,
-									address: values.address,
-									tax_id: values.tax_id,
-								},
-								callback: function(response) {
-									const customer_name = response.message.customer_name;
-									create_quotation(customer_name, values, cartData, tax_template, values.country);
-								}
-							});
-						}
-					});
+                        // Determine the tax template based on the country
+                        let tax_template = null;
+                        if (values.country === 'South Africa') {
+                            tax_template = 'South Africa Tax';
+                        }
 
-					d.show();
-				}
-			});
-		});
+                        // Call server-side method to get or create customer
+                        frappe.call({
+                            method: 'kartoza_custom.api.get_or_create_customer',
+                            args: {
+                                recipient_name: values.recipient_name,
+                                recipient_email: values.recipient_email,
+                                contact_phone: values.contact_phone,
+                                address: values.address,
+                                tax_id: values.recipient_type === 'Business' ? values.tax_id : null,
+                            },
+                            callback: function(response) {
+								alert(response.message.customer_name)
+                                const customer_name = response.message.customer_name;
+                                create_quotation(customer_name, values, cartData, tax_template, values.country);
+                            }
+                        });
+                    }
+                });
 
-        function create_quotation(customer_name, values, cartData, tax_template, country) {
-			const quotationData = {
-				doctype: 'Quotation',
-				quotation_to: 'Customer',
-				party_name: customer_name,
-				order_type: "Shopping Cart",
-				status: "Draft",
-				contact_email: values.recipient_email,
-				contact_mobile: values.contact_phone,
-				address: values.address,
-				tax_id: values.tax_id,
-				items: cartData.items,
-				// taxes_and_charges: tax_template, // Sales Taxes and Charges Template
-				message_for_recipient: values.message,
-				company: "Kartoza (Pty) Ltd"
-			};
+                // Watch for recipient type changes
+                d.fields_dict.recipient_type.$wrapper.on('change', () => {
+                    const recipientType = d.get_value('recipient_type');
+                    d.set_df_property('tax_id', 'reqd', recipientType === 'Business');
+                    d.refresh();
+                });
 
-			// Create the Quotation
-			frappe.call({
-				method: 'frappe.client.insert',
-				args: {
-					doc: quotationData
-				},
-				callback: function(response) {
-					if (response.message) {
-						const quotation = response.message;
-
-						if(country == "South Africa"){
-							// Fetch the created quotation to manually add tax lines
-							frappe.call({
-								method: 'frappe.client.get',
-								args: {
-									doctype: 'Quotation',
-									name: quotation.name
-								},
-								callback: function(get_response) {
-									const updated_quotation = get_response.message;
-
-									// Manually add tax lines (if not added automatically by the template)
-									if (!updated_quotation.taxes || updated_quotation.taxes.length === 0) {
-										updated_quotation.taxes = [{
-											charge_type: "On Net Total",  // Change as per your tax rules
-											account_head: "2604 - VAT Payable - K",  // Set the correct tax account
-											rate: 15.0,  // Example tax rate (adjust accordingly)
-											description: "VAT 15%",
-											included_in_print_rate: 0,
-											cost_center: "Main - K"  // Set the appropriate cost center
-										}];
-									}
-
-									// Save the updated quotation with taxes
-									frappe.call({
-										method: 'frappe.client.save',
-										args: {
-											doc: updated_quotation
-										},
-										callback: function(save_response) {
-											frappe.msgprint(__('Quotation has been created successfully.'));
-											const quotation_url = '/proforma-quotations/' + updated_quotation.name;
-											window.location.href = quotation_url;
-										}
-									});
-								}
-							});
-						}
-
-						else{
-							frappe.msgprint(__('Quotation has been created successfully.'));
-							const quotation_url = '/proforma-quotations/' + quotation.name;
-							window.location.href = quotation_url;
-						}
-					}
-				}
-			});
-		}
-
-
-        function validateEmail(email) {
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return emailPattern.test(email);
-        }
+                d.show();
+            }
+        });
     });
+
+    function create_quotation(customer_name, values, cartData, tax_template, country) {
+        const quotationData = {
+            doctype: 'Quotation',
+            quotation_to: 'Customer',
+			owner: frappe.session.user,
+            party_name: customer_name,
+            order_type: "Shopping Cart",
+            status: "Draft",
+            contact_email: values.recipient_email,
+            contact_mobile: values.contact_phone,
+            address: values.address,
+            tax_id: values.tax_id,
+            items: cartData.items,
+            message_for_recipient: values.message,
+            company: "Kartoza (Pty) Ltd"
+        };
+
+        // Create the Quotation
+        frappe.call({
+            method: 'frappe.client.insert',
+            args: {
+                doc: quotationData
+            },
+            callback: function(response) {
+                if (response.message) {
+                    frappe.msgprint(__('Quotation has been created successfully.'));
+                    const quotation_url = '/proforma-quotations/' + response.message.name;
+                    window.location.href = quotation_url;
+                }
+            }
+        });
+    }
+
+    function validateEmail(email) {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailPattern.test(email);
+    }
+});
+
 </script>
 
 <script>
