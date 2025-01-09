@@ -25,8 +25,8 @@ def get_data(filters):
 
     target_currency = filters.get("currency")
 
-    # Get account and company details
-    accounts = frappe.get_all("Account", fields=["name", "account_number", "account_name", "company"])
+    # Get account and company details, including root_type (Asset, Liability, etc.)
+    accounts = frappe.get_all("Account", fields=["name", "account_number", "account_name", "company", "root_type"])
     company_currencies = {
         company.name: company.default_currency
         for company in frappe.get_all("Company", fields=["name", "default_currency"])
@@ -50,7 +50,14 @@ def get_data(filters):
             company_currency = company_currencies.get(entry.company)
             debit = convert_currency(entry.debit, company_currency, target_currency, filters)
             credit = convert_currency(entry.credit, company_currency, target_currency, filters)
-            balance = flt(debit) - flt(credit)
+            
+            # Adjust balance calculation based on account root_type (Asset, Liability, Income, Expense, Equity)
+            if account.root_type in ["Asset", "Expense"]:
+                balance = flt(debit) - flt(credit)  # Debit balance
+            elif account.root_type in ["Liability", "Income", "Equity"]:
+                balance = flt(credit) - flt(debit)  # Credit balance
+            else:
+                balance = 0  # Default to 0 if root_type is not recognized
 
             data.append({
                 "account_number": account.account_number,
@@ -61,19 +68,18 @@ def get_data(filters):
                 "balance": balance,
             })
 
-    # Filter accounts shared across multiple companies
+    # Filter accounts shared across multiple companies, including those with balance 0
     shared_accounts = [
         acc["account_number"] for acc in data if len(set(d["company"] for d in data if d["account_number"] == acc["account_number"])) > 1
     ]
 
-    return [d for d in data if d["account_number"] in shared_accounts]
+    # Include accounts that share the account number, even if the balance is 0
+    shared_data = [d for d in data if d["account_number"] in shared_accounts or d["balance"] == 0]
 
-import requests
+    return shared_data
 
 def convert_currency(amount, company_currency, cur, filters):
-    
     if company_currency == cur:
-        print(f"COMPANY CURR YES {company_currency} to {cur}")
         return amount
 
     date = filters.get("end_date")
@@ -112,4 +118,3 @@ def convert_currency(amount, company_currency, cur, filters):
         raise Exception(f"Error fetching currency data: {e}")
     except KeyError as e:
         raise Exception(f"Unexpected response structure: {e}")
-
