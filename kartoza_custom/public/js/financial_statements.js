@@ -1,6 +1,6 @@
-frappe.provide("kartoza_custom.financial_statements");
+frappe.provide("erpnext.financial_statements");
 
-kartoza_custom.financial_statements = {
+erpnext.financial_statements = {
 	filters: get_filters(),
 	baseData: null,
 	formatter: function (value, row, column, data, default_formatter, filter) {
@@ -110,84 +110,12 @@ kartoza_custom.financial_statements = {
 	name_field: "account",
 	parent_field: "parent_account",
 	initial_depth: 3,
-	onload: function (report) {
-		// dropdown for links to other financial statements
-		erpnext.financial_statements.filters = get_filters();
-
-		let fiscal_year = erpnext.utils.get_fiscal_year(frappe.datetime.get_today());
-		var filters = report.get_values();
-
-		if (!filters.period_start_date || !filters.period_end_date) {
-			frappe.model.with_doc("Fiscal Year", fiscal_year, function (r) {
-				var fy = frappe.model.get_doc("Fiscal Year", fiscal_year);
-				frappe.query_report.set_filter_value({
-					period_start_date: fy.year_start_date,
-					period_end_date: fy.year_end_date,
-				});
-			});
-		}
-
-		const views_menu = report.page.add_custom_button_group(__("Financial Statements"));
-
-		report.page.add_custom_menu_item(views_menu, __("Balance Sheet"), function () {
-			var filters = report.get_values();
-			frappe.set_route("query-report", "Balance Sheet", { company: filters.company });
-		});
-
-		report.page.add_custom_menu_item(views_menu, __("Profit and Loss"), function () {
-			var filters = report.get_values();
-			frappe.set_route("query-report", "Profit and Loss Statement", { company: filters.company });
-		});
-
-		report.page.add_custom_menu_item(views_menu, __("Cash Flow Statement"), function () {
-			var filters = report.get_values();
-			frappe.set_route("query-report", "Cash Flow", { company: filters.company });
-		});
-	},
+	
 };
 
 function get_filters() {
 	let filters = [
-		// {
-		// 	fieldname: "company",
-		// 	label: __("Company"),
-		// 	fieldtype: "Link",
-		// 	options: "Company",
-		// 	default: 'Kartoza (Pty) Ltd',
-		// 	reqd: 1,
-		// },
-		{
-			fieldname: "finance_book",
-			label: __("Finance Book"),
-			fieldtype: "Link",
-			options: "Finance Book",
-		},
-		{
-			fieldname: "filter_based_on",
-			label: __("Filter Based On"),
-			fieldtype: "Select",
-			options: ["Fiscal Year", "Date Range"],
-			default: ["Fiscal Year"],
-			reqd: 1,
-			on_change: function () {
-				let filter_based_on = frappe.query_report.get_filter_value("filter_based_on");
-				frappe.query_report.toggle_filter_display(
-					"from_fiscal_year",
-					filter_based_on === "Date Range"
-				);
-				frappe.query_report.toggle_filter_display("to_fiscal_year", filter_based_on === "Date Range");
-				frappe.query_report.toggle_filter_display(
-					"period_start_date",
-					filter_based_on === "Fiscal Year"
-				);
-				frappe.query_report.toggle_filter_display(
-					"period_end_date",
-					filter_based_on === "Fiscal Year"
-				);
-
-				frappe.query_report.refresh();
-			},
-		},
+		
 		{
 			fieldname: "period_start_date",
 			label: __("Start Date"),
@@ -201,24 +129,6 @@ function get_filters() {
 			fieldtype: "Date",
 			reqd: 1,
 			depends_on: "eval:doc.filter_based_on == 'Date Range'",
-		},
-		{
-			fieldname: "from_fiscal_year",
-			label: __("Start Year"),
-			fieldtype: "Link",
-			options: "Fiscal Year",
-			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
-			reqd: 1,
-			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
-		},
-		{
-			fieldname: "to_fiscal_year",
-			label: __("End Year"),
-			fieldtype: "Link",
-			options: "Fiscal Year",
-			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
-			reqd: 1,
-			depends_on: "eval:doc.filter_based_on == 'Fiscal Year'",
 		},
 		{
 			fieldname: "periodicity",
@@ -241,27 +151,8 @@ function get_filters() {
 			fieldname: "presentation_currency",
 			label: __("Currency"),
 			fieldtype: "Select",
-			options: erpnext.get_presentation_currency_list(),
-		},
-		{
-			fieldname: "cost_center",
-			label: __("Cost Center"),
-			fieldtype: "MultiSelectList",
-			get_data: function (txt) {
-				return frappe.db.get_link_options("Cost Center", txt, {
-					company: frappe.query_report.get_filter_value("company"),
-				});
-			},
-		},
-		{
-			fieldname: "project",
-			label: __("Project"),
-			fieldtype: "MultiSelectList",
-			get_data: function (txt) {
-				return frappe.db.get_link_options("Project", txt, {
-					company: frappe.query_report.get_filter_value("company"),
-				});
-			},
+			options: 'ZAR',
+			default: 'ZAR'
 		},
 	];
 

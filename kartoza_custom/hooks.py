@@ -118,7 +118,7 @@ web_include_js = [
 
 override_doctype_class = {
 	# "ToDo": "custom_app.overrides.CustomToDo"
-    "E Commerce Settings": "kartoza_custom.overrides.MultiCurrency"
+    "E Commerce Settings": "kartoza_custom.overrides.MultiCurrency",
 }
 
 # Document Events
@@ -162,9 +162,9 @@ override_doctype_class = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "kartoza_custom.event.get_events"
-# }
+override_whitelisted_methods = {
+	"frappe.utils.global_search.search": "kartoza_custom.api.custom_global_search"
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
@@ -234,7 +234,7 @@ fixtures = [
     {"doctype": "EasyFile txt generator"},
 	{
 	"doctype": "Report",
-	"filters": [["name", "in", ["Kartoza Cash Flow", "Consolidated Financial Statement (All Companies)"]]]
+	"filters": [["name", "in", ["Kartoza Cash Flow", "Consolidated Financial Statement (All Companies)", "All Companies Consolidated Financial Report"]]]
    }
 ]
 
