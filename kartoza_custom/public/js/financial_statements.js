@@ -115,7 +115,24 @@ erpnext.financial_statements = {
 
 function get_filters() {
 	let filters = [
-		
+		{
+			fieldname: "filter_based_on",
+			label: __("Filter Based On"),
+			fieldtype: "Select",
+			options: ["Date Range"],
+			default: ["Date Range"],
+			reqd: 1,
+			on_change: function () {
+				let filter_based_on = frappe.query_report.get_filter_value("filter_based_on");
+				frappe.query_report.toggle_filter_display(
+					filter_based_on === "Date Range"
+				);
+				frappe.query_report.toggle_filter_display("to_fiscal_year", filter_based_on === "Date Range");
+				
+
+				frappe.query_report.refresh();
+			},
+		},
 		{
 			fieldname: "period_start_date",
 			label: __("Start Date"),
