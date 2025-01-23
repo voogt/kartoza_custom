@@ -19,21 +19,20 @@ from erpnext.accounts.utils import get_fiscal_year
 
 
 def get_period_list(
-	from_fiscal_year,
-	to_fiscal_year,
 	period_start_date,
 	period_end_date,
 	filter_based_on,
 	periodicity,
 	accumulated_values=False,
-	company=None,
 	reset_period_on_fy_change=True,
 	ignore_fiscal_year=False,
 ):
 	"""Get a list of dict {"from_date": from_date, "to_date": to_date, "key": key, "label": label}
 	Periodicity can be (Yearly, Quarterly, Monthly)"""
 
-	#validate_dates(period_start_date, period_end_date)
+	company = None
+
+	validate_dates(period_start_date, period_end_date)
 	year_start_date = getdate(period_start_date)
 	year_end_date = getdate(period_end_date)
 
@@ -64,6 +63,7 @@ def get_period_list(
 		if not ignore_fiscal_year:
 			period.to_date_fiscal_year = get_fiscal_year(period.to_date, company=company)[0]
 			period.from_date_fiscal_year_start_date = get_fiscal_year(period.from_date, company=company)[1]
+			print(f"PERIOD TO DATE {period.to_date_fiscal_year}")
 
 		period_list.append(period)
 
@@ -79,10 +79,7 @@ def get_period_list(
 			if not accumulated_values:
 				label = get_label(periodicity, opts["from_date"], opts["to_date"])
 			else:
-				if reset_period_on_fy_change:
-					label = get_label(periodicity, opts.from_date_fiscal_year_start_date, opts["to_date"])
-				else:
-					label = get_label(periodicity, period_list[0].from_date, opts["to_date"])
+				label = get_label(periodicity, period_list[0].from_date, opts["to_date"])
 
 		opts.update(
 			{
@@ -94,27 +91,6 @@ def get_period_list(
 		)
 
 	return period_list
-
-
-def get_fiscal_year_data(from_fiscal_year, to_fiscal_year):
-	fiscal_year = frappe.db.sql(
-		"""select min(year_start_date) as year_start_date,
-		max(year_end_date) as year_end_date from `tabFiscal Year` where
-		name between %(from_fiscal_year)s and %(to_fiscal_year)s""",
-		{"from_fiscal_year": from_fiscal_year, "to_fiscal_year": to_fiscal_year},
-		as_dict=1,
-	)
-
-	return fiscal_year[0] if fiscal_year else {}
-
-
-def validate_fiscal_year(fiscal_year, from_fiscal_year, to_fiscal_year):
-	if not fiscal_year.get("year_start_date") or not fiscal_year.get("year_end_date"):
-		frappe.throw(_("Start Year and End Year are mandatory"))
-
-	if getdate(fiscal_year.get("year_end_date")) < getdate(fiscal_year.get("year_start_date")):
-		frappe.throw(_("End Year cannot be before Start Year"))
-
 
 def validate_dates(from_date, to_date):
 	if not from_date or not to_date:
@@ -148,9 +124,8 @@ def get_data(
 	period_list,
 	filters=None,
 	accumulated_values=1,
-	only_current_fiscal_year=True,
-	ignore_closing_entries=False,
-	ignore_accumulated_values_for_fy=False,
+	ignore_closing_entries=True,
+	ignore_accumulated_values_for_fy=True,
 	total=True,
 ):
 	accounts = get_accounts(company, root_type)
@@ -179,6 +154,8 @@ def get_data(
 			ignore_closing_entries=ignore_closing_entries,
 			root_type=root_type,
 		)
+
+	print(F"year_start_date {period_list[0]['year_start_date']}")
 
 	calculate_values(
 		accounts_by_name,
@@ -224,10 +201,7 @@ def calculate_values(
 				# check if posting date is within the period
 
 				if entry.posting_date <= period.to_date:
-					if (accumulated_values or entry.posting_date >= period.from_date) and (
-						not ignore_accumulated_values_for_fy
-						or entry.fiscal_year == period.to_date_fiscal_year
-					):
+					if (accumulated_values or entry.posting_date >= period.from_date):
 						d[period.key] = d.get(period.key, 0.0) + flt(entry.debit) - flt(entry.credit)
 
 			if entry.posting_date < period_list[0].year_start_date:
@@ -393,8 +367,10 @@ def set_gl_entries_by_account(
 	"""Returns a dict like { "account": [gl entries], ... }"""
 	gl_entries = []
 
+	print(f"FROM DATE GL {to_date}")
+	
+
 	account_filters = {
-		"company": company,
 		"is_group": 0,
 		"lft": (">=", root_lft),
 		"rgt": ("<=", root_rgt),
@@ -423,7 +399,6 @@ def set_gl_entries_by_account(
 				"Period Closing Voucher",
 				filters={
 					"docstatus": 1,
-					"company": ["in", ["Kartoza (Pty) Ltd", "Kartoza Lda"]],
 					"posting_date": ("<", filters["period_start_date"]),
 				},
 				fields=["posting_date", "name"],
