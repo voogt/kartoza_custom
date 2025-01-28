@@ -136,6 +136,12 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
+scheduler_events = {
+    "daily": [
+        "kartoza_custom.utils.update_exchange_rate_and_amount"
+    ]
+}
+
 # scheduler_events = {
 # 	"all": [
 # 		"kartoza_custom.tasks.all"

@@ -2,6 +2,83 @@ from datetime import datetime
 import frappe
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
+from frappe.utils.global_search import search as default_search
+import requests
+from frappe.utils import flt
+
+
+def custom_global_search(search_text, start=0, limit=10):
+    # Get default global search results
+    results = default_search(search_text, start, limit)
+
+    # Query Website Items
+    website_items = frappe.db.sql(
+        """
+        SELECT
+            name AS value, item_name AS label, description AS description
+        FROM
+            `tabWebsite Item`
+        WHERE
+            item_name LIKE %(query)s
+            OR description LIKE %(query)s
+        LIMIT %(limit)s OFFSET %(start)s
+        """,
+        {"query": f"%{search_text}%", "start": start, "limit": limit},
+        as_dict=True,
+    )
+
+    # Append Website Items to the results
+    results.extend(
+        [{
+            "title": item["label"],
+            "route": f"/{item['value']}",
+            "content": item["description"],
+        } for item in website_items]
+    )
+
+    return results
+
+@frappe.whitelist()
+def update_exchange_rate_and_amount(doc, method):
+    """
+    Update exchange rate and opportunity amount if the company currency
+    differs from the opportunity currency using Frankfurter API.
+    """
+    # Get company currency
+    company_currency = frappe.db.get_value("Company", doc.company, "default_currency")
+
+    # Ensure currencies are present
+    if not company_currency or not doc.currency:
+        frappe.throw("Company currency or Opportunity currency is missing.")
+
+    # If the currencies are the same, no need to update
+    if company_currency == doc.currency:
+        return
+
+    # Fetch the exchange rate from Frankfurter API
+    api_url = f"https://api.frankfurter.app/latest?from={company_currency}&to={doc.currency}"
+    response = requests.get(api_url)
+
+    if response.status_code != 200:
+        frappe.throw("Failed to fetch exchange rate. Please try again later.")
+
+    # Extract the exchange rate
+    exchange_rate = response.json().get("rates", {}).get(doc.currency)
+    if not exchange_rate:
+        frappe.throw(f"Exchange rate not found for {company_currency} to {doc.currency}.")
+
+    # Update the exchange rate and recalculate the opportunity amount
+    doc.conversion_rate = flt(exchange_rate)
+    doc.opportunity_amount = flt(doc.base_amount) * flt(exchange_rate)
+
+    # Save the updated fields
+    doc.flags.ignore_validate_update_after_submit = True
+    doc.save()
+
+    frappe.msgprint(
+        f"Exchange rate updated to {exchange_rate} and opportunity amount recalculated."
+    )
+
 
 @frappe.whitelist()
 def export_report_to_text(start_date, end_date, transaction_year):
