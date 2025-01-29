@@ -21,9 +21,9 @@ from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_sum
 	execute as get_ageing,
 )
 from frappe.utils.pdf import get_pdf
-
+from frappe import _, bold, throw
 from erpnext.accounts.doctype.process_statement_of_accounts import process_statement_of_accounts as _process_statement_of_accounts
-
+import erpnext.e_commerce.shopping_cart.cart as _cart 
 
 class MultiCurrency(Document):
     def onload(self):
@@ -364,6 +364,20 @@ def make_payment_request_f(**args):
 
 	return pr.as_dict()
 
+@frappe.whitelist()
+def add_new_address_f(doc):
+	doc = frappe.parse_json(doc)
+	# address_title = doc.get("address_title")
+	# if frappe.db.exists("Address", {"address_title": address_title}):
+	# 	msg = f"The address with the title {bold(address_title)} already exists. Please change the title."
+	# 	frappe.throw(_(msg), title=_("Address Already Exists"))
+
+	doc.update({"doctype": "Address"})
+	address = frappe.get_doc(doc)
+	address.save(ignore_permissions=True)
+
+	return address
+
 	
 # Override methods
 e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
@@ -373,3 +387,4 @@ _cart_settings.set_taxes = set_taxes_f
 _sales_order.make_sales_invoice = make_sales_invoice_f
 make_payment_request_settings.make_payment_request = make_payment_request_f
 _process_statement_of_accounts.set_ageing = set_ageing_f
+_cart.add_new_address = add_new_address_f
