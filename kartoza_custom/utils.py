@@ -39,41 +39,47 @@ def custom_global_search(search_text, start=0, limit=10):
     return results
 
 @frappe.whitelist()
-def update_exchange_rate_and_amount(doc, method):
+def update_exchange_rate_and_amount():
     """
-    Update exchange rate and opportunity amount if the company currency
-    differs from the opportunity currency using Frankfurter API.
+    Update exchange rate and opportunity amount for all opportunities
+    if the company currency differs from the opportunity currency using Frankfurter API.
     """
-    # Get company currency
-    company_currency = frappe.db.get_value("Company", doc.company, "default_currency")
+    opportunities = frappe.get_all("Opportunity", fields=["name", "company", "currency", "opportunity_amount"])
+    
+    for opp in opportunities:
+        # Fetch the Opportunity document
+        doc = frappe.get_doc("Opportunity", opp.name)
+        
+        # Get company currency
+        company_currency = frappe.db.get_value("Company", doc.company, "default_currency")
 
-    # Ensure currencies are present
-    if not company_currency or not doc.currency:
-        frappe.throw("Company currency or Opportunity currency is missing.")
+        # Ensure currencies are present
+        if not company_currency or not doc.currency:
+            frappe.throw(f"Company currency or Opportunity currency is missing for Opportunity {doc.name}.")
 
-    # If the currencies are the same, no need to update
-    if company_currency == doc.currency:
-        return
+        # If the currencies are the same, no need to update
+        if company_currency == doc.currency:
+            continue
 
-    # Fetch the exchange rate from Frankfurter API
-    api_url = f"https://api.frankfurter.app/latest?from={company_currency}&to={doc.currency}"
-    response = requests.get(api_url)
+        # Fetch the exchange rate from Frankfurter API
+        api_url = f"https://api.frankfurter.app/latest?from={company_currency}&to={doc.currency}"
+        response = requests.get(api_url)
 
-    if response.status_code != 200:
-        frappe.throw("Failed to fetch exchange rate. Please try again later.")
+        if response.status_code != 200:
+            frappe.throw(f"Failed to fetch exchange rate for Opportunity {doc.name}. Please try again later.")
 
-    # Extract the exchange rate
-    exchange_rate = response.json().get("rates", {}).get(doc.currency)
-    if not exchange_rate:
-        frappe.throw(f"Exchange rate not found for {company_currency} to {doc.currency}.")
+        # Extract the exchange rate
+        exchange_rate = response.json().get("rates", {}).get(doc.currency)
+        if not exchange_rate:
+            frappe.throw(f"Exchange rate not found for {company_currency} to {doc.currency} for Opportunity {doc.name}.")
 
-    # Update the exchange rate and recalculate the opportunity amount
-    doc.conversion_rate = flt(exchange_rate)
-    doc.base_opportunity_amount = flt(doc.opportunity_amount) * flt(exchange_rate)
+        # Update the exchange rate and recalculate the opportunity amount
+        doc.conversion_rate = flt(exchange_rate)
+        doc.base_opportunity_amount = flt(doc.opportunity_amount) * flt(exchange_rate)
 
-    # Save the updated fields
-    doc.flags.ignore_validate_update_after_submit = True
-    doc.save()
+        # Save the updated fields
+        doc.flags.ignore_validate_update_after_submit = True
+        doc.save()
 
 
 @frappe.whitelist()
