@@ -69,15 +69,11 @@ def update_exchange_rate_and_amount(doc, method):
 
     # Update the exchange rate and recalculate the opportunity amount
     doc.conversion_rate = flt(exchange_rate)
-    doc.opportunity_amount = flt(doc.base_amount) * flt(exchange_rate)
+    doc.base_opportunity_amount = flt(doc.opportunity_amount) * flt(exchange_rate)
 
     # Save the updated fields
     doc.flags.ignore_validate_update_after_submit = True
     doc.save()
-
-    frappe.msgprint(
-        f"Exchange rate updated to {exchange_rate} and opportunity amount recalculated."
-    )
 
 
 @frappe.whitelist()
