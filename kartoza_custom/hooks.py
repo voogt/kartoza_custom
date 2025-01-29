@@ -136,11 +136,11 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
-scheduler_events = {
-    "daily": [
-        "kartoza_custom.utils.update_exchange_rate_and_amount"
-    ]
-}
+# scheduler_events = {
+#     "daily": [
+#         "kartoza_custom.utils.update_exchange_rate_and_amount"
+#     ]
+# }
 
 # scheduler_events = {
 # 	"all": [
@@ -231,6 +231,7 @@ override_whitelisted_methods = {
 
 fixtures = [
     {"doctype": "Moodle Course Settings"},
+    {"doctype": "Moodle Course Email Requests"},
     {"doctype": "Kartoza Cash Flow Mapping"},
     {"doctype": "Kartoza Cash Flow Mapping Template"},
     {"doctype": "Kartoza Cash Flow Mapper"},

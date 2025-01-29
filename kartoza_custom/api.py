@@ -2,6 +2,40 @@ import json
 import frappe
 from frappe import whitelist
 from frappe import _
+from frappe.utils.global_search import search as default_search
+
+
+def custom_global_search(search_text, start=0, limit=10):
+    # Get default global search results
+    print(f"FIRED OFF")
+    results = default_search(search_text, start, limit)
+
+    # Query Website Items
+    website_items = frappe.db.sql(
+        """
+        SELECT
+            name AS value, item_name AS label, description AS description
+        FROM
+            `tabWebsite Item`
+        WHERE
+            item_name LIKE %(query)s
+            OR description LIKE %(query)s
+        LIMIT %(limit)s OFFSET %(start)s
+        """,
+        {"query": f"%{search_text}%", "start": start, "limit": limit},
+        as_dict=True,
+    )
+
+    # Append Website Items to the results
+    results.extend(
+        [{
+            "title": item["label"],
+            "route": f"/{item['value']}",
+            "content": item["description"],
+        } for item in website_items]
+    )
+
+    return results
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
@@ -80,6 +114,20 @@ def send_course_details_email(email, doc_details):
             sender="Kartoza <notifications@erpnext.com>",
             now=True
         )
+
+        email_doc = frappe.get_doc({
+            "doctype": "Moodle Course Email Requests",
+            "course": doc_details.get('item'),
+            "email": email,
+            "email_sent": 1  
+        })
+        
+        # Insert the document into the database
+        email_doc.insert(ignore_permissions=True)  # Ignore permissions if running as admin
+        
+        # Commit the transaction
+        frappe.db.commit()
+
         return {"status": "success", "message": _(f"""Email being sent to {email}. Please allow a few minutes for the email to reach your inbox. If it doesn't appear after a while, kindly check your spam folder or contact us for assistance.""")}
     
     except Exception as e:
