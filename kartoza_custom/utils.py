@@ -78,8 +78,11 @@ def update_exchange_rate_and_amount():
         doc.base_opportunity_amount = flt(doc.opportunity_amount) * flt(exchange_rate)
 
         # Save the updated fields
-        doc.flags.ignore_validate_update_after_submit = True
-        doc.save()
+        try:
+            doc.flags.ignore_validate_update_after_submit = True
+            doc.save()
+        except:
+            pass
 
 
 @frappe.whitelist()
