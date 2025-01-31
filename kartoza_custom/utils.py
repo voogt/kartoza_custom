@@ -44,7 +44,11 @@ def update_exchange_rate_and_amount():
     Update exchange rate and opportunity amount for all opportunities
     if the company currency differs from the opportunity currency using Frankfurter API.
     """
-    opportunities = frappe.get_all("Opportunity", fields=["name", "company", "currency", "opportunity_amount"])
+    opportunities = frappe.get_all(
+        "Opportunity",
+        fields=["name", "company", "currency", "opportunity_amount"],
+        filters={"status": ["!=", "Closed"]}
+    )
     
     for opp in opportunities:
         # Fetch the Opportunity document
