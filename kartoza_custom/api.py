@@ -5,37 +5,7 @@ from frappe import _
 from frappe.utils.global_search import search as default_search
 
 
-def custom_global_search(search_text, start=0, limit=10):
-    # Get default global search results
-    print(f"FIRED OFF")
-    results = default_search(search_text, start, limit)
 
-    # Query Website Items
-    website_items = frappe.db.sql(
-        """
-        SELECT
-            name AS value, item_name AS label, description AS description
-        FROM
-            `tabWebsite Item`
-        WHERE
-            item_name LIKE %(query)s
-            OR description LIKE %(query)s
-        LIMIT %(limit)s OFFSET %(start)s
-        """,
-        {"query": f"%{search_text}%", "start": start, "limit": limit},
-        as_dict=True,
-    )
-
-    # Append Website Items to the results
-    results.extend(
-        [{
-            "title": item["label"],
-            "route": f"/{item['value']}",
-            "content": item["description"],
-        } for item in website_items]
-    )
-
-    return results
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
