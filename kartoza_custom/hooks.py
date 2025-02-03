@@ -168,9 +168,7 @@ scheduler_events = {
 # Overriding Methods
 # ------------------------------
 #
-override_whitelisted_methods = {
-	"frappe.utils.global_search.search": "kartoza_custom.api.custom_global_search"
-}
+
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
