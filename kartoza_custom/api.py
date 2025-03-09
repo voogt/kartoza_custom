@@ -102,3 +102,34 @@ def send_course_details_email(email, doc_details):
     
     except Exception as e:
         frappe.throw(_(f"Unable to send email. Please try again later. {e}"))
+
+
+@frappe.whitelist()
+def get_next_employee_number(company):
+    print("COMPANY", company)
+    company_abbr = "GEN"
+    
+    if company == "Kartoza Lda":
+        company_abbr = "LDA"
+
+    # Fetch the last assigned number safely
+    latest_employee = frappe.db.sql("""
+        SELECT name FROM `tabEmployee`
+        WHERE naming_series LIKE %s
+        ORDER BY name DESC
+        LIMIT 1
+    """, ('HR-EMP-%'), as_dict=True)
+
+    if latest_employee:
+        latest_number = int(latest_employee[0]['name'].split('-')[-1]) + 1
+    else:
+        latest_number = 1  # Start numbering from 1 if no previous record exists
+
+    new_series = f'HR-EMP-{str(latest_number).zfill(5)}'
+    print("NEW SERIES", new_series)
+    
+    # Double-check to prevent duplication
+    if frappe.db.exists("Employee", new_series):
+        frappe.throw(f"Duplicate Employee ID {new_series} detected. Please retry.")
+
+    return new_series

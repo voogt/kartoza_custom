@@ -16,6 +16,7 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 )
 from erpnext.accounts.report.utils import convert_to_presentation_currency, get_currency
 from erpnext.accounts.utils import get_fiscal_year
+from erpnext.setup.utils import get_exchange_rate
 
 
 def get_period_list(
@@ -154,8 +155,6 @@ def get_data(
 			ignore_closing_entries=ignore_closing_entries,
 			root_type=root_type,
 		)
-
-	print(F"year_start_date {period_list[0]['year_start_date']}")
 
 	calculate_values(
 		accounts_by_name,
@@ -438,46 +437,58 @@ def set_gl_entries_by_account(
 
 
 def get_accounting_entries(
-	doctype,
-	from_date,
-	to_date,
-	accounts,
-	filters,
-	ignore_closing_entries,
-	period_closing_voucher=None,
-	ignore_opening_entries=False,
+    doctype,
+    from_date,
+    to_date,
+    accounts,
+    filters,
+    ignore_closing_entries,
+    period_closing_voucher=None,
+    ignore_opening_entries=False,
 ):
-	gl_entry = frappe.qb.DocType(doctype)
-	query = (
-		frappe.qb.from_(gl_entry)
-		.select(
-			gl_entry.account,
-			gl_entry.debit,
-			gl_entry.credit,
-			gl_entry.debit_in_account_currency,
-			gl_entry.credit_in_account_currency,
-			gl_entry.account_currency,
-		)
-		.where(gl_entry.company.isin(['Kartoza (Pty) Ltd', 'Kartoza Lda']))
-	)
+    gl_entry = frappe.qb.DocType(doctype)
+    
+    query = (
+        frappe.qb.from_(gl_entry)
+        .select(
+            gl_entry.company,
+            gl_entry.account,
+            gl_entry.debit,
+            gl_entry.credit,
+            gl_entry.debit_in_account_currency,
+            gl_entry.credit_in_account_currency,
+            gl_entry.account_currency,
+        )
+        .where(gl_entry.company.isin(['Kartoza (Pty) Ltd', 'Kartoza Lda']))
+    )
 
-	if doctype == "GL Entry":
-		query = query.select(gl_entry.posting_date, gl_entry.is_opening, gl_entry.fiscal_year)
-		query = query.where(gl_entry.is_cancelled == 0)
-		query = query.where(gl_entry.posting_date <= to_date)
+    if doctype == "GL Entry":
+        query = query.select(gl_entry.posting_date, gl_entry.is_opening, gl_entry.fiscal_year)
+        query = query.where(gl_entry.is_cancelled == 0)
+        query = query.where(gl_entry.posting_date <= to_date)
 
-		if ignore_opening_entries:
-			query = query.where(gl_entry.is_opening == "No")
-	else:
-		query = query.select(gl_entry.closing_date.as_("posting_date"))
-		query = query.where(gl_entry.period_closing_voucher == period_closing_voucher)
+        if ignore_opening_entries:
+            query = query.where(gl_entry.is_opening == "No")
+    else:
+        query = query.select(gl_entry.closing_date.as_("posting_date"))
+        query = query.where(gl_entry.period_closing_voucher == period_closing_voucher)
 
-	query = apply_additional_conditions(doctype, query, from_date, ignore_closing_entries, filters)
-	query = query.where(gl_entry.account.isin(accounts))
+    query = apply_additional_conditions(doctype, query, from_date, ignore_closing_entries, filters)
+    query = query.where(gl_entry.account.isin(accounts))
 
-	entries = query.run(as_dict=True)
+    entries = query.run(as_dict=True)
 
-	return entries
+    # Fetch exchange rate for EUR to ZAR
+    exchange_rate = get_exchange_rate("EUR", "ZAR", to_date)
+
+    # Convert amounts if company is "Kartoza Lda"
+    for entry in entries:
+        if entry["company"] == "Kartoza Lda" and entry["account_currency"] == "EUR":
+            entry["debit_in_account_currency"] *= exchange_rate
+            entry["credit_in_account_currency"] *= exchange_rate
+            entry["account_currency"] = "ZAR"  # Change currency to ZAR
+
+    return entries
 
 
 def apply_additional_conditions(doctype, query, from_date, ignore_closing_entries, filters):
