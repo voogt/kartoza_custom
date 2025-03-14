@@ -1,11 +1,13 @@
 from erpnext.e_commerce.doctype.e_commerce_settings.e_commerce_settings import ECommerceSettings, get_shopping_cart_settings
 import frappe
 from frappe import _
+from frappe.contacts.doctype.contact.contact import get_contact_name
 from frappe.model.document import Document
-from frappe.utils import comma_and, flt, unique
+from frappe.utils import comma_and, flt, get_fullname, unique
 import erpnext.e_commerce.doctype.e_commerce_settings.e_commerce_settings as e_commerce_settings
 import erpnext.e_commerce.shopping_cart.cart as _cart_settings
 import erpnext.selling.doctype.sales_order.sales_order as _sales_order
+from frappe.utils.nestedset import get_root_of
 import redis
 from frappe.contacts.doctype.address.address import get_company_address
 from frappe.desk.notifications import clear_doctype_notifications
@@ -380,6 +382,63 @@ def add_new_address_f(doc):
 
 	return address
 
+def get_party_f(user=None):
+	if not user:
+		user = frappe.session.user
+
+	contact_name = get_contact_name(user)
+	party = None
+
+	contact = None
+	if contact_name:
+		contact = frappe.get_doc("Contact", contact_name)
+		if contact.links:
+			party_doctype = contact.links[0].link_doctype
+			party = contact.links[0].link_name
+
+	cart_settings = frappe.get_doc("E Commerce Settings")
+
+	debtors_account = ""
+
+	if cart_settings.enable_checkout:
+		debtors_account = '1301 - Debtors - K'
+
+	if party:
+		return frappe.get_doc(party_doctype, party)
+
+	else:
+		if not cart_settings.enabled:
+			frappe.local.flags.redirect_location = "/contact"
+			raise frappe.Redirect
+		customer = frappe.new_doc("Customer")
+		fullname = get_fullname(user)
+		customer.update(
+			{
+				"customer_name": fullname,
+				"customer_type": "Individual",
+				"customer_group": get_shopping_cart_settings().default_customer_group,
+				"territory": get_root_of("Territory"),
+			}
+		)
+
+		if debtors_account:
+			customer.update({"accounts": [{"company": cart_settings.company, "account": debtors_account}]})
+
+		customer.flags.ignore_mandatory = True
+		customer.insert(ignore_permissions=True)
+
+		if not contact:
+			contact = frappe.new_doc("Contact")
+			contact.update({"first_name": fullname, "email_ids": [{"email_id": user, "is_primary": 1}]})
+			contact.insert(ignore_permissions=True)
+			contact.reload()
+
+		contact.append("links", dict(link_doctype="Customer", link_name=customer.name))
+		contact.flags.ignore_mandatory = True
+		contact.save(ignore_permissions=True)
+
+		return customer
+
 	
 # Override methods
 e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
@@ -390,3 +449,4 @@ _sales_order.make_sales_invoice = make_sales_invoice_f
 make_payment_request_settings.make_payment_request = make_payment_request_f
 _process_statement_of_accounts.set_ageing = set_ageing_f
 _cart.add_new_address = add_new_address_f
+_cart.get_party = get_party_f
