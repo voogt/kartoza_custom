@@ -245,6 +245,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
         _4149 = _4141 + float(_4102) + float(_4142)
+        _4150 = '05'
+
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
             _4150 = '02'
@@ -321,7 +323,10 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 4141,_4141,
                 4142,_4142,
                 4149,_4149])
-
+            
+            if employee["custom_employee_qualifies_for_eti"] == 1:
+                output_lines.append([4150,_4150])
+            
             _4118 = 0
             _7004 = []
             _7006 = []
@@ -427,7 +432,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 4141,_4141,
                 4142,_4142,
                 4149,_4149,
-                9999])
+                ])
+            
+            if employee["custom_country_code"] != 'ZA':
+                output_lines.append([4150,_4150])
+            output_lines.append(9999)
 
         tracker = tracker + 1
 
@@ -447,16 +456,26 @@ def export_report_to_text(start_date, end_date, transaction_year):
             if item == 9999:
                 # Add the current line with 9999
                 current_line.append(item)
-                result.append(", ".join(map(str, current_line)))
+                result.append(",".join(map(str, current_line)))
                 current_line = []  # Reset for the next line
             else:
                 current_line.append(item)
 
     # Add any remaining items in the current line
     if current_line:
-        result.append(", ".join(map(str, current_line)))
+        result.append(",".join(map(str, current_line)))
 
-    return "\n".join(result)
+    
+
+    for i, item in enumerate(result):
+        array = item.split(",")
+        result[i] = [val if val.isdigit() else f'"{val}"' for val in array]
+    
+    # for i, line in enumerate(result):
+    #     result[i] = ",".join(str(item) if isinstance(item, int) else f'"{item}"' for item in line)
+
+
+    return "\n".join([",".join(map(str, row)) for row in result])
 
 
 def get_initials(name):
