@@ -3,7 +3,7 @@ import frappe
 from frappe import _
 from frappe.contacts.doctype.contact.contact import get_contact_name
 from frappe.model.document import Document
-from frappe.utils import comma_and, flt, get_fullname, unique
+from frappe.utils import comma_and, flt, get_fullname, unique, fmt_money
 import erpnext.e_commerce.doctype.e_commerce_settings.e_commerce_settings as e_commerce_settings
 import erpnext.e_commerce.shopping_cart.cart as _cart_settings
 import erpnext.selling.doctype.sales_order.sales_order as _sales_order
@@ -27,6 +27,8 @@ from frappe import _, bold, throw
 from erpnext.accounts.doctype.process_statement_of_accounts import process_statement_of_accounts as _process_statement_of_accounts
 import erpnext.e_commerce.shopping_cart.cart as _cart 
 from frappe.utils import validate_phone_number
+from erpnext.utilities import product
+from erpnext.accounts.doctype.pricing_rule.pricing_rule import get_pricing_rule_for_item
 
 class MultiCurrency(Document):
     def onload(self):
@@ -439,7 +441,116 @@ def get_party_f(user=None):
 
 		return customer
 
+def get_price_f(item_code, price_list, customer_group, company, qty=1):
+	from erpnext.e_commerce.shopping_cart.cart import get_party
+
+	template_item_code = frappe.db.get_value("Item", item_code, "variant_of")
 	
+	cart_settings = frappe.get_doc("E Commerce Settings")
+	price_list = cart_settings.price_list
+
+	print(f"CALLED GET PRICE {price_list}")
+	if price_list:
+		price = frappe.get_all(
+			"Item Price",
+			fields=["price_list_rate", "currency"],
+			filters={"price_list": price_list, "item_code": item_code},
+		)
+
+		if template_item_code and not price:
+			price = frappe.get_all(
+				"Item Price",
+				fields=["price_list_rate", "currency"],
+				filters={"price_list": price_list, "item_code": template_item_code},
+			)
+
+		if price:
+			party = get_party()
+			pricing_rule_dict = frappe._dict(
+				{
+					"item_code": item_code,
+					"qty": qty,
+					"stock_qty": qty,
+					"transaction_type": "selling",
+					"price_list": price_list,
+					"customer_group": customer_group,
+					"company": company,
+					"conversion_rate": 1,
+					"for_shopping_cart": True,
+					"currency": frappe.db.get_value("Price List", price_list, "currency"),
+					"doctype": "Quotation",
+				}
+			)
+
+			if party and party.doctype == "Customer":
+				pricing_rule_dict.update({"customer": party.name})
+
+			pricing_rule = get_pricing_rule_for_item(pricing_rule_dict)
+			price_obj = price[0]
+
+			print(f"PRICING RULE {pricing_rule}")
+			print(f"PRICING OBJ {price_obj}")
+
+			if pricing_rule:
+				# price without any rules applied
+				mrp = price_obj.price_list_rate or 0
+
+				if pricing_rule.pricing_rule_for == "Discount Percentage":
+					price_obj.discount_percent = pricing_rule.discount_percentage
+					price_obj.formatted_discount_percent = str(flt(pricing_rule.discount_percentage, 0)) + "%"
+					price_obj.price_list_rate = flt(
+						price_obj.price_list_rate * (1.0 - (flt(pricing_rule.discount_percentage) / 100.0))
+					)
+
+				if pricing_rule.pricing_rule_for == "Rate":
+					rate_discount = flt(mrp) - flt(pricing_rule.price_list_rate)
+					if rate_discount > 0:
+						price_obj.formatted_discount_rate = fmt_money(
+							rate_discount, currency=price_obj["currency"]
+						)
+					price_obj.price_list_rate = pricing_rule.price_list_rate or 0
+
+			if price_obj:
+				price_obj["formatted_price"] = fmt_money(
+					price_obj["price_list_rate"], currency=price_obj["currency"]
+				)
+				if mrp != price_obj["price_list_rate"]:
+					price_obj["formatted_mrp"] = fmt_money(mrp, currency=price_obj["currency"])
+
+				price_obj["currency_symbol"] = (
+					not cint(frappe.db.get_default("hide_currency_symbol"))
+					and (
+						frappe.db.get_value("Currency", price_obj.currency, "symbol", cache=True)
+						or price_obj.currency
+					)
+					or ""
+				)
+
+				uom_conversion_factor = frappe.db.sql(
+					"""select	C.conversion_factor
+					from `tabUOM Conversion Detail` C
+					inner join `tabItem` I on C.parent = I.name and C.uom = I.sales_uom
+					where I.name = %s""",
+					item_code,
+				)
+
+				uom_conversion_factor = uom_conversion_factor[0][0] if uom_conversion_factor else 1
+				price_obj["formatted_price_sales_uom"] = fmt_money(
+					price_obj["price_list_rate"] * uom_conversion_factor, currency=price_obj["currency"]
+				)
+
+				if not price_obj["price_list_rate"]:
+					price_obj["price_list_rate"] = 0
+
+				if not price_obj["currency"]:
+					price_obj["currency"] = ""
+
+				if not price_obj["formatted_price"]:
+					price_obj["formatted_price"], price_obj["formatted_mrp"] = "", ""
+
+			return price_obj
+	
+
 # Override methods
 e_commerce_settings.get_shopping_cart_settings = get_shopping_cart_settings_f
 _cart_settings.apply_cart_settings = apply_cart_settings_f
@@ -450,3 +561,4 @@ make_payment_request_settings.make_payment_request = make_payment_request_f
 _process_statement_of_accounts.set_ageing = set_ageing_f
 _cart.add_new_address = add_new_address_f
 _cart.get_party = get_party_f
+product.get_price = get_price_f
