@@ -5,6 +5,7 @@ from collections import defaultdict
 from frappe.utils.global_search import search as default_search
 import requests
 from frappe.utils import flt
+from kartoza_custom.country_codes import country_codes
 
 def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     date1 = datetime.strptime(date1_str, "%Y-%m-%d")
@@ -90,7 +91,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
     certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{recon_period}{employer_paye_num}{certificate_num_transaction_date}VIPL000100000"
+    certificate_num = f"{recon_period}{employer_paye_num}{certificate_num_transaction_date}VIPL000"
 
     period_recon = datetime.strptime(end, input_format_b).strftime(output_format)
 
@@ -109,6 +110,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             te.date_of_joining as `date_of_joining`,
             te.tax_payroll_number as `tax_payroll_number`,
             te.company_email as `company_email`, 
+            te.personal_email as `personal_email`,
             te.cell_number as `cell_number`,
             te.id_number as `id_number`, 
             te.passport_number as `passport_number`, 
@@ -169,7 +171,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             ) AS emp_uif,
             -- Subquery for Company UIF contributions
             (SELECT 
-               COALESCE( SUM(tcc.amount), 0 )
+                COALESCE(SUM(tcc.amount), 0 )
             FROM 
                 `tabSalary Slip` tss
             INNER JOIN 
@@ -185,17 +187,27 @@ def export_report_to_text(start_date, end_date, transaction_year):
             `tabHoliday List` thl ON te.holiday_list = thl.name
         WHERE 
             te.custom_include_payroll_report = 1
+            AND EXISTS (
+                SELECT 1 FROM `tabSalary Slip` tss
+                WHERE tss.employee = te.name
+                AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            )
     """
 
+
     employee_dict = frappe.db.sql(sql, as_dict=True)
-    tracker = 1
+    tracker = 0
 
     _6020 = 0
 
     for employee in employee_dict:
-        _3010 = f"{certificate_num}{tracker}"
+        tracker += 1
+        formatted_tracker = f"{tracker:03d}"
+        _3010 = f"{certificate_num}{formatted_tracker}"
         _3135 = employee["cell_number"].replace('+', '').replace(' ', '')
         
+        _3075 = country_codes.get(employee["custom_country_code"])
+
         if employee["custom_country_code"] == 'ZA':
             _3015 = "IRP5"
             _4102 = employee['paye']
@@ -203,6 +215,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3015 = 'IT3(a)'
             _4102 = 0
             _3135 = f"00{_3135}"
+
+        
         
         _3020 = 'A'
         _3025 = transaction_year
@@ -210,10 +224,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3040 = employee["first_name"]
         _3050 = get_initials(employee["first_name"])
         _3060 = employee["id_number"]
+        _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"]
         _3080 = str(employee["date_of_birth"]).replace('-', '')
         _3100 = employee["tax_payroll_number"]
         _3263 = 46510
-        _3125 = employee['company_email']
+        _3125 = employee['company_email'] if employee['company_email'] != None else employee['personal_email']
         _3136 = _3135
         _3138 = _3135
         _3144 = employee["custom_unit_number"]
@@ -244,7 +259,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 if relieve_obj > date_object_start and relieve_obj < date_object_end:
                     _3210 = (date_object_end.year - relieve_obj.year) * 12 + (date_object_end.month - relieve_obj.month)
 
-
+        print(f"EMPLOYEE ID {_3070}")
         _3220 = 'N'
         _3213 = employee["custom_street_number"]
         _3214 = employee["custom_street_name"]
@@ -298,6 +313,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3040,_3040,
                 3050,_3050,
                 3060,_3060,
+                3075,_3075,
                 3080,_3080,
                 3100,_3100,
                 3263,_3263,
@@ -405,7 +421,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3030,_3030,
                 3040,_3040,
                 3050,_3050,
-                3060,_3060,
+                3075,_3075,
                 3080,_3080,
                 3100,_3100,
                 3263,_3263,
@@ -445,18 +461,24 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 ])
             
             if employee["custom_country_code"] != 'ZA':
-                output_lines.append([4150,_4150])
+                output_lines.append(
+                    [
+                        4150,_4150,
+                        3070,_3070
+                    ]
+                )
             else:
                 output_lines.append(
                     [
                         3195,_3195,
                         3220,_3220,
-                        4102,_4102
+                        4102,_4102,
+                        3060,_3060
                     ]
                 )
             output_lines.append(9999)
 
-        tracker = tracker + 1
+        
 
     _6010 = tracker
 
@@ -488,18 +510,23 @@ def export_report_to_text(start_date, end_date, transaction_year):
         updated_array = []
         for j, val in enumerate(array):
             if str(val) == "0" or str(val) == "0.0":
-                formatted_val = f"0.00"
-                updated_array.append(formatted_val)
+                if array[j - 1 ] != "3240" and array[j - 1] != '7005':
+                    formatted_val = f"0.00"
+                    updated_array.append(formatted_val)
+                else:
+                    updated_array.append(val)
             elif val == "None":
                 updated_array.append(f'"{val}"')
-            elif val.isdigit():
+            elif array[j - 1] == "3070":
+                updated_array.append(f'"{val}"')
+            elif is_number(val):
                 if array[j - 1] == "3200" or array[j - 1] == "3210":
                     formatted_val = f"{int(val):.4f}"
                     if val == "6":
                         formatted_val = f"0{formatted_val}"
                     updated_array.append(formatted_val)
-                elif array[j - 1] == "4141" or array[j - 1] == "4142":
-                    formatted_val = f"{int(val):.2f}"
+                elif array[j - 1] == "4141" or array[j - 1] == "4142" or array[j - 1] == '7002' or array[j - 1] == '7003' or array[j - 1] == '7008' or array[j - 1] == '7004':
+                    formatted_val = f"{float(val):.2f}"
                     updated_array.append(formatted_val)
                 else:
                     updated_array.append(val)
@@ -509,6 +536,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
     return "\n".join([",".join(map(str, row)) for row in result])
 
+def is_number(val):
+    try:
+        float(val)
+        return True
+    except ValueError:
+        return False
 
 def get_initials(name):
     # Split the first name by spaces
