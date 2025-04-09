@@ -3,6 +3,7 @@ import frappe
 from frappe import whitelist
 from frappe import _
 
+
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
     # Fetch the latest Quotation for the current user (customer)
@@ -84,3 +85,9 @@ def send_course_details_email(email, doc_details):
     
     except Exception as e:
         frappe.throw(_(f"Unable to send email. Please try again later. {e}"))
+
+def get_filtered_list(doctype, web_form_name, start=0, limit=20, **kwargs):
+    filters = kwargs.get('filters', {})
+    # Add filter to exclude disabled records
+    filters['disabled'] = 0
+    return frappe.get_list(doctype, filters=filters, start=start, limit=limit, fields="*")
