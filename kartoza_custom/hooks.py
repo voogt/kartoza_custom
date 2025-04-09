@@ -19,6 +19,7 @@ app_include_js = [
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
 web_include_js = [
     f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/blog_list.js?v={datetime.now()}"
 ]
 
 # include custom scss in every website theme (without file extension ".scss")
@@ -133,6 +134,13 @@ override_doctype_class = {
 # Scheduled Tasks
 # ---------------
 
+scheduler_events = {
+    "daily": [
+        "kartoza_custom.utils.update_exchange_rate_and_amount"
+    ]
+}
+
+
 # scheduler_events = {
 # 	"all": [
 # 		"kartoza_custom.tasks.all"
@@ -232,7 +240,7 @@ fixtures = [
     {"doctype": "EasyFile txt generator"},
 	{
 	"doctype": "Report",
-	"filters": [["name", "in", ["Kartoza Cash Flow", "Consolidated Financial Statement (All Companies)"]]]
+	"filters": [["name", "in", ["Kartoza Cash Flow", "All Companies Consolidated Financial Report"]]]
    }
 ]
 
@@ -249,3 +257,4 @@ website_route_rules = [
 	},
 	
 ]
+
