@@ -18,6 +18,15 @@ def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
         return '02'
     if 11.5 <= months <= 12.5:
         return '03'
+    
+
+def normalize_number(number):
+    number = str(number).strip()
+    if number.startswith('+27'):
+        return '0' + number[3:]
+    elif number.startswith('27'):
+        return '0' + number[2:]
+    return number
 
 @frappe.whitelist()
 def update_exchange_rate_and_amount():
@@ -76,7 +85,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
     # Define the input and output date formats
     input_format = "%d/%m/%Y"
     input_format_b = "%Y-%m-%d"
-    output_format = "%Y%m%d"  # CCYYMM format
+    output_format_ymd = "%Y%m%d"  # CCYYMM format
+    output_format_ym = "%Y%m" 
 
     start = start_date
     end = end_date
@@ -88,12 +98,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
     recon_period = is_approx_six_or_twelve_months_apart(start, end)
     
-    certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format)
+    certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format_ym)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{recon_period}{employer_paye_num}{certificate_num_transaction_date}VIPL000"
+    certificate_num = f"{employer_paye_num}{certificate_num_transaction_date}VIPL0000000"
 
-    period_recon = datetime.strptime(end, input_format_b).strftime(output_format)
+    period_recon = datetime.strptime(end, input_format_b).strftime(output_format_ym)
 
     output_lines = []
 
@@ -204,13 +214,14 @@ def export_report_to_text(start_date, end_date, transaction_year):
         tracker += 1
         formatted_tracker = f"{tracker:03d}"
         _3010 = f"{certificate_num}{formatted_tracker}"
-        _3135 = employee["cell_number"].replace('+', '').replace(' ', '')
+        _3135 = employee["cell_number"].replace('+', '').replace(' ', '').replace('-', '')
         
         _3075 = country_codes.get(employee["custom_country_code"])
 
         if employee["custom_country_code"] == 'ZA':
             _3015 = "IRP5"
             _4102 = employee['paye']
+            _3135 = normalize_number(_3135)
         else:
             _3015 = 'IT3(a)'
             _4102 = 0
@@ -224,7 +235,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3040 = employee["first_name"]
         _3050 = get_initials(employee["first_name"])
         _3060 = employee["id_number"]
-        _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"]
+        _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"].replace(' ', '')
         _3080 = str(employee["date_of_birth"]).replace('-', '')
         _3100 = employee["tax_payroll_number"]
         _3263 = 46510
@@ -240,9 +251,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3150 = employee["custom_postal_code"]
         _3151 = employee["custom_country_code"]
         _3160 = employee["employee"]
-        _3170 = datetime.strptime(start, input_format_b).strftime(output_format)
-        _3180 = datetime.strptime(end, input_format_b).strftime(output_format)
-        _3190 = datetime.strptime(str(employee['date_of_joining']), input_format_b).strftime(output_format)
+        _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
+        _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
+        _3190 = datetime.strptime(str(employee['date_of_joining']), input_format_b).strftime(output_format_ymd)
         _3195 = "N"
         _3285 = employee["custom_country_code"]
         _3200 = 12
@@ -259,7 +270,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 if relieve_obj > date_object_start and relieve_obj < date_object_end:
                     _3210 = (date_object_end.year - relieve_obj.year) * 12 + (date_object_end.month - relieve_obj.month)
 
-        print(f"EMPLOYEE ID {_3070}")
         _3220 = 'N'
         _3213 = employee["custom_street_number"]
         _3214 = employee["custom_street_name"]
@@ -274,7 +284,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
-        _4149 = _4141 + float(_4102) + float(_4142)
+        _4149 = round(_4141 + float(_4102) + float(_4142), 2)
         _4150 = '05'
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
@@ -284,7 +294,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 SELECT 
                     tss.posting_date,
                     2000 AS `Minimum_monthly_wage`,
-                    SUM(COALESCE(tt.total_hours, 0)) AS `Actual_Hours_per_Month`,
+                    160 AS `Actual_Hours_per_Month`,
                     COALESCE(tsd.amount, 0) AS `Actual_monthly_wage`,
                     COALESCE(tsd.amount, 0) AS `ETI_Remuneration`,
                     COALESCE(cast(tss.custom_monthly_eti as decimal(10,2)), 0) AS `calculated_incentive`
@@ -423,7 +433,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3050,_3050,
                 3075,_3075,
                 3080,_3080,
-                3100,_3100,
+                
                 3263,_3263,
                 3125,_3125,
                 3135,_3135,
@@ -473,14 +483,15 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         3195,_3195,
                         3220,_3220,
                         4102,_4102,
-                        3060,_3060
+                        3060,_3060,
+                        3100,_3100
                     ]
                 )
             output_lines.append(9999)
 
         
 
-    _6010 = tracker
+    _6010 = tracker + 1
 
     output_lines.append([6010, _6010, 9999])
 
