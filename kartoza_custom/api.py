@@ -3,7 +3,7 @@ import frappe
 from frappe import whitelist
 from frappe import _
 from frappe.utils.global_search import search as default_search
-
+from frappe.utils import now_datetime
 
 
 
@@ -133,3 +133,72 @@ def get_next_employee_number(company):
         frappe.throw(f"Duplicate Employee ID {new_series} detected. Please retry.")
 
     return new_series
+
+def get_qpp_fields():
+    meta = frappe.get_meta("Quality Procedure Process")
+    return [f"{df.fieldname} ({df.fieldtype})" for df in meta.fields]
+
+
+@frappe.whitelist()
+def get_unacknowledged_procedure():
+    user = frappe.session.user
+
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    if not employee:
+        return None
+    # if "Employee" not in frappe.get_roles(user):
+    #     return None
+
+    procedures = frappe.get_all(
+        "Quality Procedure",
+        filters={"custom_mandatory_to_acknowledge": 1, "custom_status": "Published"},
+        order_by="modified desc",
+        limit=1,
+        fields=["name", "quality_procedure_name"]
+    )
+
+    if not procedures:
+        return None
+
+    procedure = procedures[0]
+
+    # Check if already acknowledged
+    exists = frappe.db.exists("User Procedure Acknowledgment", {
+        "employee": employee,
+        "quality_procedure": procedure["name"]
+    })
+
+    if exists:
+        return None
+
+    doc = frappe.get_doc("Quality Procedure", procedure["name"])
+
+    # Combine all step descriptions
+    steps = [row.process_description for row in doc.processes if row.process_description]
+
+    content_html = "<br>".join(steps)
+
+    return {
+        "name": doc.name,
+        "title": doc.quality_procedure_name,
+        "content": content_html
+    }
+
+@frappe.whitelist()
+def acknowledge_procedure(procedure):
+    user = frappe.session.user
+    if not procedure:
+        frappe.throw(_("No procedure specified."))
+
+    # Find employee linked to current user
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    if not employee:
+        frappe.throw(_("No Employee record linked to this user."))
+
+    # Insert acknowledgment record
+    frappe.get_doc({
+        "doctype": "User Procedure Acknowledgment",
+        "employee": employee,
+        "quality_procedure": procedure,
+        "accepted_on": now_datetime()
+    }).insert(ignore_permissions=True)

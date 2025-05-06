@@ -12,7 +12,7 @@ app_license = "MIT"
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
 app_include_js = [
-    
+    f"/assets/kartoza_custom/js/procedure_modal.js?v={datetime.now()}"
 ]
 
 # include js, css files in header of web template
@@ -229,6 +229,7 @@ override_whitelisted_methods = {
 # ]
 
 
+
 fixtures = [
     {"doctype": "Moodle Course Settings"},
     {"doctype": "Kartoza Cash Flow Mapping"},
@@ -238,6 +239,7 @@ fixtures = [
     {"doctype": "Kartoza Cash Flow Mapping Accounts"},
     {"doctype": "Kartoza Reports"},
     {"doctype": "EasyFile txt generator"},
+    {"doctype": "User Procedure Acknowledgment"},
 	{
 	"doctype": "Report",
 	"filters": [["name", "in", ["Kartoza Cash Flow", "All Companies Consolidated Financial Report"]]]

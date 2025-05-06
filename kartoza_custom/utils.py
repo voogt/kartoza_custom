@@ -6,6 +6,7 @@ from frappe.utils.global_search import search as default_search
 import requests
 from frappe.utils import flt
 from kartoza_custom.country_codes import country_codes
+from frappe.utils import now_datetime
 
 def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     date1 = datetime.strptime(date1_str, "%Y-%m-%d")
@@ -561,4 +562,5 @@ def get_initials(name):
     # Get the first letter of each word and join them in uppercase
     initials = ''.join(word[0].upper() for word in words if word)
     return initials
+
 
