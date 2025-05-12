@@ -4,7 +4,7 @@ from frappe import whitelist
 from frappe import _
 from frappe.utils.global_search import search as default_search
 from frappe.utils import now_datetime
-
+from frappe.model.naming import make_autoname
 
 
 @frappe.whitelist(allow_guest=True)
@@ -202,3 +202,30 @@ def acknowledge_procedure(procedure):
         "quality_procedure": procedure,
         "accepted_on": now_datetime()
     }).insert(ignore_permissions=True)
+
+
+def before_insert_customer(doc, method):
+    website_user = frappe.session.user
+
+    if website_user in ("Administrator", "Guest"):
+        return
+
+    user = frappe.get_doc("User", website_user)
+    if user.user_type == "System User":
+        return
+
+    # Set customer_name to username
+    doc.customer_name = user.full_name
+
+    # Slugify full name
+    base_name = user.full_name
+
+    # Ensure unique name
+    new_name = base_name
+    i = 1
+    while frappe.db.exists("Customer", new_name):
+        new_name = f"{base_name}-{i}"
+        i += 1
+
+    # Change docname before saving
+    doc.name = new_name

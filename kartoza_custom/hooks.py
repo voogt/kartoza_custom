@@ -123,13 +123,12 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+
+doc_events = {
+    "Customer": {
+        "before_insert": "kartoza_custom.api.before_insert_customer"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
@@ -168,7 +167,7 @@ scheduler_events = {
 # ------------------------------
 #
 override_whitelisted_methods = {
-    "frappe.website.doctype.web_form.web_form.get_list": "kartoza_custom.api.get_filtered_list"
+    "frappe.website.doctype.web_form.web_form.get_list": "kartoza_custom.api.get_filtered_list",
 }
 #
 # each overriding function accepts a `data` argument;
