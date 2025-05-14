@@ -7,6 +7,8 @@ import requests
 from frappe.utils import flt
 from kartoza_custom.country_codes import country_codes
 from frappe.utils import now_datetime
+import re
+import unicodedata
 
 def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     date1 = datetime.strptime(date1_str, "%Y-%m-%d")
@@ -20,6 +22,42 @@ def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     if 11.5 <= months <= 12.5:
         return '03'
     
+def is_valid_sa_id(id_number: str) -> bool:
+    if len(id_number) != 13 or not id_number.isdigit():
+        return False
+
+    # Check valid date
+    try:
+        birth_date = datetime.strptime(id_number[:6], "%y%m%d")
+    except ValueError:
+        return False
+
+    # Luhn algorithm
+    def luhn_checksum(number):
+        digits = list(map(int, number))
+        sum_ = 0
+        alt = False
+        for i in range(len(digits) - 1, -1, -1):
+            d = digits[i]
+            if alt:
+                d *= 2
+                if d > 9:
+                    d -= 9
+            sum_ += d
+            alt = not alt
+        return sum_ % 10 == 0
+
+    return luhn_checksum(id_number)
+    
+def normalize_text(text):
+    # Step 1: Normalize and remove accents
+    text = unicodedata.normalize('NFKD', text)
+    text = text.encode('ASCII', 'ignore').decode('utf-8')
+    
+    # Step 2: Remove special characters (keep only alphanumerics and spaces)
+    text = re.sub(r'[^A-Za-z0-9 ]+', '', text)
+    
+    return text
 
 def normalize_number(number):
     number = str(number).strip()
@@ -220,10 +258,16 @@ def export_report_to_text(start_date, end_date, transaction_year):
         
         _3075 = country_codes.get(employee["custom_country_code"])
 
+        
         if employee["custom_country_code"] == 'ZA':
-            _3015 = "IRP5"
-            _4102 = employee['paye']
-            _3135 = normalize_number(_3135)
+            if is_valid_sa_id(employee["id_number"]):
+                _3015 = "IRP5"
+                _4102 = employee['paye']
+                _3135 = normalize_number(_3135)
+            else:
+                _3015 = 'IT3(a)'
+                _4102 = 0
+                _3135 = f"00{_3135}"
         else:
             _3015 = 'IT3(a)'
             _4102 = 0
@@ -233,8 +277,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
         
         _3020 = 'A'
         _3025 = transaction_year
-        _3030 = employee["last_name"]
-        _3040 = employee["first_name"]
+        _3030 = normalize_text(employee["last_name"])
+        _3040 = normalize_text(employee["first_name"])
         _3050 = get_initials(employee["first_name"])
         _3060 = employee["id_number"]
         _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"].replace(' ', '')
@@ -287,7 +331,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
         _4149 = round(_4141 + float(_4102) + float(_4142), 2)
-        _4150 = '05'
+        _4150 = '02'
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
@@ -473,12 +517,19 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 ])
             
             if employee["custom_country_code"] != 'ZA':
-                output_lines.append(
-                    [
-                        4150,_4150,
-                        3070,_3070
-                    ]
-                )
+                if employee["id_number"] != '6610070015086':
+                    output_lines.append(
+                        [
+                            4150,_4150,
+                            3070,_3070
+                        ]
+                    )
+                else:
+                    output_lines.append(
+                        [
+                            3070,_3070
+                        ]
+                    )
             else:
                 output_lines.append(
                     [
@@ -533,7 +584,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             elif array[j - 1] == "3070":
                 updated_array.append(f'"{val}"')
             elif is_number(val):
-                if array[j - 1] == "3200" or array[j - 1] == "3210":
+                if array[j - 1] == "3200" or array[j - 1] == "3210" or array[j - 1] == "7007":
                     formatted_val = f"{int(val):.4f}"
                     if val == "6":
                         formatted_val = f"0{formatted_val}"
