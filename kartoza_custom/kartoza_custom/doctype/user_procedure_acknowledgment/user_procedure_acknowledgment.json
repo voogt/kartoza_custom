@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:employee",
+ "autoname": "format:{employee}-{quality_procedure}",
  "creation": "2025-05-05 09:21:10.815273",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -22,8 +22,7 @@
    "in_standard_filter": 1,
    "label": "Employee",
    "options": "Employee",
-   "read_only": 1,
-   "unique": 1
+   "read_only": 1
   },
   {
    "fetch_from": "employee.employee_name",
@@ -65,11 +64,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 09:49:07.005088",
+ "modified": "2025-05-14 11:07:14.434194",
  "modified_by": "juanique@kartoza.com",
  "module": "Kartoza Custom",
  "name": "User Procedure Acknowledgment",
- "naming_rule": "By fieldname",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

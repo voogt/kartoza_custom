@@ -142,51 +142,87 @@ def get_qpp_fields():
 @frappe.whitelist()
 def get_unacknowledged_procedure():
     user = frappe.session.user
-
     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
     if not employee:
-        return None
-    # if "Employee" not in frappe.get_roles(user):
-    #     return None
+        return []
 
     procedures = frappe.get_all(
         "Quality Procedure",
         filters={"custom_mandatory_to_acknowledge": 1, "custom_status": "Published"},
-        order_by="modified desc",
-        limit=1,
-        fields=["name", "quality_procedure_name"]
+        fields=["name", "quality_procedure_name"],
+        order_by="modified desc"
     )
 
-    if not procedures:
-        return None
+    unacknowledged = []
+    for procedure in procedures:
+        exists = frappe.db.exists("User Procedure Acknowledgment", {
+            "employee": employee,
+            "quality_procedure": procedure["name"]
+        })
+        if not exists:
+            doc = frappe.get_doc("Quality Procedure", procedure["name"])
+            steps = [row.process_description for row in doc.processes if row.process_description]
+            content_html = "<br>".join(steps)
+            unacknowledged.append({
+                "name": doc.name,
+                "title": doc.quality_procedure_name,
+                "content": content_html
+            })
 
-    procedure = procedures[0]
+    return unacknowledged
 
-    # Check if already acknowledged
-    exists = frappe.db.exists("User Procedure Acknowledgment", {
-        "employee": employee,
-        "quality_procedure": procedure["name"]
-    })
 
-    if exists:
-        return None
+# @frappe.whitelist()
+# def get_unacknowledged_procedure():
+#     user = frappe.session.user
 
-    doc = frappe.get_doc("Quality Procedure", procedure["name"])
+#     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+#     if not employee:
+#         return None
+#     # if "Employee" not in frappe.get_roles(user):
+#     #     return None
 
-    # Combine all step descriptions
-    steps = [row.process_description for row in doc.processes if row.process_description]
+#     procedures = frappe.get_all(
+#         "Quality Procedure",
+#         filters={"custom_mandatory_to_acknowledge": 1, "custom_status": "Published"},
+#         order_by="modified desc",
+#         limit=1,
+#         fields=["name", "quality_procedure_name"]
+#     )
 
-    content_html = "<br>".join(steps)
+#     if not procedures:
+#         return None
 
-    return {
-        "name": doc.name,
-        "title": doc.quality_procedure_name,
-        "content": content_html
-    }
+#     procedure = procedures[0]
+
+#     # Check if already acknowledged
+#     exists = frappe.db.exists("User Procedure Acknowledgment", {
+#         "employee": employee,
+#         "quality_procedure": procedure["name"]
+#     })
+
+#     if exists:
+#         return None
+
+#     doc = frappe.get_doc("Quality Procedure", procedure["name"])
+
+#     # Combine all step descriptions
+#     steps = [row.process_description for row in doc.processes if row.process_description]
+
+#     content_html = "<br>".join(steps)
+
+#     return {
+#         "name": doc.name,
+#         "title": doc.quality_procedure_name,
+#         "content": content_html
+#     }
 
 @frappe.whitelist()
 def acknowledge_procedure(procedure):
     user = frappe.session.user
+
+    print("PROCEDURE", procedure)
+
     if not procedure:
         frappe.throw(_("No procedure specified."))
 
@@ -194,6 +230,16 @@ def acknowledge_procedure(procedure):
     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
     if not employee:
         frappe.throw(_("No Employee record linked to this user."))
+
+    # Check if the acknowledgment already exists
+    exists = frappe.db.exists("User Procedure Acknowledgment", {
+        "employee": employee,
+        "quality_procedure": procedure
+    })
+
+    if exists:
+        frappe.msgprint(_("You have already acknowledged this procedure."))
+        return
 
     # Insert acknowledgment record
     frappe.get_doc({
