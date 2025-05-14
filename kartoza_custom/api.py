@@ -277,30 +277,44 @@ def before_insert_customer(doc, method):
     # Change docname before saving
     doc.name = new_name
 
-
-
-
 @frappe.whitelist()
 def send_expense_email(docname):
     doc = frappe.get_doc('Employee Expense Claim', docname)
 
-    # Get users with roles "Expense Approver" or "Expense Manager"
+    # Get users with the roles "Expense Approver" or "Expense Manager"
     users = frappe.get_all(
         'Has Role',
-        filters={'role': ['in', ['Expense Approver', 'Expense Manager']]},
-        fields=['parent'],  # 'parent' is the User ID in the Has Role table
+        filters={
+            'role': ['in', ['Expense Approver', 'Expense Manager']],
+            'parenttype': 'User'  
+        },
+        fields=['parent'],
         distinct=True
     )
 
-    # Extract unique user emails
+    print("USERS", users)
     recipients = []
     for user in users:
-        user_doc = frappe.get_doc('User', user.parent)
-        if user_doc.email and user_doc.enabled:
-            recipients.append(user_doc.email)
+        username = user.parent
+
+        if username == "Administrator":
+            continue  # Skip Administrator
+
+        try:
+            user_doc = frappe.get_doc('User', username)
+            if user_doc.enabled and user_doc.email:
+                recipients.append(user_doc.email)
+        except frappe.DoesNotExistError:
+            # Silently ignore missing users
+            continue
+        except Exception:
+            # Catch any unexpected issues (e.g. invalid user format)
+            continue
 
     if not recipients:
-        frappe.throw("No users with role 'Expense Approver' or 'Expense Manager' have a valid email address.")
+        return 'No valid recipients found with Expense Approver or Expense Manager role.'
+    
+    print("RECIPIENTS", recipients)
 
     subject = f"{doc.employee_name} has submitted a new Expense Claim"
     message = f"""
@@ -319,4 +333,3 @@ def send_expense_email(docname):
     )
 
     return 'sent'
-
