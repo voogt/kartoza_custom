@@ -5,6 +5,7 @@ from frappe import _
 from frappe.utils.global_search import search as default_search
 from frappe.utils import now_datetime
 from frappe.model.naming import make_autoname
+from frappe.core.doctype.communication.email import make
 
 
 @frappe.whitelist(allow_guest=True)
@@ -275,3 +276,47 @@ def before_insert_customer(doc, method):
 
     # Change docname before saving
     doc.name = new_name
+
+
+
+
+@frappe.whitelist()
+def send_expense_email(docname):
+    doc = frappe.get_doc('Employee Expense Claim', docname)
+
+    # Get users with roles "Expense Approver" or "Expense Manager"
+    users = frappe.get_all(
+        'Has Role',
+        filters={'role': ['in', ['Expense Approver', 'Expense Manager']]},
+        fields=['parent'],  # 'parent' is the User ID in the Has Role table
+        distinct=True
+    )
+
+    # Extract unique user emails
+    recipients = []
+    for user in users:
+        user_doc = frappe.get_doc('User', user.parent)
+        if user_doc.email and user_doc.enabled:
+            recipients.append(user_doc.email)
+
+    if not recipients:
+        frappe.throw("No users with role 'Expense Approver' or 'Expense Manager' have a valid email address.")
+
+    subject = f"{doc.employee_name} has submitted a new Expense Claim"
+    message = f"""
+        <p>{doc.employee_name} has submitted a new Expense Claim.</p>
+        <p>Please review the Expense Claim at 
+        <a href='https://kartoza.com/app/employee-expense-claim/{doc.name}'>
+        https://kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
+    """
+
+    frappe.sendmail(
+        recipients=recipients,
+        subject=subject,
+        message=message,
+        reference_doctype="Employee Expense Claim",
+        reference_name=doc.name
+    )
+
+    return 'sent'
+
