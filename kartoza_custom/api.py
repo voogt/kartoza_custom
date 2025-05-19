@@ -172,52 +172,6 @@ def get_unacknowledged_procedure():
 
     return unacknowledged
 
-
-# @frappe.whitelist()
-# def get_unacknowledged_procedure():
-#     user = frappe.session.user
-
-#     employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
-#     if not employee:
-#         return None
-#     # if "Employee" not in frappe.get_roles(user):
-#     #     return None
-
-#     procedures = frappe.get_all(
-#         "Quality Procedure",
-#         filters={"custom_mandatory_to_acknowledge": 1, "custom_status": "Published"},
-#         order_by="modified desc",
-#         limit=1,
-#         fields=["name", "quality_procedure_name"]
-#     )
-
-#     if not procedures:
-#         return None
-
-#     procedure = procedures[0]
-
-#     # Check if already acknowledged
-#     exists = frappe.db.exists("User Procedure Acknowledgment", {
-#         "employee": employee,
-#         "quality_procedure": procedure["name"]
-#     })
-
-#     if exists:
-#         return None
-
-#     doc = frappe.get_doc("Quality Procedure", procedure["name"])
-
-#     # Combine all step descriptions
-#     steps = [row.process_description for row in doc.processes if row.process_description]
-
-#     content_html = "<br>".join(steps)
-
-#     return {
-#         "name": doc.name,
-#         "title": doc.quality_procedure_name,
-#         "content": content_html
-#     }
-
 @frappe.whitelist()
 def acknowledge_procedure(procedure):
     user = frappe.session.user
