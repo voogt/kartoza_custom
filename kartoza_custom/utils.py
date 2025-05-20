@@ -10,6 +10,15 @@ from frappe.utils import now_datetime
 import re
 import unicodedata
 
+def get_country_code_by_name(country_name):
+    try:
+        country = frappe.get_doc("Country", country_name)
+        return country.code.upper()
+    except frappe.DoesNotExistError:
+        frappe.throw(f"Country '{country_name}' not found.")
+    except Exception as e:
+        frappe.throw(f"An error occurred: {str(e)}")
+
 def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     date1 = datetime.strptime(date1_str, "%Y-%m-%d")
     date2 = datetime.strptime(date2_str, "%Y-%m-%d")
@@ -185,6 +194,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             te.custom_employed_1_october_2013,
             te.custom_id_number_or_asylum_seeker_permit,
             thl.custom_country_code as `custom_country_code`,
+            te.custom_country_of_issue as `custom_country_of_issue`,
             -- Subquery for gross pay
             (SELECT 
                 COALESCE(SUM(tss.gross_pay), 0) as `gross_pay`
@@ -255,19 +265,19 @@ def export_report_to_text(start_date, end_date, transaction_year):
         formatted_tracker = f"{tracker:03d}"
         _3010 = f"{certificate_num}{formatted_tracker}"
         _3135 = employee["cell_number"].replace('+', '').replace(' ', '').replace('-', '')
-        
-        _3075 = country_codes.get(employee["custom_country_code"])
+
+        if employee["custom_country_of_issue"] != None:
+            country_code = get_country_code_by_name(employee["custom_country_of_issue"])
+            _3075 = country_codes.get(country_code) 
+        else:
+            _3075 = country_codes.get(employee["custom_country_code"])
 
         
-        if employee["custom_country_code"] == 'ZA':
-            if is_valid_sa_id(employee["id_number"]):
-                _3015 = "IRP5"
-                _4102 = employee['paye']
-                _3135 = normalize_number(_3135)
-            else:
-                _3015 = 'IT3(a)'
-                _4102 = 0
-                _3135 = f"00{_3135}"
+        if _3075 == 'ZAF':
+            _3015 = "IRP5"
+            _4102 = employee['paye']
+            _3135 = normalize_number(_3135)
+            
         else:
             _3015 = 'IT3(a)'
             _4102 = 0
@@ -295,13 +305,13 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3148 = employee["custom_suburbdistrict"]
         _3149 = employee["custom_citytown"]
         _3150 = employee["custom_postal_code"]
-        _3151 = employee["custom_country_code"]
+        _3151 = _3075
         _3160 = employee["employee"]
         _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
         _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
         _3190 = datetime.strptime(str(employee['date_of_joining']), input_format_b).strftime(output_format_ymd)
         _3195 = "N"
-        _3285 = employee["custom_country_code"]
+        _3285 = _3075
         _3200 = 12
 
         if employee["employee_status"] == 'Active':
@@ -407,7 +417,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3699,_3699,
                 4141,_4141,
                 4142,_4142,
-                4102,_4102,
                 4149,_4149])
             
             # if employee["custom_employee_qualifies_for_eti"] == 1:
@@ -517,7 +526,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 4149,_4149,
                 ])
             
-            if employee["custom_country_code"] != 'ZA':
+            if _3075 != 'ZAF':
                 if employee["id_number"] != '6610070015086':
                     output_lines.append(
                         [
@@ -526,17 +535,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         ]
                     )
                 elif employee["id_number"] == '6610070015086':
-                    _4150 = '03'
                     output_lines.append(
                         [   
-                            4150,_4150,
-                            3070,_3070
-                        ]
-                    )
-            else:
-                if is_valid_sa_id(employee["id_number"]):
-                    output_lines.append(
-                        [
+                            3070,_3070,
                             3195,_3195,
                             3220,_3220,
                             4102,_4102,
@@ -544,13 +545,17 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             3100,_3100
                         ]
                     )
-                else:
-                    output_lines.append(
-                        [
-                            4150,_4150,
-                            3070,_3070
-                        ]
-                    )
+            else:
+                output_lines.append(
+                    [
+                        3195,_3195,
+                        3220,_3220,
+                        4102,_4102,
+                        3060,_3060,
+                        3100,_3100
+                    ]
+                )
+                
             output_lines.append(9999)
 
         
