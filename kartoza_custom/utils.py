@@ -268,9 +268,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
         if employee["custom_country_of_issue"] != None:
             country_code = get_country_code_by_name(employee["custom_country_of_issue"])
+            _3151 = country_code
             _3075 = country_codes.get(country_code) 
         else:
             _3075 = country_codes.get(employee["custom_country_code"])
+            _3151 = employee["custom_country_code"]
 
         
         if _3075 == 'ZAF':
@@ -305,13 +307,13 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3148 = employee["custom_suburbdistrict"]
         _3149 = employee["custom_citytown"]
         _3150 = employee["custom_postal_code"]
-        _3151 = _3075
+        _3151 = _3151
         _3160 = employee["employee"]
         _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
         _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
         _3190 = datetime.strptime(str(employee['date_of_joining']), input_format_b).strftime(output_format_ymd)
         _3195 = "N"
-        _3285 = _3075
+        _3285 = _3151
         _3200 = 12
 
         if employee["employee_status"] == 'Active':
