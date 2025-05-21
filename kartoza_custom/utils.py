@@ -347,6 +347,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
+            _3015 = 'IT3(a)'
 
             sql = f"""
                 SELECT 
@@ -537,6 +538,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         ]
                     )
                 elif employee["id_number"] == '6610070015086':
+                    _3015 = 'IRP5'
                     output_lines.append(
                         [   
                             3070,_3070,
