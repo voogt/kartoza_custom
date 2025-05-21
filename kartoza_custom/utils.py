@@ -279,11 +279,14 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3015 = "IRP5"
             _4102 = employee['paye']
             _3135 = normalize_number(_3135)
-            
         else:
             _3015 = 'IT3(a)'
             _4102 = 0
             _3135 = f"00{_3135}"
+
+        if employee["id_number"] == '6610070015086':
+            _3015 = 'IRP5'
+            _4102 = employee['paye']
 
         
         
@@ -403,11 +406,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3170,_3170,
                 3180,_3180,
                 3190,_3190,
-                3195,_3195,
                 3285,_3285,
                 3200,_3200,
                 3210,_3210,
-                3220,_3220,
                 3213,_3213,
                 3214,_3214,
                 3215,_3215,
@@ -482,9 +483,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
         elif employee["custom_employee_qualifies_for_eti"] == 0:
             _3026 = 'N'
-            if employee["id_number"] == '6610070015086':
-                _3015 = 'IRP5'
-                _4102 = employee['paye']
         
             output_lines.append([
                 3010,_3010,
@@ -547,7 +545,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             3070,_3070,
                             4102,_4102,
                             3060,_3060,
-                            3100,_3100
+                            3100,_3100,
+                            3195,_3195,
+                            3220,_3220,
                         ]
                     )
             else:
