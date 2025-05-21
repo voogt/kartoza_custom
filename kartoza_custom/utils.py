@@ -484,6 +484,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3026 = 'N'
             if employee["id_number"] == '6610070015086':
                 _3015 = 'IRP5'
+                _4102 = employee['paye']
         
             output_lines.append([
                 3010,_3010,
@@ -544,8 +545,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     output_lines.append(
                         [   
                             3070,_3070,
-                            3195,_3195,
-                            3220,_3220,
                             4102,_4102,
                             3060,_3060,
                             3100,_3100
