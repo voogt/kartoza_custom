@@ -246,7 +246,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
             `tabHoliday List` thl ON te.holiday_list = thl.name
         WHERE 
             te.custom_include_payroll_report = 1
-            AND te.date_of_joining <= '{start}'
             AND EXISTS (
                 SELECT 1 FROM `tabSalary Slip` tss
                 WHERE tss.employee = te.name
