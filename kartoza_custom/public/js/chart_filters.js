@@ -37,9 +37,11 @@ function createChartFilters(){
             html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
         });
         const element = document.querySelector(`[title="${chart.chart_name}"]`);
-        // element.insertAdjacentHTML('beforeend', '<p>This is appended HTML content.</p>');
-        element.innerHTML = '';
-        element.innerHTML += html;
+        try {
+            element.innerHTML = html;
+        } catch (error) {
+            
+        }
     }
 }
 
