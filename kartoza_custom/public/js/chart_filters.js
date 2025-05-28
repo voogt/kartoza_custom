@@ -8,7 +8,6 @@ frappe.after_ajax(() => {
             const observer = new MutationObserver((mutationsList, observer) => {
                 mutationsList.forEach(mutation => {
                     createChartFilters();
-                    console.log('Mutation detected:', mutation);
                 });
             });
             
@@ -27,17 +26,20 @@ frappe.after_ajax(() => {
 
 function createChartFilters(){
     var charts = frappe.utils.parse_array(frappe.dashboard.charts);
-    const containers = document.querySelectorAll('.widget-subtitle');
+    // const containers = document.querySelectorAll('.widget-subtitle');
 
     for (var i = 0; i < charts.length; i++) {
         var chart = charts[i];
+        console.log('Processing chart:', chart);
         var chart_settings = chart.chart_settings;
-        var html = ``;
+        var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
         Object.entries(chart_settings.filters).forEach(([key, value]) => {
-            html += `<div>${formatString(key)}: ${value}</div>`;
+            html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
         });
-        containers[i].innerHTML = '';
-        containers[i].innerHTML += html;
+        const element = document.querySelector(`[title="${chart.chart_name}"]`);
+        // element.insertAdjacentHTML('beforeend', '<p>This is appended HTML content.</p>');
+        element.innerHTML = '';
+        element.innerHTML += html;
     }
 }
 
