@@ -313,7 +313,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3160 = employee["employee"]
         _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
         _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
-        _3190 = datetime.strptime(str(employee['date_of_joining']), input_format_b).strftime(output_format_ymd)
+        _3190 = _3170
         _3195 = "N"
         _3285 = _3151
         _3200 = 12
