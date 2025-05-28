@@ -12,7 +12,8 @@ app_license = "MIT"
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
 app_include_js = [
-    f"/assets/kartoza_custom/js/procedure_modal.js?v={datetime.now()}"
+    f"/assets/kartoza_custom/js/procedure_modal.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/chart_filters.js?v={datetime.now()}"
 ]
 
 # include js, css files in header of web template
