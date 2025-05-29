@@ -1,37 +1,41 @@
-frappe.after_ajax(() => {
-    // Add a delay to ensure frappe.dashboard.charts is fully populated
-    setTimeout(async () => {
-        try {
-            if (frappe.dashboard && Array.isArray(frappe.dashboard.charts) && frappe.dashboard.charts.length > 0) {
-                createChartFilters();
-
-                // Wait for all elements with the class `frappe-chart chart` to load in the DOM
-                await waitForElement('.frappe-chart.chart');
-
-                // Add listener for chart_settings updates
-                const observer = new MutationObserver((mutationsList, observer) => {
-                    mutationsList.forEach(mutation => {
-                        console.log('Mutation detected:', mutation);
-                        createChartFilters();
-                    });
-                });
-
-                // Select all elements with the class `frappe-chart chart`
-                document.querySelectorAll('.frappe-chart.chart').forEach(el => {
-                    observer.observe(el, {
-                        childList: true,        // Listen for added/removed children
-                        subtree: true,          // Listen deeply within the node
-                        attributes: true,       // Listen for attribute changes
-                        characterData: true     // Listen for text content changes
-                    });
-                });
-            } else {
-                console.warn('frappe.dashboard.charts is not populated or unavailable.');
-            }
-        } catch (error) {
-            console.error('Error initializing chart filters:', error);
+frappe.after_ajax(async () => {
+    try {
+        // Run logic only if the URL contains 'dashboard-view'
+        if (!window.location.href.includes('dashboard-view')) {
+            console.log('Dashboard view not detected in URL. Skipping chart filters initialization.');
+            return;
         }
-    }, 1000); // Delay of 100ms
+
+        // Wait until frappe.dashboard.charts is ready
+        while (!(frappe.dashboard && Array.isArray(frappe.dashboard.charts) && frappe.dashboard.charts.length > 0)) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Check every 100ms
+        }
+
+        createChartFilters();
+
+        // Wait for all elements with the class `frappe-chart chart` to load in the DOM
+        await waitForElement('.frappe-chart.chart');
+
+        // Add listener for chart_settings updates
+        const observer = new MutationObserver((mutationsList, observer) => {
+            mutationsList.forEach(mutation => {
+                console.log('Mutation detected:', mutation);
+                createChartFilters();
+            });
+        });
+
+        // Select all elements with the class `frappe-chart chart`
+        document.querySelectorAll('.frappe-chart.chart').forEach(el => {
+            observer.observe(el, {
+                childList: true,        // Listen for added/removed children
+                subtree: true,          // Listen deeply within the node
+                attributes: true,       // Listen for attribute changes
+                characterData: true     // Listen for text content changes
+            });
+        });
+    } catch (error) {
+        console.error('Error initializing chart filters:', error);
+    }
 });
 
 
