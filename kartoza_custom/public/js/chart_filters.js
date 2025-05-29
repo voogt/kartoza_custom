@@ -45,10 +45,7 @@ function createChartFilters() {
         for (var i = 0; i < charts.length; i++) {
             var chart = charts[i];
 
-            console.log('Processing chart:', chart);
             var chart_settings = chart.chart_settings;
-
-            console.log('Processing chart:', chart_settings);
 
             // Automatically add start_date and end_date if no filters are found
             if (!chart_settings.filters || Object.keys(chart_settings.filters).length === 0) {
