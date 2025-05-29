@@ -34,6 +34,7 @@ frappe.after_ajax(() => {
     }, 1000); // Delay of 100ms
 });
 
+
 function createChartFilters() {
     try {
         var charts = frappe.utils.parse_array(frappe.dashboard.charts);
