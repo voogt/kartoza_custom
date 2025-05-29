@@ -25,7 +25,6 @@ frappe.after_ajax(() => {
 
 function createChartFilters(){
     var charts = frappe.utils.parse_array(frappe.dashboard.charts);
-    // const containers = document.querySelectorAll('.widget-subtitle');
 
     for (var i = 0; i < charts.length; i++) {
         var chart = charts[i];
