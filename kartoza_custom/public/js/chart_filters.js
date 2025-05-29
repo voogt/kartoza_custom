@@ -19,7 +19,6 @@ frappe.after_ajax(async () => {
         // Add listener for chart_settings updates
         const observer = new MutationObserver((mutationsList, observer) => {
             mutationsList.forEach(mutation => {
-                console.log('Mutation detected:', mutation);
                 createChartFilters();
             });
         });
@@ -45,14 +44,11 @@ function createChartFilters() {
 
         for (var i = 0; i < charts.length; i++) {
             var chart = charts[i];
-            console.log('Processing chart:', chart);
             var chart_settings = chart.chart_settings;
             var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
             Object.entries(chart_settings.filters).forEach(([key, value]) => {
                 html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
             });
-
-            console.log('chart', chart);
             var selector = `[title="${chart.chart_name}"]`;
             const element = document.querySelector(selector);
 
