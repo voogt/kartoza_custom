@@ -2,7 +2,6 @@ frappe.after_ajax(() => {
     // Add a delay to ensure frappe.dashboard.charts is fully populated
     setTimeout(() => {
         if (frappe.dashboard && Array.isArray(frappe.dashboard.charts) && frappe.dashboard.charts.length > 0) {
-            createChartFilters();
 
             // Add listener for chart_settings updates
             const observer = new MutationObserver((mutationsList, observer) => {
@@ -36,13 +35,8 @@ function createChartFilters(){
         Object.entries(chart_settings.filters).forEach(([key, value]) => {
             html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
         });
-        // const element = document.querySelector(`[title="${chart.chart_name}"]`);
-        // try {
-        //     element.innerHTML = html;
-        // } catch (error) {
-            
-        // }
-        const selector = `[title="${chart.chart_name}"]`;
+
+        var selector = `[title="${chart.chart_name}"]`;
 
         waitForElement(selector, 5000)
             .then(element => {
@@ -63,10 +57,7 @@ function waitForElement(selector, timeout = 5000) {
             if (element) {
                 clearInterval(interval);
                 resolve(element);
-            } else if (Date.now() - startTime > timeout) {
-                clearInterval(interval);
-                reject(new Error("Element not found within timeout"));
-            }
+            } 
         }, 500); // check every 100ms
     });
 }
