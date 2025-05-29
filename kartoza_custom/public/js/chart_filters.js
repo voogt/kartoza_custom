@@ -37,13 +37,13 @@ function createChartFilters(){
 
         var selector = `[title="${chart.chart_name}"]`;
 
-        waitForElement(selector, 5000)
-            .then(element => {
-                element.innerHTML = html;
-            })
-            .catch(error => {
-                console.error(error);
-            });
+        // waitForElement(selector, 5000)
+        //     .then(element => {
+        //         element.innerHTML = html;
+        //     })
+        //     .catch(error => {
+        //         console.error(error);
+        //     });
         }
 }
 
