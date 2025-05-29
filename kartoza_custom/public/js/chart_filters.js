@@ -1,15 +1,20 @@
 frappe.after_ajax(() => {
     // Add a delay to ensure frappe.dashboard.charts is fully populated
-    setTimeout(() => {
+    setTimeout(async () => {
         if (frappe.dashboard && Array.isArray(frappe.dashboard.charts) && frappe.dashboard.charts.length > 0) {
+            createChartFilters();
+
+            // Wait for all elements with the class `frappe-chart chart` to load in the DOM
+            await waitForElement('.frappe-chart.chart');
 
             // Add listener for chart_settings updates
             const observer = new MutationObserver((mutationsList, observer) => {
                 mutationsList.forEach(mutation => {
+                    console.log('Mutation detected:', mutation);
                     createChartFilters();
                 });
             });
-            
+
             // Select all elements with the class `frappe-chart chart`
             document.querySelectorAll('.frappe-chart.chart').forEach(el => {
                 observer.observe(el, {
@@ -34,17 +39,13 @@ function createChartFilters(){
         Object.entries(chart_settings.filters).forEach(([key, value]) => {
             html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
         });
-
+        
+        console.log('chart', chart)
         var selector = `[title="${chart.chart_name}"]`;
+        const element = document.querySelector(selector);
 
-        // waitForElement(selector, 5000)
-        //     .then(element => {
-        //         element.innerHTML = html;
-        //     })
-        //     .catch(error => {
-        //         console.error(error);
-        //     });
-        }
+        element.innerHTML = html;
+    }
 }
 
 function waitForElement(selector, timeout = 5000) {
