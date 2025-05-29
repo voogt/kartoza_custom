@@ -44,7 +44,28 @@ function createChartFilters() {
 
         for (var i = 0; i < charts.length; i++) {
             var chart = charts[i];
+
+            console.log('Processing chart:', chart);
             var chart_settings = chart.chart_settings;
+
+            console.log('Processing chart:', chart_settings);
+
+            // Automatically add start_date and end_date if no filters are found
+            if (!chart_settings.filters || Object.keys(chart_settings.filters).length === 0) {
+                const now = new Date();
+
+                // First day of previous month
+                const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+                // Last day of previous month
+                const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+                chart_settings.filters = {
+                    start_date: formatDate(firstDayPrevMonth),
+                    end_date: formatDate(lastDayPrevMonth)
+                };
+            }
+
             var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
             Object.entries(chart_settings.filters).forEach(([key, value]) => {
                 html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
@@ -62,6 +83,14 @@ function createChartFilters() {
         console.error('Error creating chart filters:', error);
     }
 }
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 
 function waitForElement(selector, timeout = 5000) {
     return new Promise((resolve, reject) => {
