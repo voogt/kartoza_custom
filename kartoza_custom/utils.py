@@ -345,11 +345,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
         _4149 = round(_4141 + float(_4102) + float(_4142), 2)
-        _4150 = '02'
+        _4150 = '05'
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
             _3015 = 'IT3(a)'
+            _4150 = '02'
 
             sql = f"""
                 SELECT 
