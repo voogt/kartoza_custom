@@ -60,6 +60,8 @@ async function createChartFilters() {
             if (linkedReport && linkedReport.message && linkedReport.message.report_name) {
                 const reportName = linkedReport.message.report_name;
 
+                console.log('Linked report name:', reportName);
+
                 // Fetch filters from the linked report
                 const reportFilters = await frappe.call({
                     method: 'frappe.client.get_value',
@@ -86,21 +88,21 @@ async function createChartFilters() {
                         };
                     }
                 }
+
+                var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
+                Object.entries(chart_settings.filters).forEach(([key, value]) => {
+                    html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
+                });
+                var selector = `[title="${chart.chart_name}"]`;
+                const element = document.querySelector(selector);
+    
+                if (element) {
+                    element.innerHTML = html;
+                } else {
+                    console.warn(`Element with selector ${selector} not found.`);
+                }
             }
-
-
-            var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
-            Object.entries(chart_settings.filters).forEach(([key, value]) => {
-                html += `<div style='margin-right:10px'>${formatString(key)}: ${value}</div>`;
-            });
-            var selector = `[title="${chart.chart_name}"]`;
-            const element = document.querySelector(selector);
-
-            if (element) {
-                element.innerHTML = html;
-            } else {
-                console.warn(`Element with selector ${selector} not found.`);
-            }
+           
         }
     } catch (error) {
         console.error('Error creating chart filters:', error);
