@@ -132,7 +132,7 @@ function waitForElement(selector, timeout = 5000) {
                 clearInterval(interval);
                 reject(new Error(`Timeout waiting for element: ${selector}`));
             }
-        }, 500); // check every 500ms
+        }, 100); // check every 100ms
     });
 }
 
