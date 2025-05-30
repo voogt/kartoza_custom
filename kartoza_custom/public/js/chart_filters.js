@@ -38,7 +38,7 @@ frappe.after_ajax(async () => {
 });
 
 
-function createChartFilters() {
+async function createChartFilters() {
     try {
         var charts = frappe.utils.parse_array(frappe.dashboard.charts);
 
@@ -47,21 +47,47 @@ function createChartFilters() {
 
             var chart_settings = chart.chart_settings;
 
-            // Automatically add start_date and end_date if no filters are found
-            if (!chart_settings.filters || Object.keys(chart_settings.filters).length === 0) {
-                const now = new Date();
+            // Fetch the linked report for the chart
+            const linkedReport = await frappe.call({
+                method: 'frappe.client.get_value',
+                args: {
+                    doctype: 'Dashboard Chart',
+                    fieldname: 'report_name',
+                    filters: { name: chart.chart_name }
+                }
+            });
 
-                // First day of previous month
-                const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            if (linkedReport && linkedReport.message && linkedReport.message.report_name) {
+                const reportName = linkedReport.message.report_name;
 
-                // Last day of previous month
-                const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+                // Fetch filters from the linked report
+                const reportFilters = await frappe.call({
+                    method: 'frappe.client.get_value',
+                    args: {
+                        doctype: 'Report',
+                        fieldname: '*',
+                        filters: { name: reportName }
+                    }
+                });
 
-                chart_settings.filters = {
-                    start_date: formatDate(firstDayPrevMonth),
-                    end_date: formatDate(lastDayPrevMonth)
-                };
+                if(hasStartAndEndDate(reportFilters.message.report_script)){
+                    if (!chart_settings.filters || Object.keys(chart_settings.filters).length === 0) {
+                        const now = new Date();
+        
+                        // First day of previous month
+                        const firstDayPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        
+                        // Last day of previous month
+                        const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        
+                        chart_settings.filters = {
+                            start_date: formatDate(firstDayPrevMonth),
+                            end_date: formatDate(lastDayPrevMonth)
+                        };
+                    }
+                }
             }
+
 
             var html = `<div style='margin-right:10px'>${chart.chart_name}:</div>`;
             Object.entries(chart_settings.filters).forEach(([key, value]) => {
@@ -79,6 +105,10 @@ function createChartFilters() {
     } catch (error) {
         console.error('Error creating chart filters:', error);
     }
+}
+
+function hasStartAndEndDate(str) {
+    return str.includes('start_date') && str.includes('end_date');
 }
 
 function formatDate(date) {
