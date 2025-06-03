@@ -483,6 +483,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
         elif employee["custom_employee_qualifies_for_eti"] == 0:
             _3026 = 'N'
+            _4150 = '05'
         
             output_lines.append([
                 3010,_3010,
@@ -524,7 +525,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3240,_3240,
                 3288,_3288,
                 3026,_3026,
-                3601,_3601,
+                
                 3699,_3699,
                 4141,_4141,
                 4142,_4142,
@@ -535,8 +536,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 if employee["id_number"] != '6610070015086':
                     output_lines.append(
                         [
-                            4150,_4150,
-                            3070,_3070
+                            4150,'05',
+                            3070,_3070,
+                            3602,_3601,
                         ]
                     )
                 elif employee["id_number"] == '6610070015086':
@@ -548,6 +550,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             3100,_3100,
                             3195,_3195,
                             3220,_3220,
+                            3601,_3601,
                         ]
                     )
             else:
@@ -557,7 +560,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         3220,_3220,
                         4102,_4102,
                         3060,_3060,
-                        3100,_3100
+                        3100,_3100,
+                        3601,_3601,
                     ]
                 )
                 
