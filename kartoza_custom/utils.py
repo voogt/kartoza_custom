@@ -251,9 +251,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 WHERE 
                     tss.employee = te.employee 
                     AND tsd.parentfield = 'earnings' 
-                    AND tsd.salary_component = '3605 Taxable income Leave Paid Out'
+                    AND tsd.salary_component in ('3605 Taxable income Bonus', '3605 Taxable income Performance Bonus')
                     AND tss.posting_date BETWEEN '{start}' AND '{end}'
-            ) AS 3605_Taxable_income_Leave_Paid_Out,
+            ) AS 3605_Bonus,
             -- Subquery for leave paid out
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -422,7 +422,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3602_reimbursement_purchases = float(employee['3602_Reimbursement_Purchases'])
         _3703 = float(employee['3703_Reimbursement_Kilometres'])
         _3901 = float(employee['3901_Gratuities_Sevarance_Pay'])
-        _3605 = float(employee['3605_Taxable_income_Leave_Paid_Out'])
+        _3605 = float(employee['3605_Bonus'])
         _3714 = float(employee['3714_Per_diem_local_and_foreign_under_limit'])
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
