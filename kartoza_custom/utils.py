@@ -274,7 +274,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 `tabSalary Detail` tsd ON tss.name = tsd.parent
             WHERE 
                 tss.employee = te.employee 
-                AND tsd.salary_component IN ('3601 Taxable Income Basic', '3602 Non Taxable Income Basic')
+                AND tsd.salary_component IN ('3601 Taxable Income Basic', '3602 Non Taxable Income Basic', '3605 Taxable income Leave Paid Out')
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS basic,
             -- Subquery for PAYE
