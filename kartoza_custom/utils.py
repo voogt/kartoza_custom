@@ -204,6 +204,18 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 tss.employee = te.employee 
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS gross_pay,
+            -- Subquery for BASIC
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+            FROM 
+                `tabSalary Slip` tss
+            INNER JOIN 
+                `tabSalary Detail` tsd ON tss.name = tsd.parent
+            WHERE 
+                tss.employee = te.employee 
+                AND tsd.salary_component = '3601 Taxable Income Basic'
+                AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS basic,
             -- Subquery for PAYE
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -339,7 +351,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3279 = "N"
         _3240 = 0
         _3288 = 1
-        _3601 = int(employee["gross_pay"])
+        _3601 = int(employee["basic"])
         _3699 = int(employee["gross_pay"])
         
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
