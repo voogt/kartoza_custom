@@ -197,13 +197,74 @@ def export_report_to_text(start_date, end_date, transaction_year):
             te.custom_country_of_issue as `custom_country_of_issue`,
             -- Subquery for gross pay
             (SELECT 
-                COALESCE(SUM(tss.gross_pay), 0) as `gross_pay`
-            FROM 
-                `tabSalary Slip` tss 
-            WHERE 
-                tss.employee = te.employee 
-                AND tss.posting_date BETWEEN '{start}' AND '{end}'
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component NOT IN (
+                        '3602 Reimbursement Purchases', 
+                        '3703 Reimbursement Kilometres', 
+                        '3901 Gratuities - Sevarance Pay',
+                        '3714 Per diem local and foreign under limit')
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS gross_pay,
+            -- Subquery for reimbursements
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3602 Reimbursement Purchases'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3602_Reimbursement_Purchases,
+            -- Subquery for kilometres
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3703 Reimbursement Kilometres'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3703_Reimbursement_Kilometres,
+            -- Subquery for severance pay
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3901 Gratuities - Sevarance Pay'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3901_Gratuities_Sevarance_Pay,
+            -- Subquery for leave paid out
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3605 Taxable income Leave Paid Out'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3605_Taxable_income_Leave_Paid_Out,
+            -- Subquery for leave paid out
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3714 Per diem local and foreign under limit'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3714_Per_diem_local_and_foreign_under_limit,
             -- Subquery for BASIC
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -213,7 +274,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 `tabSalary Detail` tsd ON tss.name = tsd.parent
             WHERE 
                 tss.employee = te.employee 
-                AND tsd.salary_component = '3601 Taxable Income Basic'
+                AND tsd.salary_component IN ('3601 Taxable Income Basic', '3602 Non Taxable Income Basic')
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS basic,
             -- Subquery for PAYE
@@ -358,6 +419,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _4142 = employee['company_uif']
         _4149 = round(_4141 + float(_4102) + float(_4142), 2)
         _4150 = '05'
+        _3602_reimbursement_purchases = float(employee['3602_Reimbursement_Purchases'])
+        _3703 = float(employee['3703_Reimbursement_Kilometres'])
+        _3901 = float(employee['3901_Gratuities_Sevarance_Pay'])
+        _3605 = float(employee['3605_Taxable_income_Leave_Paid_Out'])
+        _3714 = float(employee['3714_Per_diem_local_and_foreign_under_limit'])
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
@@ -537,7 +603,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3240,_3240,
                 3288,_3288,
                 3026,_3026,
-                
+                3703,_3703,
+                3605,_3605,
+                3714,_3714,
                 3699,_3699,
                 4141,_4141,
                 4142,_4142,
@@ -574,6 +642,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         3060,_3060,
                         3100,_3100,
                         3601,_3601,
+                        3602,_3602_reimbursement_purchases,
                     ]
                 )
                 
