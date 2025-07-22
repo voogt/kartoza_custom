@@ -410,22 +410,21 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3279 = "N"
         _3240 = 0
         _3288 = 1
-        _3601 = int(employee["basic"])
+        _3601 = round(float(employee["basic"]))
         
         
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
         _4149 = round(_4141 + float(_4102) + float(_4142), 2)
         _4150 = '05'
-        _3602_reimbursement_purchases = int(employee['3602_Reimbursement_Purchases'])
-        _3703 = int(employee['3703_Reimbursement_Kilometres'])
-        _3901 = int(employee['3901_Gratuities_Sevarance_Pay'])
-        _3605 = int(employee['3605_Bonus'])
-        _3714 = int(employee['3714_Per_diem_local_and_foreign_under_limit'])
+        _3602_reimbursement_purchases = round(float(employee['3602_Reimbursement_Purchases']))
+        _3703 = round(float(employee['3703_Reimbursement_Kilometres']))
+        _3901 = round(float(employee['3901_Gratuities_Sevarance_Pay']))
+        _3605 = round(float(employee['3605_Bonus']))
+        _3714 = round(float(employee['3714_Per_diem_local_and_foreign_under_limit']))
 
         _3696 = _3602_reimbursement_purchases + _3703  + _3714
-        _3699 = int(employee["gross_pay"])
-        # _3699 = _3601 - _3696
+        _3699 = round(float(employee["gross_pay"]))
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
