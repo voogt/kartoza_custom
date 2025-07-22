@@ -267,14 +267,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
             ) AS 3714_Per_diem_local_and_foreign_under_limit,
             -- Subquery for BASIC
             (SELECT 
-                COALESCE(SUM(tsd.amount), 0)
+                COALESCE(SUM(tss.gross_pay), 0) as `gross_pay`
             FROM 
-                `tabSalary Slip` tss
-            INNER JOIN 
-                `tabSalary Detail` tsd ON tss.name = tsd.parent
+                `tabSalary Slip` tss 
             WHERE 
                 tss.employee = te.employee 
-                AND tsd.salary_component IN ('3601 Taxable Income Basic', '3602 Non Taxable Income Basic', '3605 Taxable income Leave Paid Out')
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS basic,
             -- Subquery for PAYE
@@ -390,6 +387,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3195 = "N"
         _3285 = _3151
         _3200 = 12
+        
 
         if employee["employee_status"] == 'Active':
             joining_obj = datetime.strptime(str(employee["date_of_joining"]), input_format_b)
@@ -413,17 +411,21 @@ def export_report_to_text(start_date, end_date, transaction_year):
         _3240 = 0
         _3288 = 1
         _3601 = int(employee["basic"])
-        _3699 = int(employee["gross_pay"])
+        
         
         _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
         _4142 = employee['company_uif']
         _4149 = round(_4141 + float(_4102) + float(_4142), 2)
         _4150 = '05'
-        _3602_reimbursement_purchases = float(employee['3602_Reimbursement_Purchases'])
-        _3703 = float(employee['3703_Reimbursement_Kilometres'])
-        _3901 = float(employee['3901_Gratuities_Sevarance_Pay'])
-        _3605 = float(employee['3605_Bonus'])
-        _3714 = float(employee['3714_Per_diem_local_and_foreign_under_limit'])
+        _3602_reimbursement_purchases = int(employee['3602_Reimbursement_Purchases'])
+        _3703 = int(employee['3703_Reimbursement_Kilometres'])
+        _3901 = int(employee['3901_Gratuities_Sevarance_Pay'])
+        _3605 = int(employee['3605_Bonus'])
+        _3714 = int(employee['3714_Per_diem_local_and_foreign_under_limit'])
+
+        _3696 = _3602_reimbursement_purchases + _3703  + _3714
+        _3699 = int(employee["gross_pay"])
+        # _3699 = _3601 - _3696
 
         if employee["custom_employee_qualifies_for_eti"] == 1:
             _3026 = 'Y'
@@ -573,7 +575,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3050,_3050,
                 3075,_3075,
                 3080,_3080,
-                
+                3100,_3100,
                 3263,_3263,
                 3125,_3125,
                 3135,_3135,
@@ -612,6 +614,11 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 4149,_4149,
                 ])
             
+            if _3696 > 0:
+                output_lines.append([
+                    3696,_3696
+                ])
+            
             if _3075 != 'ZAF':
                 if employee["id_number"] != '6610070015086':
                     output_lines.append(
@@ -627,7 +634,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             3070,_3070,
                             4102,_4102,
                             3060,_3060,
-                            3100,_3100,
                             3195,_3195,
                             3220,_3220,
                             3601,_3601,
@@ -640,7 +646,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         3220,_3220,
                         4102,_4102,
                         3060,_3060,
-                        3100,_3100,
                         3601,_3601,
                         3602,_3602_reimbursement_purchases,
                     ]
@@ -680,7 +685,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         updated_array = []
         for j, val in enumerate(array):
             if str(val) == "0" or str(val) == "0.0":
-                if array[j - 1 ] != "3240" and array[j - 1] != '7005':
+                if array[j - 1 ] != "3240" and array[j - 1] != '7005' and array[j - 1] != '3714' and array[j - 1] != '3602' and array[j - 1] != '3605' and array[j - 1] != '3703':
                     formatted_val = f"0.00"
                     updated_array.append(formatted_val)
                 else:
