@@ -376,6 +376,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         if employee["id_number"] == '6610070015086':
             _3015 = 'IRP5'
             _4102 = employee['paye']
+            _3100 = employee["tax_payroll_number"]
 
         _3020 = 'A'
         _3025 = transaction_year
@@ -626,19 +627,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 4149,_4149,
                 ])
             
-            if _3696 > 0:
-                output_lines.append([
-                    3602,_3602_reimbursement_purchases,
-                    3703,_3703,
-                    3714,_3714,
-                    3696,_3696
-                ])
-
-            if _3699 > 0:
-                output_lines.append([3699,_3699,])
-
             if _3701 > 0:
-                output_lines.append([3701,_3701])
+                _4582 = _3701 * 0.8
+                output_lines.append([
+                    3701,_3701,
+                    4582,_4582
+                ])
             
             if _3075 != 'ZAF':
                 if employee["id_number"] != '6610070015086':
@@ -647,6 +641,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             4150,'05',
                             3070,_3070,
                             3602,_3601 + _3605,
+                            3696, _3601 + _3605,
                         ]
                     )
                 elif employee["id_number"] == '6610070015086':
@@ -661,6 +656,17 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             3605,_3605,
                         ]
                     )
+
+                    if _3696 > 0:
+                        output_lines.append([
+                            3602,_3602_reimbursement_purchases,
+                            3703,_3703,
+                            3714,_3714,
+                            3696,_3696
+                        ])
+
+                    if _3699 > 0:
+                        output_lines.append([3699,_3699])
             else:
                 output_lines.append(
                     [
@@ -672,6 +678,17 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         3605,_3605,
                     ]
                 )
+
+                if _3696 > 0:
+                    output_lines.append([
+                        3602,_3602_reimbursement_purchases,
+                        3703,_3703,
+                        3714,_3714,
+                        3696,_3696
+                    ])
+
+                if _3699 > 0:
+                    output_lines.append([3699,_3699])
                 
             output_lines.append(9999)     
 
