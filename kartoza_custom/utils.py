@@ -621,7 +621,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3240,_3240,
                 3288,_3288,
                 3026,_3026,
-                3699,_3699,
                 4141,_4141,
                 4142,_4142,
                 4149,_4149,
@@ -634,6 +633,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     3714,_3714,
                     3696,_3696
                 ])
+
+            if _3699 > 0:
+                output_lines.append([3699,_3699,])
 
             if _3701 > 0:
                 output_lines.append([3701,_3701])
