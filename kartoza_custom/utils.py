@@ -349,309 +349,332 @@ def export_report_to_text(start_date, end_date, transaction_year):
     _6020 = 0
 
     for employee in employee_dict:
-        tracker += 1
-        formatted_tracker = f"{tracker:03d}"
-        _3010 = f"{certificate_num}{formatted_tracker}"
-        _3135 = employee["cell_number"].replace('+', '').replace(' ', '').replace('-', '')
+        if employee["basic"] > 0:
+            tracker += 1
+            formatted_tracker = f"{tracker:03d}"
+            _3010 = f"{certificate_num}{formatted_tracker}"
+            _3135 = employee["cell_number"].replace('+', '').replace(' ', '').replace('-', '')
 
-        if employee["custom_country_of_issue"] != None:
-            country_code = get_country_code_by_name(employee["custom_country_of_issue"])
-            _3151 = country_code
-            _3075 = country_codes.get(country_code) 
-        else:
-            _3075 = country_codes.get(employee["custom_country_code"])
-            _3151 = employee["custom_country_code"]
+            if employee["custom_country_of_issue"] != None:
+                country_code = get_country_code_by_name(employee["custom_country_of_issue"])
+                _3151 = country_code
+                _3075 = country_codes.get(country_code) 
+            else:
+                _3075 = country_codes.get(employee["custom_country_code"])
+                _3151 = employee["custom_country_code"]
 
-        
-        if _3075 == 'ZAF':
-            _3015 = "IRP5"
-            _4102 = employee['paye']
-            _3135 = normalize_number(_3135)
-            _3100 = employee["tax_payroll_number"]
-        else:
-            _3015 = 'IT3(a)'
-            _4102 = 0
-            _3135 = f"00{_3135}"
-            _3100 = employee["custom_south_african_tax_number"]
-        if employee["id_number"] == '6610070015086':
-            _3015 = 'IRP5'
-            _4102 = employee['paye']
-            _3100 = employee["tax_payroll_number"]
-
-        _3020 = 'A'
-        _3025 = transaction_year
-        _3030 = normalize_text(employee["last_name"])
-        _3040 = normalize_text(employee["first_name"])
-        _3050 = get_initials(employee["first_name"])
-        _3060 = employee["id_number"]
-        _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"].replace(' ', '')
-        _3080 = str(employee["date_of_birth"]).replace('-', '')
-        
-        _3263 = 46510
-        _3125 = employee['company_email'] if employee['company_email'] != None else employee['personal_email']
-        _3136 = _3135
-        _3138 = _3135
-        _3144 = employee["custom_unit_number"]
-        _3145 = employee["custom_complex"]
-        _3146 = employee["custom_street_number"]
-        _3147 = employee["custom_street_name"]
-        _3148 = employee["custom_suburbdistrict"]
-        _3149 = employee["custom_citytown"]
-        _3150 = employee["custom_postal_code"]
-        _3151 = _3151
-        _3160 = employee["employee"]
-        _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
-        _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
-        _3190 = _3170
-        _3195 = "N"
-        _3285 = _3151
-        _3200 = 12
-
-        if employee["employee_status"] == 'Active':
-            joining_obj = datetime.strptime(str(employee["date_of_joining"]), input_format_b)
-            if joining_obj < date_object_start:
-                _3210 = 6
-            elif joining_obj > date_object_start:
-                _3210 = (joining_obj.year - date_object_start.year) * 12 + (joining_obj.month - date_object_start.month)
-        else:
-            if employee["relieving_date"] and employee['relieving_date'] != None:
-                relieve_obj = datetime.strptime(str(employee["relieving_date"]), input_format_b)
-                if relieve_obj > date_object_start and relieve_obj < date_object_end:
-                    _3210 = (date_object_end.year - relieve_obj.year) * 12 + (date_object_end.month - relieve_obj.month)
-
-        _3220 = 'N'
-        _3213 = employee["custom_street_number"]
-        _3214 = employee["custom_street_name"]
-        _3215 = employee["custom_suburbdistrict"]
-        _3216 = employee["custom_citytown"]
-        _3217 = employee["custom_postal_code"]
-        _3279 = "N"
-        _3240 = 0
-        _3288 = 1
-        _3601 = round(float(employee["basic"]))
-        
-        
-        _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
-        _4142 = employee['company_uif']
-        _4149 = round(_4141 + float(_4102) + float(_4142), 2)
-        _4150 = '05'
-        _3602_reimbursement_purchases = round(float(employee['3602_Reimbursement_Purchases']))
-        _3703 = round(float(employee['3703_Reimbursement_Kilometres']))
-        _3901 = round(float(employee['3901_Gratuities_Sevarance_Pay']))
-        _3605 = round(float(employee['3605_Bonus']))
-        _3714 = round(float(employee['3714_Per_diem_local_and_foreign_under_limit']))
-        _3701 = round(float(employee['3701_Travel_Allowance']))
-        _3696 = _3602_reimbursement_purchases + _3703  + _3714
-        _3699 = round(float(employee["total_taxable_earnings"]))
-
-        if employee["custom_employee_qualifies_for_eti"] == 1:
-            _3026 = 'Y'
-            _3015 = 'IT3(a)'
-            _4150 = '02'
-
-            sql = f"""
-                SELECT 
-                    tss.posting_date,
-                    2000 AS `Minimum_monthly_wage`,
-                    160 AS `Actual_Hours_per_Month`,
-                    COALESCE(tsd.amount, 0) AS `Actual_monthly_wage`,
-                    COALESCE(tsd.amount, 0) AS `ETI_Remuneration`,
-                    COALESCE(cast(tss.custom_monthly_eti as decimal(10,2)), 0) AS `calculated_incentive`
-                FROM tabEmployee te 
-                LEFT JOIN `tabSalary Slip` tss 
-                    ON te.employee = tss.employee 
-                LEFT JOIN `tabSalary Detail` tsd
-                    ON tsd.parent = tss.name
-                LEFT JOIN `tabTimesheet` tt
-                    ON tt.employee  = tss.employee 
-                WHERE te.employee = '{employee['employee']}'
-                AND tsd.salary_component = '3601 Taxable Income Basic'
-                AND tss.status = 'Submitted'
-                AND tss.posting_date BETWEEN '{start_date}' AND '{end_date}'
-                GROUP BY tss.posting_date, tsd.amount, tss.custom_monthly_eti;
-
-            """
-            _eti_dict = frappe.db.sql(sql, as_dict=1, debug=1)
-
-            output_lines.append([
-                3010,_3010,
-                3015,_3015,
-                4150,_4150,
-                3020,_3020,
-                3025,_3025,
-                3030,_3030,
-                3040,_3040,
-                3050,_3050,
-                3060,_3060,
-                3075,_3075,
-                3080,_3080,
-                3100,_3100,
-                3263,_3263,
-                3125,_3125,
-                3135,_3135,
-                3136,_3136,
-                3138,_3138,
-                3144,_3144,
-                3145,_3145,
-                3146,_3146,
-                3147,_3147,
-                3148,_3148,
-                3149,_3149,
-                3150,_3150,
-                3151,_3151,
-                3160,_3160,
-                3170,_3170,
-                3180,_3180,
-                3190,_3190,
-                3285,_3285,
-                3200,_3200,
-                3210,_3210,
-                3213,_3213,
-                3214,_3214,
-                3215,_3215,
-                3216,_3216,
-                3217,_3217,
-                3279,_3279,
-                3240,_3240,
-                3288,_3288,
-                3026,_3026,
-                3601,_3601,
-                3699,_3699,
-                4141,_4141,
-                4142,_4142,
-                4149,_4149])
             
-            # if employee["custom_employee_qualifies_for_eti"] == 1:
-            #     output_lines.append([4150,_4150])
+            if _3075 == 'ZAF':
+                _3015 = "IRP5"
+                _4102 = employee['paye']
+                _3135 = normalize_number(_3135)
+                _3100 = employee["tax_payroll_number"]
+            else:
+                _3015 = 'IT3(a)'
+                _4102 = 0
+                _3135 = f"00{_3135}"
+                _3100 = employee["custom_south_african_tax_number"]
+            if employee["id_number"] == '6610070015086':
+                _3015 = 'IRP5'
+                _4102 = employee['paye']
+                _3100 = employee["tax_payroll_number"]
+
+            _3020 = 'A'
+            _3025 = transaction_year
+            _3030 = normalize_text(employee["last_name"])
+            _3040 = normalize_text(employee["first_name"])
+            _3050 = get_initials(employee["first_name"])
+            _3060 = employee["id_number"]
+            _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"].replace(' ', '')
+            _3080 = str(employee["date_of_birth"]).replace('-', '')
             
-            _4118 = 0
-            _7004 = []
-            _7006 = []
-            _7002 = []
-            _7003 = []
-            _7005 = []
-            _7007 = []
-            _7008 = []
+            _3263 = 46510
+            _3125 = employee['company_email'] if employee['company_email'] != None else employee['personal_email']
+            _3136 = _3135
+            _3138 = _3135
+            _3144 = employee["custom_unit_number"]
+            _3145 = employee["custom_complex"]
+            _3146 = employee["custom_street_number"]
+            _3147 = employee["custom_street_name"]
+            _3148 = employee["custom_suburbdistrict"]
+            _3149 = employee["custom_citytown"]
+            _3150 = employee["custom_postal_code"]
+            _3151 = _3151
+            _3160 = employee["employee"]
+            _3170 = datetime.strptime(start, input_format_b).strftime(output_format_ymd)
+            _3180 = datetime.strptime(end, input_format_b).strftime(output_format_ymd)
+            _3190 = _3170
+            _3195 = "N"
+            _3285 = _3151
+            _3200 = 12
 
-            # Group entries in eti_dict by month and year
-            eti_grouped_by_month = defaultdict(list)
-            for eti in _eti_dict:
-                _4118 = _4118 + eti['calculated_incentive']
-                posting_date_obj = datetime.strptime(str(eti['posting_date']), input_format_b)
-                month_year_key = (posting_date_obj.year, posting_date_obj.month)
-                eti_grouped_by_month[month_year_key].append(eti)
+            if employee["employee_status"] == 'Active':
+                joining_obj = datetime.strptime(str(employee["date_of_joining"]), input_format_b)
+                if joining_obj < date_object_start:
+                    _3210 = 6
+                elif joining_obj > date_object_start:
+                    _3210 = (joining_obj.year - date_object_start.year) * 12 + (joining_obj.month - date_object_start.month)
+            else:
+                if employee["relieving_date"] and employee['relieving_date'] != None:
+                    relieve_obj = datetime.strptime(str(employee["relieving_date"]), input_format_b)
+                    if relieve_obj > date_object_start and relieve_obj < date_object_end:
+                        _3210 = (date_object_end.year - relieve_obj.year) * 12 + (date_object_end.month - relieve_obj.month)
 
-            current_date = date_object_start
-            num_track = 0
+            _3220 = 'N'
+            _3213 = employee["custom_street_number"]
+            _3214 = employee["custom_street_name"]
+            _3215 = employee["custom_suburbdistrict"]
+            _3216 = employee["custom_citytown"]
+            _3217 = employee["custom_postal_code"]
+            _3279 = "N"
+            _3240 = 0
+            _3288 = 1
+            _3601 = round(float(employee["basic"]))
             
-            while current_date <= date_object_end:
-                month_str = f"{current_date.month:02d}"  # formats with leading zero
-                _7006.append(month_str)
-                month_year_key = (current_date.year, current_date.month)
-
-                if month_year_key in eti_grouped_by_month:
-                    # Process all ETI entries for the current month
-                    for eti in eti_grouped_by_month[month_year_key]:
-                        _7007.append(eti['Actual_Hours_per_Month'])
-                        _7002.append(eti['Actual_monthly_wage'])
-                        _7008.append(eti['Minimum_monthly_wage'])
-                        _7005.append(1)
-                        _7003.append(float(eti['Actual_Hours_per_Month']) / float(eti['Actual_Hours_per_Month']))
-                        _7004.append(eti['calculated_incentive'])
-                else:
-                    # No entries for the current month
-                    _7007.append(0)
-                    _7002.append(0)
-                    _7008.append(0)
-                    _7005.append(0)
-                    _7003.append(0)
-                    _7004.append(0)
-
-                num_track += 1
-                current_date += relativedelta(months=1)
-
-            output_lines.append([4118, _4118,])
-
-            for i in range(num_track):
-                output_lines.append([7006, _7006[i], 7002, _7002[i], 7003, _7003[i], 7004, _7004[i], 7005, _7005[i], 7007, _7007[i], 7008, _7008[i],])
-
-            output_lines.append(9999)
             
-
-        elif employee["custom_employee_qualifies_for_eti"] == 0:
-            _3026 = 'N'
+            _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
+            _4142 = employee['company_uif']
+            _4149 = round(_4141 + float(_4102) + float(_4142), 2)
             _4150 = '05'
-        
-            output_lines.append([
-                3010,_3010,
-                3015,_3015,
-                3020,_3020,
-                3025,_3025,
-                3030,_3030,
-                3040,_3040,
-                3050,_3050,
-                3075,_3075,
-                3080,_3080,
-                3100,_3100,
-                3263,_3263,
-                3125,_3125,
-                3135,_3135,
-                3136,_3136,
-                3138,_3138,
-                3144,_3144,
-                3145,_3145,
-                3146,_3146,
-                3147,_3147,
-                3148,_3148,
-                3149,_3149,
-                3150,_3150,
-                3151,_3151,
-                3160,_3160,
-                3170,_3170,
-                3180,_3180,
-                3190,_3190,
-                3285,_3285,
-                3200,_3200,
-                3210,_3210,
-                3213,_3213,
-                3214,_3214,
-                3215,_3215,
-                3216,_3216,
-                3217,_3217,
-                3279,_3279,
-                3240,_3240,
-                3288,_3288,
-                3026,_3026,
-                4141,_4141,
-                4142,_4142,
-                4149,_4149,
-                ])
-            
-            if _3701 > 0:
-                _4582 = _3701 * 0.8
+            _3602_reimbursement_purchases = round(float(employee['3602_Reimbursement_Purchases']))
+            _3703 = round(float(employee['3703_Reimbursement_Kilometres']))
+            _3901 = round(float(employee['3901_Gratuities_Sevarance_Pay']))
+            _3605 = round(float(employee['3605_Bonus']))
+            _3714 = round(float(employee['3714_Per_diem_local_and_foreign_under_limit']))
+            _3701 = round(float(employee['3701_Travel_Allowance']))
+            _3696 = _3602_reimbursement_purchases + _3703  + _3714
+            _3699 = round(float(employee["total_taxable_earnings"]))
+
+            if employee["custom_employee_qualifies_for_eti"] == 1:
+                _3026 = 'Y'
+                _3015 = 'IT3(a)'
+                _4150 = '02'
+
+                sql = f"""
+                    SELECT 
+                        tss.posting_date,
+                        2000 AS `Minimum_monthly_wage`,
+                        160 AS `Actual_Hours_per_Month`,
+                        COALESCE(tsd.amount, 0) AS `Actual_monthly_wage`,
+                        COALESCE(tsd.amount, 0) AS `ETI_Remuneration`,
+                        COALESCE(cast(tss.custom_monthly_eti as decimal(10,2)), 0) AS `calculated_incentive`
+                    FROM tabEmployee te 
+                    LEFT JOIN `tabSalary Slip` tss 
+                        ON te.employee = tss.employee 
+                    LEFT JOIN `tabSalary Detail` tsd
+                        ON tsd.parent = tss.name
+                    LEFT JOIN `tabTimesheet` tt
+                        ON tt.employee  = tss.employee 
+                    WHERE te.employee = '{employee['employee']}'
+                    AND tsd.salary_component = '3601 Taxable Income Basic'
+                    AND tss.status = 'Submitted'
+                    AND tss.posting_date BETWEEN '{start_date}' AND '{end_date}'
+                    GROUP BY tss.posting_date, tsd.amount, tss.custom_monthly_eti;
+
+                """
+                _eti_dict = frappe.db.sql(sql, as_dict=1, debug=1)
+
                 output_lines.append([
-                    3701,_3701,
-                    4582,_4582
-                ])
+                    3010,_3010,
+                    3015,_3015,
+                    4150,_4150,
+                    3020,_3020,
+                    3025,_3025,
+                    3030,_3030,
+                    3040,_3040,
+                    3050,_3050,
+                    3060,_3060,
+                    3075,_3075,
+                    3080,_3080,
+                    3100,_3100,
+                    3263,_3263,
+                    3125,_3125,
+                    3135,_3135,
+                    3136,_3136,
+                    3138,_3138,
+                    3144,_3144,
+                    3145,_3145,
+                    3146,_3146,
+                    3147,_3147,
+                    3148,_3148,
+                    3149,_3149,
+                    3150,_3150,
+                    3151,_3151,
+                    3160,_3160,
+                    3170,_3170,
+                    3180,_3180,
+                    3190,_3190,
+                    3285,_3285,
+                    3200,_3200,
+                    3210,_3210,
+                    3213,_3213,
+                    3214,_3214,
+                    3215,_3215,
+                    3216,_3216,
+                    3217,_3217,
+                    3279,_3279,
+                    3240,_3240,
+                    3288,_3288,
+                    3026,_3026,
+                    3601,_3601,
+                    3699,_3699,
+                    4141,_4141,
+                    4142,_4142,
+                    4149,_4149])
+                
+                # if employee["custom_employee_qualifies_for_eti"] == 1:
+                #     output_lines.append([4150,_4150])
+                
+                _4118 = 0
+                _7004 = []
+                _7006 = []
+                _7002 = []
+                _7003 = []
+                _7005 = []
+                _7007 = []
+                _7008 = []
+
+                # Group entries in eti_dict by month and year
+                eti_grouped_by_month = defaultdict(list)
+                for eti in _eti_dict:
+                    _4118 = _4118 + eti['calculated_incentive']
+                    posting_date_obj = datetime.strptime(str(eti['posting_date']), input_format_b)
+                    month_year_key = (posting_date_obj.year, posting_date_obj.month)
+                    eti_grouped_by_month[month_year_key].append(eti)
+
+                current_date = date_object_start
+                num_track = 0
+                
+                while current_date <= date_object_end:
+                    month_str = f"{current_date.month:02d}"  # formats with leading zero
+                    _7006.append(month_str)
+                    month_year_key = (current_date.year, current_date.month)
+
+                    if month_year_key in eti_grouped_by_month:
+                        # Process all ETI entries for the current month
+                        for eti in eti_grouped_by_month[month_year_key]:
+                            _7007.append(eti['Actual_Hours_per_Month'])
+                            _7002.append(eti['Actual_monthly_wage'])
+                            _7008.append(eti['Minimum_monthly_wage'])
+                            _7005.append(1)
+                            _7003.append(float(eti['Actual_Hours_per_Month']) / float(eti['Actual_Hours_per_Month']))
+                            _7004.append(eti['calculated_incentive'])
+                    else:
+                        # No entries for the current month
+                        _7007.append(0)
+                        _7002.append(0)
+                        _7008.append(0)
+                        _7005.append(0)
+                        _7003.append(0)
+                        _7004.append(0)
+
+                    num_track += 1
+                    current_date += relativedelta(months=1)
+
+                output_lines.append([4118, _4118,])
+
+                for i in range(num_track):
+                    output_lines.append([7006, _7006[i], 7002, _7002[i], 7003, _7003[i], 7004, _7004[i], 7005, _7005[i], 7007, _7007[i], 7008, _7008[i],])
+
+                output_lines.append(9999)
+                
+
+            elif employee["custom_employee_qualifies_for_eti"] == 0:
+                _3026 = 'N'
+                _4150 = '05'
             
-            if _3075 != 'ZAF':
-                if employee["id_number"] != '6610070015086':
+                output_lines.append([
+                    3010,_3010,
+                    3015,_3015,
+                    3020,_3020,
+                    3025,_3025,
+                    3030,_3030,
+                    3040,_3040,
+                    3050,_3050,
+                    3075,_3075,
+                    3080,_3080,
+                    3100,_3100,
+                    3263,_3263,
+                    3125,_3125,
+                    3135,_3135,
+                    3136,_3136,
+                    3138,_3138,
+                    3144,_3144,
+                    3145,_3145,
+                    3146,_3146,
+                    3147,_3147,
+                    3148,_3148,
+                    3149,_3149,
+                    3150,_3150,
+                    3151,_3151,
+                    3160,_3160,
+                    3170,_3170,
+                    3180,_3180,
+                    3190,_3190,
+                    3285,_3285,
+                    3200,_3200,
+                    3210,_3210,
+                    3213,_3213,
+                    3214,_3214,
+                    3215,_3215,
+                    3216,_3216,
+                    3217,_3217,
+                    3279,_3279,
+                    3240,_3240,
+                    3288,_3288,
+                    3026,_3026,
+                    4141,_4141,
+                    4142,_4142,
+                    4149,_4149,
+                    ])
+                
+                if _3701 > 0:
+                    _4582 = _3701 * 0.8
+                    output_lines.append([
+                        3701,_3701,
+                        4582,round(_4582)
+                    ])
+                
+                if _3075 != 'ZAF':
+                    if employee["id_number"] != '6610070015086':
+                        output_lines.append(
+                            [
+                                4150,'05',
+                                3070,_3070,
+                                3602,_3601 + _3605,
+                                3696,_3601 + _3605,
+                            ]
+                        )
+                    elif employee["id_number"] == '6610070015086':
+                        output_lines.append(
+                            [   
+                                3070,_3070,
+                                4102,_4102,
+                                3060,_3060,
+                                3195,_3195,
+                                3220,_3220,
+                                3601,_3601,
+                                3605,_3605,
+                            ]
+                        )
+
+                        if _3696 > 0:
+                            output_lines.append([
+                                3602,_3602_reimbursement_purchases,
+                                3703,_3703,
+                                3714,_3714,
+                                3696,_3696
+                            ])
+
+                        if _3699 > 0:
+                            output_lines.append([3699,_3699])
+                else:
                     output_lines.append(
                         [
-                            4150,'05',
-                            3070,_3070,
-                            3602,_3601 + _3605,
-                            3696,_3601 + _3605,
-                        ]
-                    )
-                elif employee["id_number"] == '6610070015086':
-                    output_lines.append(
-                        [   
-                            3070,_3070,
-                            4102,_4102,
-                            3060,_3060,
                             3195,_3195,
                             3220,_3220,
+                            4102,_4102,
+                            3060,_3060,
                             3601,_3601,
                             3605,_3605,
                         ]
@@ -667,30 +690,8 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
                     if _3699 > 0:
                         output_lines.append([3699,_3699])
-            else:
-                output_lines.append(
-                    [
-                        3195,_3195,
-                        3220,_3220,
-                        4102,_4102,
-                        3060,_3060,
-                        3601,_3601,
-                        3605,_3605,
-                    ]
-                )
-
-                if _3696 > 0:
-                    output_lines.append([
-                        3602,_3602_reimbursement_purchases,
-                        3703,_3703,
-                        3714,_3714,
-                        3696,_3696
-                    ])
-
-                if _3699 > 0:
-                    output_lines.append([3699,_3699])
-                
-            output_lines.append(9999)     
+                    
+                output_lines.append(9999)     
 
     _6010 = tracker + 1
 
