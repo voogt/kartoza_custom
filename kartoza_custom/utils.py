@@ -641,7 +641,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                             4150,'05',
                             3070,_3070,
                             3602,_3601 + _3605,
-                            3696, _3601 + _3605,
+                            3696,_3601 + _3605,
                         ]
                     )
                 elif employee["id_number"] == '6610070015086':
@@ -722,7 +722,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
         updated_array = []
         for j, val in enumerate(array):
             if str(val) == "0" or str(val) == "0.0":
-                if array[j - 1 ] != "3240" and array[j - 1] != '7005' and array[j - 1] != '3714' and array[j - 1] != '3602' and array[j - 1] != '3605' and array[j - 1] != '3703':
+                if array[j - 1 ] != "3240" and array[j - 1] != '7005' and array[j - 1] != '3714' and array[j - 1] != '3602' and array[j - 1] != '3605' and array[j - 1] != '3703' and array[j - 1] != '3696':
                     formatted_val = f"0.00"
                     updated_array.append(formatted_val)
                 else:
