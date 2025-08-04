@@ -360,6 +360,18 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 AND tcc.salary_component = '4141 UIF Employee and Employer Contributions'
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS company_uif
+            -- Subquery for Company SDL contributions
+            (SELECT 
+                COALESCE(SUM(tcc.amount), 0 )
+            FROM 
+                `tabSalary Slip` tss
+            INNER JOIN 
+                `tabCompany Contribution` tcc ON tss.name = tcc.parent
+            WHERE 
+                tss.employee = te.employee 
+                AND tcc.salary_component = '4142 SDL Contribution'
+                AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS company_sdl
         FROM 
             `tabEmployee` te
         LEFT JOIN 
@@ -461,7 +473,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             
             
             _4141 = float(employee['emp_uif']) + float(employee['company_uif'])
-            _4142 = employee['company_uif']
+            _4142 = employee['company_sdl']
             _4149 = round(_4141 + float(_4102) + float(_4142), 2)
             _4150 = '05'
             _3602_reimbursement_purchases = round(float(employee['3602_Reimbursement_Purchases']))
