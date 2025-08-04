@@ -359,7 +359,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 tss.employee = te.employee 
                 AND tcc.salary_component = '4141 UIF Employee and Employer Contributions'
                 AND tss.posting_date BETWEEN '{start}' AND '{end}'
-            ) AS company_uif
+            ) AS company_uif,
             -- Subquery for Company SDL contributions
             (SELECT 
                 COALESCE(SUM(tcc.amount), 0 )
