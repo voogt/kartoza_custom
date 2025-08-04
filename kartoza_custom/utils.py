@@ -196,6 +196,15 @@ def export_report_to_text(start_date, end_date, transaction_year):
             te.custom_id_number_or_asylum_seeker_permit,
             thl.custom_country_code as `custom_country_code`,
             te.custom_country_of_issue as `custom_country_of_issue`,
+            (
+                SELECT 
+                salary_structure
+                FROM `tabSalary Slip` tss
+                WHERE 
+                    tss.employee = te.employee  
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+                    LIMIT 1
+            ) as `salary_structure`,
             -- Subquery for total taxable earnings
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -226,6 +235,17 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     AND tsd.salary_component = '3602 Reimbursement Purchases'
                     AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS 3602_Reimbursement_Purchases,
+            -- Subquery for backpay
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component = '3651 Non Taxable Backpay'
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3651_Non_Taxable_Backpay,
             -- Subquery for travel allowance
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -259,7 +279,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     AND tsd.salary_component = '3901 Gratuities - Sevarance Pay'
                     AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS 3901_Gratuities_Sevarance_Pay,
-            -- Subquery for leave paid out
+            -- Subquery for bonus
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
                 FROM `tabSalary Slip` tss
@@ -270,6 +290,17 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     AND tsd.salary_component in ('3605 Taxable income Bonus', '3605 Taxable income Performance Bonus')
                     AND tss.posting_date BETWEEN '{start}' AND '{end}'
             ) AS 3605_Bonus,
+            -- Subquery for bonus non tax
+            (SELECT 
+                COALESCE(SUM(tsd.amount), 0)
+                FROM `tabSalary Slip` tss
+                INNER JOIN `tabSalary Detail` tsd ON tss.name = tsd.parent
+                WHERE 
+                    tss.employee = te.employee 
+                    AND tsd.parentfield = 'earnings' 
+                    AND tsd.salary_component in ('3655 Non Taxable Income Bonus')
+                    AND tss.posting_date BETWEEN '{start}' AND '{end}'
+            ) AS 3655_Bonus,
             -- Subquery for leave paid out
             (SELECT 
                 COALESCE(SUM(tsd.amount), 0)
@@ -363,8 +394,9 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 _3075 = country_codes.get(employee["custom_country_code"])
                 _3151 = employee["custom_country_code"]
 
+            salary_structure = employee.get("salary_structure", "Default Salary Structure")
             
-            if _3075 == 'ZAF':
+            if salary_structure == 'Basic + Tax + UIF 1':
                 _3015 = "IRP5"
                 _4102 = employee['paye']
                 _3135 = normalize_number(_3135)
@@ -374,10 +406,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 _4102 = 0
                 _3135 = f"00{_3135}"
                 _3100 = employee["custom_south_african_tax_number"]
-            if employee["id_number"] == '6610070015086':
-                _3015 = 'IRP5'
-                _4102 = employee['paye']
-                _3100 = employee["tax_payroll_number"]
 
             _3020 = 'A'
             _3025 = transaction_year
@@ -440,10 +468,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3703 = round(float(employee['3703_Reimbursement_Kilometres']))
             _3901 = round(float(employee['3901_Gratuities_Sevarance_Pay']))
             _3605 = round(float(employee['3605_Bonus']))
+            _3655 = round(float(employee['3655_Bonus']))
             _3714 = round(float(employee['3714_Per_diem_local_and_foreign_under_limit']))
             _3701 = round(float(employee['3701_Travel_Allowance']))
             _3696 = _3602_reimbursement_purchases + _3703  + _3714
             _3699 = round(float(employee["total_taxable_earnings"]))
+            _3651 = round(float(employee['3651_Non_Taxable_Backpay']))
 
             if employee["custom_employee_qualifies_for_eti"] == 1:
                 _3026 = 'Y'
@@ -635,40 +665,24 @@ def export_report_to_text(start_date, end_date, transaction_year):
                         4582,round(_4582)
                     ])
                 
-                if _3075 != 'ZAF':
-                    if employee["id_number"] != '6610070015086':
-                        output_lines.append(
-                            [
-                                4150,'05',
-                                3070,_3070,
-                                3602,_3601 + _3605,
-                                3696,_3601 + _3605,
-                            ]
-                        )
-                    elif employee["id_number"] == '6610070015086':
+                if salary_structure != 'Basic + Tax + UIF 1':
+                    output_lines.append(
+                        [
+                            4150,'05',
+                            3070,_3070,
+                            3602,_3601 + _3655 + _3651,
+                            3696,_3601 + _3655 + _3651,
+                        ]
+                    )
+                else:
+
+                    if _3070 != '':
                         output_lines.append(
                             [   
                                 3070,_3070,
-                                4102,_4102,
-                                3060,_3060,
-                                3195,_3195,
-                                3220,_3220,
-                                3601,_3601,
-                                3605,_3605,
                             ]
                         )
 
-                        if _3696 > 0:
-                            output_lines.append([
-                                3602,_3602_reimbursement_purchases,
-                                3703,_3703,
-                                3714,_3714,
-                                3696,_3696
-                            ])
-
-                        if _3699 > 0:
-                            output_lines.append([3699,_3699])
-                else:
                     output_lines.append(
                         [
                             3195,_3195,
@@ -682,10 +696,10 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
                     if _3696 > 0:
                         output_lines.append([
-                            3602,_3602_reimbursement_purchases,
+                            3602,_3602_reimbursement_purchases + _3651,
                             3703,_3703,
                             3714,_3714,
-                            3696,_3696
+                            3696,_3696 + _3651,
                         ])
 
                     if _3699 > 0:
