@@ -1,0 +1,26 @@
+{
+ "content": null,
+ "creation": "2025-07-07 09:20:07.153464",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2025-07-07 09:41:22.136523",
+ "modified_by": "Administrator",
+ "module": "Kartoza Custom",
+ "name": "kartoza-dashboard",
+ "owner": "Administrator",
+ "page_name": "kartoza-dashboard",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "HR Manager"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Kartoza Dashboard"
+}

@@ -178,6 +178,8 @@ override_whitelisted_methods = {
 # 	"Task": "kartoza_custom.task.get_dashboard_data"
 # }
 
+
+
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]

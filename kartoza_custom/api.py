@@ -26,7 +26,6 @@ def get_latest_quotation_items():
 
     return {'quotation': quotation, 'items': items}
 
-import frappe
 
 @frappe.whitelist(allow_guest=True)
 def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_id):
