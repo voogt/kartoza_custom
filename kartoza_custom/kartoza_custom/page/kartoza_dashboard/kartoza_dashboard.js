@@ -15,22 +15,14 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
         
     `);
 
-    loadPlotly();
+    // loadPlotly();
     loadCSS();
-    loadScript();
+    // loadScript();
 
     // Button event
     document.getElementById("load-data").addEventListener("click", fetchDataAndPlot);
 };
 
-function loadPlotly() {
-    if (typeof Plotly === 'undefined') {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
-        script.onload = () => console.log("Plotly loaded");
-        document.head.appendChild(script);
-    }
-}
 
 function loadCSS() {
     const link = document.createElement('link');
@@ -41,14 +33,6 @@ function loadCSS() {
     document.head.appendChild(link);
 }
 
-function loadScript() {
-    const script = document.createElement('script');
-    script.src = "https://cdn.datatables.net/v/dt/dt-2.3.3/datatables.min.js";
-    script.integrity = "sha384-qyN6ZT87DHLvgCDC+GYE3myTUDGpz3swpW19cYxOh4oa/8GNSGPMteQwbyM6Ot0D";
-    script.crossOrigin = "anonymous";
-    script.onload = () => console.log("DataTables loaded");
-    document.body.appendChild(script);
-}
 
 function fetchDataAndPlot() {
     const start_date = document.getElementById("start_date").value;
@@ -149,15 +133,15 @@ function drawChart(labels, datasets, title, element_id, barmode) {
         };
     }
 
-    // Create a container for the chart and table
+    // Create a container for the chart and table using insertAdjacentHTML to preserve previous DOM nodes
     const parentElement = document.getElementById('parent-chart');
-    parentElement.innerHTML += `
+    parentElement.insertAdjacentHTML('beforeend', `
         <div id="${containerId}" style="margin-bottom: 40px;">
             <h3 style='text-align: center;'>${title}</h3>
             <div id="${unique_element_id}" style="width: 100%; height: 500px;"></div>
             <div id="${unique_element_id}-table" style="margin-top: 20px;"></div>
         </div>
-    `;
+    `);
 
     // Render the chart
     Plotly.newPlot(unique_element_id, traces, layout);
