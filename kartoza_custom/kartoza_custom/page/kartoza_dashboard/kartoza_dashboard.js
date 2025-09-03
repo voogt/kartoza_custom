@@ -7,8 +7,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
 
     page.main.html(`
         <div class="flex items-center gap-8">
-            <input type="date" id="start_date" value=""  style="margin-right:5px; border-radius:5px"/>
-            <input type="date" id="end_date" value=""  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="parent-chart"></div>
@@ -114,6 +114,10 @@ function fetchDataAndPlot() {
 }
 
 function drawChart(labels, datasets, title, element_id, barmode) {
+    // Ensure unique element_id for each chart
+    const unique_element_id = `${element_id}-${generateRandomId()}`;
+    const containerId = `${unique_element_id}-container`;
+
     // Generate traces for Plotly chart
     const traces = datasets.map(set => ({
         x: labels,
@@ -147,21 +151,19 @@ function drawChart(labels, datasets, title, element_id, barmode) {
 
     // Create a container for the chart and table
     const parentElement = document.getElementById('parent-chart');
-    const containerId = `${element_id}-container`;
-
     parentElement.innerHTML += `
         <div id="${containerId}" style="margin-bottom: 40px;">
             <h3 style='text-align: center;'>${title}</h3>
-            <div id="${element_id}" style="width: 100%; height: 500px;"></div>
-            <div id="${element_id}-table" style="margin-top: 20px;"></div>
+            <div id="${unique_element_id}" style="width: 100%; height: 500px;"></div>
+            <div id="${unique_element_id}-table" style="margin-top: 20px;"></div>
         </div>
     `;
 
     // Render the chart
-    Plotly.newPlot(element_id, traces, layout);
+    Plotly.newPlot(unique_element_id, traces, layout);
 
     // Render the table below the chart
-    renderChartTable(labels, datasets, `${element_id}-table`);
+    renderChartTable(labels, datasets, `${unique_element_id}-table`);
 }
 
 function generateRandomId(prefix = 'id') {
@@ -198,7 +200,9 @@ function renderChartTable(labels, datasets, tableContainerId) {
         container.innerHTML = tableHTML;
     }
 
-    new DataTable(`#${id}`)
+    new DataTable(`#${id}`, {
+        lengthChange: false // Remove entries-per-page dropdown
+    });
 }
 
 
