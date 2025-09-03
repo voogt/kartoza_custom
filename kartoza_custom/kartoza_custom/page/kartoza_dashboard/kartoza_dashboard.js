@@ -15,9 +15,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
         
     `);
 
-    // loadPlotly();
     loadCSS();
-    // loadScript();
+    loadScript();
 
     // Button event
     document.getElementById("load-data").addEventListener("click", fetchDataAndPlot);
@@ -32,6 +31,16 @@ function loadCSS() {
     link.crossOrigin = "anonymous";
     document.head.appendChild(link);
 }
+
+function loadScript() {
+    const script = document.createElement('script');
+    script.src = "https://cdn.datatables.net/v/dt/dt-2.3.3/datatables.min.js";
+    script.integrity = "sha384-qyN6ZT87DHLvgCDC+GYE3myTUDGpz3swpW19cYxOh4oa/8GNSGPMteQwbyM6Ot0D";
+    script.crossOrigin = "anonymous";
+    script.onload = () => console.log("DataTables loaded");
+    document.body.appendChild(script);
+}
+
 
 
 function fetchDataAndPlot() {
