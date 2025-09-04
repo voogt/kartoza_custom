@@ -59,7 +59,9 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty'
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
     ]
 
     for (var method of methods) {

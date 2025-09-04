@@ -93,7 +93,6 @@ def get_staff_count(start_date, end_date):
 
 @frappe.whitelist(allow_guest=True)
 def get_utilisation(start_date, end_date):
-    print(f"Start Date: {start_date}, End Date: {end_date}")
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
 
@@ -508,8 +507,6 @@ def get_company_salary_pty(start_date, end_date):
         all_departments.update(ts.department for ts in timesheets if ts.department)
         all_departments.update(s.department for s in salary_data if s.department)
 
-    chart_data = []
-
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
         timesheets = get_timesheet_data(start, end)
@@ -561,5 +558,80 @@ def get_company_salary_pty(start_date, end_date):
 
 
     return data
+
+@frappe.whitelist(allow_guest=True)
+def get_company_pipeline_pty():
+
+
+    sql = f"""
+        SELECT 
+        CONCAT(tq.customer_name, " (", tq.name, " | ", DATE(tq.creation), ")") AS `quote_name`,
+        tq.base_grand_total AS `amount`
+        FROM `tabQuotation` tq
+        WHERE tq.status in ('Draft', 'Open')
+        AND tq.company = 'Kartoza (Pty) Ltd'
+        ORDER BY `creation` ASC
+        LIMIT 10
+    """
+
+    result = frappe.db.sql(sql, as_dict=1, debug=1)
+
+    # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
+    label = ["Top 10 Quotes"]
+    datasets = []
+    for obj in result:
+        datasets.append({
+            "type": "bar",
+            "name": obj["quote_name"],
+            "values": [obj["amount"]]
+        })
+
+    data = {
+        "title": "Pipeline Quotation Top 10 Kartoza PTY",
+        "labels": label,
+        "element_id": "quote_pty",
+        "type": "single",
+        "datasets": datasets
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_company_pipeline_lda():
+
+    zar_rate = get_rates(None, "EUR")
+    sql = f"""
+        SELECT 
+        CONCAT(tq.customer_name, " (", tq.name, " | ", DATE(tq.creation), ")") AS `quote_name`,
+        SUM(tq.base_grand_total * {zar_rate}) AS `amount`
+        FROM `tabQuotation` tq
+        WHERE tq.status in ('Draft', 'Open')
+        AND tq.company = 'Kartoza Lda'
+        ORDER BY `creation` ASC
+        LIMIT 10
+    """
+
+    result = frappe.db.sql(sql, as_dict=1, debug=1)
+
+    # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
+    label = ["Top 10 Quotes"]
+    datasets = []
+    for obj in result:
+        datasets.append({
+            "type": "bar",
+            "name": obj["quote_name"],
+            "values": [obj["amount"]]
+        })
+
+    data = {
+        "title": "Pipeline Quotation Top 10 Kartoza LDA",
+        "labels": label,
+        "element_id": "quote_lda",
+        "type": "single",
+        "datasets": datasets
+    }
+
+    return data
+
 
 
