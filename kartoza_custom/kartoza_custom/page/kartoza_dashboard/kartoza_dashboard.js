@@ -6,18 +6,21 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
     });
 
     page.main.html(`
+
         <div class="flex items-center gap-8">
             <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
             <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
-        <div id="parent-chart"></div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
             <div id="loader" style="display:none;">
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 <span>Loading charts and tables...</span>
             </div>
         </div>
+        <div id="parent-cards" class='row'></div>
+        <div id="parent-chart"></div>
+        
     `);
 
     loadCSS();
@@ -53,6 +56,7 @@ function fetchDataAndPlot() {
     const end_date = document.getElementById("end_date").value;
 
     document.getElementById('parent-chart').innerHTML = ''; // Clear previous charts
+    document.getElementById('parent-cards').innerHTML = ''; // Clear previous cards
     // Show loader
     document.getElementById('loader').style.display = 'inline-block';
 
@@ -82,6 +86,7 @@ function fetchDataAndPlot() {
                 callback: function(r) {
                     if (r.message) {
                         drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                        addCards(r.message.total_cards);
                     } else {
                         frappe.msgprint("No data returned.");
                     }
@@ -93,6 +98,7 @@ function fetchDataAndPlot() {
                         callback: function(r) {
                             if (r.message) {
                                 drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                                addCards(r.message.total_cards);
                             } else {
                                 frappe.msgprint("No data returned.");
                             }
@@ -111,6 +117,9 @@ function fetchDataAndPlot() {
             callback: function(r) {
                 if (r.message) {
                     drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                    if(r.message.total_cards){
+                        addCards(r.message.total_cards);
+                    }
                 } else {
                     frappe.msgprint("No data returned.");
                 }
@@ -122,6 +131,26 @@ function fetchDataAndPlot() {
 
     // Start the chain
     callMethodsSequentially(0);
+}
+
+function addCards(data){
+    const parentElement = document.getElementById('parent-cards');
+    if (!parentElement) return;
+
+    console.log(data)
+
+    if(data.length > 0){
+        data.forEach(card => {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'card col-md-2';
+            cardElement.style.margin = "10px"
+            cardElement.innerHTML = `
+                <div class="card-header">${card.title}</div>
+                <div class="card-body">${card.value}</div>
+            `;
+            parentElement.appendChild(cardElement);
+        });
+    }
 }
 
 function drawChart(labels, datasets, title, element_id, barmode) {

@@ -64,6 +64,7 @@ def get_staff_count(start_date, end_date):
         "type": "single",
         "title": "Staff Count",
         "labels": labels,
+        "total_cards": [],
         "datasets": [
             {
                 "type": "bar",
@@ -95,6 +96,10 @@ def get_staff_count(start_date, end_date):
 def get_utilisation(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+    total_external = 0
+    total_internal = 0
+    total_investment = 0
+    total_no_project_linked = 0
 
     for start, end in ranges:
         sql = f"""
@@ -143,12 +148,16 @@ def get_utilisation(start_date, end_date):
         for result in results:
             if result.project_type == 'No Project Linked':
                 no_project_linked = result.billable_hours
+                total_no_project_linked += no_project_linked
             elif result.project_type == 'External':
                 external = result.billable_hours
+                total_external += external
             elif result.project_type == 'Internal':
                 internal = result.billable_hours
+                total_internal += internal
             elif result.project_type == 'Investment':
                 investment = result.billable_hours
+                total_investment += investment
 
         month_label = get_month_label(start)
 
@@ -172,6 +181,24 @@ def get_utilisation(start_date, end_date):
         "element_id": "utilisation",
         "type": "single",
         "title": "Utilisation",
+        "total_cards": [
+            {
+                "title": "Total No Project Linked Hours",
+                "value": f"{total_no_project_linked:.2f}"
+            },
+            {
+                "title": "Total External Hours",
+                "value": f"{total_external:.2f}"
+            },
+            {
+                "title": "Total Internal Hours",
+                "value": f"{total_internal:.2f}"
+            },
+            {
+                "title": "Total Investment Hours",
+                "value": f"{total_investment:.2f}"
+            }
+        ],
         "labels": labels,
         "datasets": [
             {
@@ -204,6 +231,8 @@ def get_utilisation(start_date, end_date):
 def get_projects_data(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+    total_backlog = 0
+    total_projects_closed_value = 0
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
@@ -237,6 +266,7 @@ def get_projects_data(start_date, end_date):
 
         for result in project_closed_results:
             value += result.total_billed_amount
+            total_projects_closed_value += result.total_billed_amount
             gross_margin += result.gross_margin
 
         month_label = get_month_label(start)
@@ -247,6 +277,7 @@ def get_projects_data(start_date, end_date):
         backlog = 0
         for item in backlog_arr:
             backlog += item["uninvoiced_total"]
+            total_backlog += item["uninvoiced_total"]
 
         chart_data.append({
             "month": month_label,
@@ -267,6 +298,12 @@ def get_projects_data(start_date, end_date):
         "labels": labels,
         "element_id": "projects",
         "type": "single",
+        "total_cards": [
+            {
+                "title": "Total Closed Projects Value",
+                "value": f"{total_projects_closed_value:.2f}"
+            }
+        ],
         "datasets": [
             {
                 "type": "bar",
@@ -292,6 +329,7 @@ def get_projects_data(start_date, end_date):
 def get_cost_profit_center_data(start_date, end_date, type_center):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+    total_cost_center = 0
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
@@ -325,8 +363,8 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
             GROUP BY p.cost_center
         """
 
-        timesheet_costing_data = frappe.db.sql(timesheet_costing_sql, as_dict=1, debug=1)
-        sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=1)
+        timesheet_costing_data = frappe.db.sql(timesheet_costing_sql, as_dict=1, debug=0)
+        sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
 
         data_map = {
             'timesheet_costing': {item['cost_center']: item['total_costing'] for item in timesheet_costing_data},
@@ -355,7 +393,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
                 p.cost_center
             ORDER BY
                 p.cost_center
-        """, as_dict=1, debug=1)
+        """, as_dict=1, debug=0)
 
         cost_center_array = []
 
@@ -363,6 +401,8 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
             total_costing_amount = data_map['timesheet_costing'].get(dict['cost_center'], 0)
             total_billed_amount = data_map['sales_invoices'].get(dict['cost_center'], 0)
             profit_loss = total_billed_amount - total_costing_amount
+
+            total_cost_center += profit_loss
             cost_center_array.append({
                 'cost_center': dict['cost_center'],
                 'profit_loss': f"{profit_loss:.2f}",
@@ -395,6 +435,12 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         "title": f"{type_center} Centers",
         "labels": labels,
         "element_id": f"{type_center}_centers",
+        "total_cards": [
+            {
+                "title": f"Total {type_center} Centre",
+                "value": f"{total_cost_center:.2f}"
+            }
+        ],
         "type": "single",
         "datasets": []
     }
@@ -414,6 +460,8 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
 def get_activity_cost_data(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+
+    total_activity_costs = 0
 
     activty_sql = """
         SELECT 
@@ -447,6 +495,7 @@ def get_activity_cost_data(start_date, end_date):
             ts_details = timesheet_lookup.get(
                 key, {"sum_costing": 0, "total_hours": 0, "sum_billable_hours": 0, "sum_unbillable_hours": 0},
             )
+            total_activity_costs += ts_details['sum_costing']
             activity_array.append({
                 'activity': key,
                 'cost': f"{ts_details['sum_costing']:.2f}",
@@ -480,6 +529,12 @@ def get_activity_cost_data(start_date, end_date):
         "labels": labels,
         "element_id": "activity_cost",
         "type": "single",
+        "total_cards": [
+            {
+                "title": f"Total Activity Cost",
+                "value": f"{total_activity_costs:.2f}"
+            }
+        ],
         "datasets": []
     }
 
@@ -500,6 +555,8 @@ def get_activity_cost_data(start_date, end_date):
 def get_company_salary_pty(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+
+    total_salary = 0
 
     all_departments = set()
 
@@ -522,6 +579,7 @@ def get_company_salary_pty(start_date, end_date):
         for final in final_dict:
             if final["department"] == 'Management - K':
                 final['total_salary'] += 230000
+            total_salary += final['total_salary']
 
         month_label = get_month_label(start)
 
@@ -550,6 +608,12 @@ def get_company_salary_pty(start_date, end_date):
         "labels": labels,
         "element_id": "salary_cost",
         "type": "single",
+        "total_cards": [
+            {
+                "title": f"Total Department Costs",
+                "value": f"{total_salary:.2f}"
+            }
+        ],
         "datasets": []
     }
 
@@ -566,7 +630,7 @@ def get_company_salary_pty(start_date, end_date):
 @frappe.whitelist(allow_guest=True)
 def get_company_pipeline_pty():
 
-
+    total_quotes = 0
     sql = f"""
         SELECT 
         CONCAT(tq.customer_name, " (", tq.name, " | ", DATE(tq.creation), ")") AS `quote_name`,
@@ -575,13 +639,14 @@ def get_company_pipeline_pty():
         WHERE tq.status in ('Draft', 'Open')
         AND tq.company = 'Kartoza (Pty) Ltd'
         ORDER BY `amount` ASC
-        LIMIT 10
     """
 
-    result = frappe.db.sql(sql, as_dict=1, debug=1)
+    result = frappe.db.sql(sql, as_dict=1, debug=0)
+    for obj in result:
+        total_quotes += obj["amount"]
 
     # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
-    label = ["Top 10 Quotes"]
+    label = ["Open Quotes"]
     datasets = []
     for obj in result:
         datasets.append({
@@ -591,11 +656,17 @@ def get_company_pipeline_pty():
         })
 
     data = {
-        "title": "Pipeline Quotation Top 10 Kartoza PTY (Draft/Open)",
+        "title": "Pipeline Quotation Kartoza PTY (Draft/Open)",
         "labels": label,
         "element_id": "quote_pty",
         "type": "single",
-        "datasets": datasets
+        "datasets": datasets,
+        "total_cards": [
+            {
+                "title": f"Total Quotes PTY",
+                "value": f"{total_quotes:.2f}"
+            }
+        ],
     }
 
     return data
@@ -603,6 +674,7 @@ def get_company_pipeline_pty():
 @frappe.whitelist(allow_guest=True)
 def get_company_pipeline_lda():
 
+    total_quotes = 0
     zar_rate = get_rates(None, "EUR")
     sql = f"""
         SELECT 
@@ -613,13 +685,16 @@ def get_company_pipeline_lda():
         AND tq.company = 'Kartoza Lda'
         GROUP BY tq.name
         ORDER BY `amount` ASC
-        LIMIT 10
     """
 
-    result = frappe.db.sql(sql, as_dict=1, debug=1)
+    result = frappe.db.sql(sql, as_dict=1, debug=0)
+
+    result = frappe.db.sql(sql, as_dict=1, debug=0)
+    for obj in result:
+        total_quotes += obj["amount"]
 
     # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
-    label = ["Top 10 Quotes"]
+    label = ["Open Quotes"]
     datasets = []
     for obj in result:
         datasets.append({
@@ -629,11 +704,17 @@ def get_company_pipeline_lda():
         })
 
     data = {
-        "title": "Pipeline Quotation Top 10 Kartoza LDA (Draft/Open)",
+        "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
         "labels": label,
         "element_id": "quote_lda",
         "type": "single",
-        "datasets": datasets
+        "datasets": datasets,
+        "total_cards": [
+            {
+                "title": f"Total Quotes PTY",
+                "value": f"{total_quotes:.2f}"
+            }
+        ],
     }
 
     return data
