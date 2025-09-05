@@ -12,7 +12,12 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="parent-chart"></div>
-        
+        <div id="loader-container" style="text-align:center; margin-top:30px;">
+            <div id="loader" style="display:none;">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Loading charts and tables...</span>
+            </div>
+        </div>
     `);
 
     loadCSS();
@@ -48,6 +53,8 @@ function fetchDataAndPlot() {
     const end_date = document.getElementById("end_date").value;
 
     document.getElementById('parent-chart').innerHTML = ''; // Clear previous charts
+    // Show loader
+    document.getElementById('loader').style.display = 'inline-block';
 
     if (!start_date || !end_date) {
         frappe.msgprint("Please select both start and end dates.");
@@ -64,9 +71,41 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
     ]
 
-    for (var method of methods) {
+    // Helper to chain frappe.call requests sequentially
+    function callMethodsSequentially(index) {
+        if (index >= methods.length) {
+            // After all methods, call cost center
+            frappe.call({
+                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+                args: { start_date, end_date, type_center:'Cost' },
+                type: 'GET',
+                callback: function(r) {
+                    if (r.message) {
+                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                    } else {
+                        frappe.msgprint("No data returned.");
+                    }
+                    // After cost center, call profit center
+                    frappe.call({
+                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+                        args: { start_date, end_date, type_center:'Profit' },
+                        type: 'GET',
+                        callback: function(r) {
+                            if (r.message) {
+                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                            } else {
+                                frappe.msgprint("No data returned.");
+                            }
+                            // Hide loader after last chart/table
+                            document.getElementById('loader').style.display = 'none';
+                        }
+                    });
+                }
+            });
+            return;
+        }
         frappe.call({
-            method: method,
+            method: methods[index],
             args: { start_date, end_date },
             type: 'GET',
             callback: function(r) {
@@ -75,37 +114,14 @@ function fetchDataAndPlot() {
                 } else {
                     frappe.msgprint("No data returned.");
                 }
+                // Call next method in sequence
+                callMethodsSequentially(index + 1);
             }
         });
     }
 
-    //cost center data
-    frappe.call({
-        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
-        args: { start_date, end_date, type_center:'Cost' },
-        type: 'GET',
-        callback: function(r) {
-            if (r.message) {
-                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
-            } else {
-                frappe.msgprint("No data returned.");
-            }
-        }
-    });
-
-    //profit center data
-    frappe.call({
-        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
-        args: { start_date, end_date, type_center:'Profit' },
-        type: 'GET',
-        callback: function(r) {
-            if (r.message) {
-                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
-            } else {
-                frappe.msgprint("No data returned.");
-            }
-        }
-    });
+    // Start the chain
+    callMethodsSequentially(0);
 }
 
 function drawChart(labels, datasets, title, element_id, barmode) {

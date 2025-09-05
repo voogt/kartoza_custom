@@ -419,6 +419,7 @@ def get_activity_cost_data(start_date, end_date):
         SELECT 
             tat.activity_type AS activity_type
         FROM `tabActivity Type` tat
+        WHERE disabled = 0
     """
     activity_types = frappe.db.sql(activty_sql, as_dict=True)
 
@@ -483,6 +484,9 @@ def get_activity_cost_data(start_date, end_date):
     }
 
     for name, values in activity_map.items():
+        # Remove activities with 0 value for all months
+        if all(float(v) == 0.0 for v in values):
+            continue
         data["datasets"].append({
             "type": "bar",
             "name": name,
@@ -570,7 +574,7 @@ def get_company_pipeline_pty():
         FROM `tabQuotation` tq
         WHERE tq.status in ('Draft', 'Open')
         AND tq.company = 'Kartoza (Pty) Ltd'
-        ORDER BY `creation` ASC
+        ORDER BY `amount` ASC
         LIMIT 10
     """
 
@@ -587,7 +591,7 @@ def get_company_pipeline_pty():
         })
 
     data = {
-        "title": "Pipeline Quotation Top 10 Kartoza PTY",
+        "title": "Pipeline Quotation Top 10 Kartoza PTY (Draft/Open)",
         "labels": label,
         "element_id": "quote_pty",
         "type": "single",
@@ -607,7 +611,8 @@ def get_company_pipeline_lda():
         FROM `tabQuotation` tq
         WHERE tq.status in ('Draft', 'Open')
         AND tq.company = 'Kartoza Lda'
-        ORDER BY `creation` ASC
+        GROUP BY tq.name
+        ORDER BY `amount` ASC
         LIMIT 10
     """
 
@@ -624,7 +629,7 @@ def get_company_pipeline_lda():
         })
 
     data = {
-        "title": "Pipeline Quotation Top 10 Kartoza LDA",
+        "title": "Pipeline Quotation Top 10 Kartoza LDA (Draft/Open)",
         "labels": label,
         "element_id": "quote_lda",
         "type": "single",
