@@ -135,8 +135,6 @@ def getAllSalesOrdersProject(start_date, end_date, zar_rate):
     return 0
 
 def getBacklogSalesOrders(start_date, end_date, zar_rate):
-    print("ZAR Rate:", zar_rate)
-    print("Start Date:", start_date)
     sql = """
     SELECT
         tso.name AS sales_order,

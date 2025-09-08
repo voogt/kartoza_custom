@@ -23,7 +23,6 @@ def get_staff_count(start_date, end_date):
             WHERE date_of_joining < '{start}'
             AND designation NOT IN ('Sub-Contractor')
             AND (relieving_date IS NULL OR relieving_date > '{start}' )
-            AND (contract_end_date IS NULL OR contract_end_date > '{start}')
         """
         new_staff_count_sql = f"""
             SELECT COUNT(name) as new_staff FROM `tabEmployee` 
@@ -67,6 +66,7 @@ def get_staff_count(start_date, end_date):
         "title": "Staff Count",
         "labels": labels,
         "isReverse": False,
+        "isLegendReverse": False,
         "total_cards": [],
         "datasets": [
             {
@@ -166,10 +166,10 @@ def get_utilisation(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "no_project_linked": f"{no_project_linked:.2f}",
-            "external": f"{external:.2f}",
-            "internal": f"{internal:.2f}",
-            "investment": f"{investment:.2f}",
+            "no_project_linked": f"{no_project_linked:.0f}",
+            "external": f"{external:.0f}",
+            "internal": f"{internal:.0f}",
+            "investment": f"{investment:.0f}",
         })
 
     # Transform chart_data for stacked chart
@@ -183,24 +183,25 @@ def get_utilisation(start_date, end_date):
     data = {
         "element_id": "utilisation",
         "isReverse": False,
+        "isLegendReverse": False,
         "type": "single",
         "title": "Utilisation",
         "total_cards": [
             {
                 "title": "Total No Project Linked Hours",
-                "value": f"{total_no_project_linked:.2f}"
+                "value": f"{total_no_project_linked:.0f}"
             },
             {
                 "title": "Total External Hours",
-                "value": f"{total_external:.2f}"
+                "value": f"{total_external:.0f}"
             },
             {
                 "title": "Total Internal Hours",
-                "value": f"{total_internal:.2f}"
+                "value": f"{total_internal:.0f}"
             },
             {
                 "title": "Total Investment Hours",
-                "value": f"{total_investment:.2f}"
+                "value": f"{total_investment:.0f}"
             }
         ],
         "labels": labels,
@@ -285,9 +286,9 @@ def get_projects_data(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "value": f"{value:.2f}",
-            "margin_per": f"{margin_per:.2f}",
-            "backlog": f"{backlog:.2f}"
+            "value": f"{value:.0f}",
+            "margin_per": f"{margin_per:.0f}",
+            "backlog": f"{backlog:.0f}"
         })
 
     # Transform chart_data for stacked chart
@@ -303,10 +304,11 @@ def get_projects_data(start_date, end_date):
         "element_id": "projects",
         "type": "single",
         "isReverse": False,
+        "isLegendReverse": False,
         "total_cards": [
             {
                 "title": "Total Closed Projects Value",
-                "value": f"{total_projects_closed_value:.2f}"
+                "value": f"{total_projects_closed_value:.0f}"
             }
         ],
         "datasets": [
@@ -410,7 +412,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
             total_cost_center += profit_loss
             cost_center_array.append({
                 'cost_center': dict['cost_center'],
-                'profit_loss': f"{profit_loss:.2f}",
+                'profit_loss': f"{profit_loss:.0f}",
             })
 
         month_label = get_month_label(start)
@@ -436,28 +438,35 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
                 cost_center_map[name] = []
             cost_center_map[name].append(profit_loss)
 
+
+    # Remove cost centers with 0 for all months
+    filtered_cost_center_map = {
+        name: values for name, values in cost_center_map.items()
+        if any(float(v) != 0.0 for v in values)
+    }
+
     data = {
         "title": f"{type_center} Centers",
         "labels": labels,
         "isReverse": False,
+        "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
         "total_cards": [
             {
                 "title": f"Total {type_center} Centre",
-                "value": f"{total_cost_center:.2f}"
+                "value": f"{total_cost_center:.0f}"
             }
         ],
         "type": "single",
         "datasets": []
     }
 
-    for name, values in cost_center_map.items():
+    for name, values in filtered_cost_center_map.items():
         data["datasets"].append({
             "type": "bar",
             "name": name,
             "values": values
         })
-
 
     return data
 
@@ -504,7 +513,7 @@ def get_activity_cost_data(start_date, end_date):
             total_activity_costs += ts_details['sum_costing']
             activity_array.append({
                 'activity': key,
-                'cost': f"{ts_details['sum_costing']:.2f}",
+                'cost': f"{ts_details['sum_costing']:.0f}",
             })
 
         month_label = get_month_label(start)
@@ -533,13 +542,14 @@ def get_activity_cost_data(start_date, end_date):
     data = {
         "title": f"Activity Cost",
         "isReverse": False,
+        "isLegendReverse": False,
         "labels": labels,
         "element_id": "activity_cost",
         "type": "single",
         "total_cards": [
             {
                 "title": f"Total Activity Cost",
-                "value": f"{total_activity_costs:.2f}"
+                "value": f"{total_activity_costs:.0f}"
             }
         ],
         "datasets": []
@@ -608,18 +618,19 @@ def get_company_salary_pty(start_date, end_date):
             cost = item["total_salary"]
             if name not in salary_map:
                 salary_map[name] = []
-            salary_map[name].append(cost)
+            salary_map[name].append(f"{cost:.0f}")
 
     data = {
         "title": f"Total Department Cost",
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
+        "isLegendReverse": False,
         "type": "single",
         "total_cards": [
             {
                 "title": f"Total Department Costs",
-                "value": f"{total_salary:.2f}"
+                "value": f"{total_salary:.0f}"
             }
         ],
         "datasets": []
@@ -646,7 +657,7 @@ def get_company_pipeline_pty():
         FROM `tabQuotation` tq
         WHERE tq.status in ('Draft', 'Open')
         AND tq.company = 'Kartoza (Pty) Ltd'
-        ORDER BY `amount` ASC
+        ORDER BY `amount` DESC
     """
 
     result = frappe.db.sql(sql, as_dict=1, debug=0)
@@ -660,7 +671,7 @@ def get_company_pipeline_pty():
         datasets.append({
             "type": "bar",
             "name": obj["quote_name"],
-            "values": [obj["amount"]]
+            "values": [f"{obj['amount']:.0f}"]
         })
 
     data = {
@@ -672,7 +683,7 @@ def get_company_pipeline_pty():
         "total_cards": [
             {
                 "title": f"Total Quotes PTY",
-                "value": f"{total_quotes:.2f}"
+                "value": f"{total_quotes:.0f}"
             }
         ],
     }
@@ -692,7 +703,7 @@ def get_company_pipeline_lda():
         WHERE tq.status in ('Draft', 'Open')
         AND tq.company = 'Kartoza Lda'
         GROUP BY tq.name
-        ORDER BY `amount` ASC
+        ORDER BY `amount` DESC
     """
 
     result = frappe.db.sql(sql, as_dict=1, debug=0)
@@ -708,20 +719,21 @@ def get_company_pipeline_lda():
         datasets.append({
             "type": "bar",
             "name": obj["quote_name"],
-            "values": [obj["amount"]]
+            "values": [f"{obj['amount']:.0f}"]
         })
 
     data = {
         "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
         "labels": label,
         "isReverse": False,
+        "isLegendReverse": False,
         "element_id": "quote_lda",
         "type": "single",
         "datasets": datasets,
         "total_cards": [
             {
                 "title": f"Total Quotes LDA",
-                "value": f"{total_quotes:.2f}"
+                "value": f"{total_quotes:.0f}"
             }
         ],
     }
@@ -793,8 +805,8 @@ def get_open_sla():
 
         chart_data.append({
             "project": project_label,
-            "sales_order_amount": sla["sales_order_amount"],
-            "sales_invoice_amount": sla["sales_invoice_amount"],
+            "sales_order_amount": f"{sla['sales_order_amount']:.0f}",
+            "sales_invoice_amount": f"{sla['sales_invoice_amount']:.0f}",
         })
 
     # Transform chart_data for stacked chart
@@ -864,8 +876,8 @@ def get_open_sales_orders():
 
         chart_data.append({
             "project": project_label,
-            "total_billed_amount": sale_order["total_billed_amount"],
-            "total_billed_sales_order": sale_order["total_billed_sales_order"],
+            "total_billed_amount": f"{sale_order['total_billed_amount']:.0f}",
+            "total_billed_sales_order": f"{sale_order['total_billed_sales_order']:.0f}",
         })
 
     # Transform chart_data for stacked chart
