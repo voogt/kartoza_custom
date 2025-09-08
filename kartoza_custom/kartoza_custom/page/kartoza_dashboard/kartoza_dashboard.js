@@ -278,7 +278,8 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
     }
 
     new DataTable(`#${id}`, {
-        lengthChange: false // Remove entries-per-page dropdown
+        lengthChange: false, // Remove entries-per-page dropdown
+        ordering: false      // Disable sorting
     });
 }
 
