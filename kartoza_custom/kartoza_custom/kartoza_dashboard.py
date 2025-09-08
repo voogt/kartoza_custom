@@ -9,7 +9,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, get_salary_slips, get_timesheet_data, compute_department_summary
+from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data
 
 @frappe.whitelist(allow_guest=True)
 def get_staff_count(start_date, end_date):
@@ -18,10 +18,12 @@ def get_staff_count(start_date, end_date):
 
     for start, end in ranges:
         opening_count_sql = f"""
-            SELECT COUNT(name) as opening_staff FROM `tabEmployee`
+            SELECT COUNT(name) as opening_staff 
+            FROM `tabEmployee`
             WHERE date_of_joining < '{start}'
             AND designation NOT IN ('Sub-Contractor')
-            AND (relieving_date IS NULL OR relieving_date < '{start}' AND relieving_date > '{end}')
+            AND (relieving_date IS NULL OR relieving_date > '{start}' )
+            AND (contract_end_date IS NULL OR contract_end_date > '{start}')
         """
         new_staff_count_sql = f"""
             SELECT COUNT(name) as new_staff FROM `tabEmployee` 
@@ -64,6 +66,7 @@ def get_staff_count(start_date, end_date):
         "type": "single",
         "title": "Staff Count",
         "labels": labels,
+        "isReverse": False,
         "total_cards": [],
         "datasets": [
             {
@@ -179,6 +182,7 @@ def get_utilisation(start_date, end_date):
 
     data = {
         "element_id": "utilisation",
+        "isReverse": False,
         "type": "single",
         "title": "Utilisation",
         "total_cards": [
@@ -298,6 +302,7 @@ def get_projects_data(start_date, end_date):
         "labels": labels,
         "element_id": "projects",
         "type": "single",
+        "isReverse": False,
         "total_cards": [
             {
                 "title": "Total Closed Projects Value",
@@ -434,6 +439,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
     data = {
         "title": f"{type_center} Centers",
         "labels": labels,
+        "isReverse": False,
         "element_id": f"{type_center}_centers",
         "total_cards": [
             {
@@ -526,6 +532,7 @@ def get_activity_cost_data(start_date, end_date):
 
     data = {
         "title": f"Activity Cost",
+        "isReverse": False,
         "labels": labels,
         "element_id": "activity_cost",
         "type": "single",
@@ -607,6 +614,7 @@ def get_company_salary_pty(start_date, end_date):
         "title": f"Total Department Cost",
         "labels": labels,
         "element_id": "salary_cost",
+        "isReverse": False,
         "type": "single",
         "total_cards": [
             {
@@ -706,18 +714,189 @@ def get_company_pipeline_lda():
     data = {
         "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
         "labels": label,
+        "isReverse": False,
         "element_id": "quote_lda",
         "type": "single",
         "datasets": datasets,
         "total_cards": [
             {
-                "title": f"Total Quotes PTY",
+                "title": f"Total Quotes LDA",
                 "value": f"{total_quotes:.2f}"
             }
         ],
     }
 
     return data
+
+@frappe.whitelist(allow_guest=True)
+def get_open_sla():
+    chart_data = []
+    zar_rate = get_rates(None, "EUR")
+
+    sql = f"""
+    SELECT
+        COALESCE(so_data.sales_order_amount, 0) AS sales_order_amount,
+        COALESCE(si_data.sales_invoice_amount, 0) AS sales_invoice_amount,
+        tp.project_name AS project,
+        tp.expected_start_date AS start_date,
+        tp.expected_end_date AS end_date,
+        CASE 
+            WHEN LOWER(tp.project_name) LIKE '%sla%' THEN 'SLA'
+            WHEN LOWER(tp.project_name) LIKE '%hosting%' THEN 'HOSTING'
+            ELSE NULL
+        END AS sla_type
+    FROM `tabProject` tp
+
+    -- Subquery for Sales Orders
+    LEFT JOIN (
+        SELECT
+            tsoi.custom_project AS project_name,
+            SUM(
+                CASE 
+                    WHEN tso.company = 'Kartoza (Pty) Ltd' THEN tsoi.base_amount
+                    ELSE tsoi.base_amount * {zar_rate}
+                END
+            ) AS sales_order_amount
+        FROM `tabSales Order Item` tsoi
+        LEFT JOIN `tabSales Order` tso ON tsoi.parent = tso.name
+        GROUP BY tsoi.custom_project
+    ) AS so_data ON so_data.project_name = tp.name
+
+    -- Subquery for Sales Invoices
+    LEFT JOIN (
+        SELECT
+            tsi.project AS project_name,
+            SUM(
+                CASE 
+                    WHEN tsi.company = 'Kartoza (Pty) Ltd' THEN tsi.base_total
+                    ELSE tsi.base_total * {zar_rate}
+                END
+            ) AS sales_invoice_amount
+        FROM `tabSales Invoice` tsi
+        WHERE tsi.status = 'Paid'
+        GROUP BY tsi.project
+    ) AS si_data ON si_data.project_name = tp.name
+
+    WHERE tp.status = 'Open'
+    AND (
+        LOWER(tp.project_name) LIKE '%sla%' 
+        OR LOWER(tp.project_name) LIKE '%hosting%'
+    )
+    ORDER BY tp.expected_start_date ASC;
+
+    """
+
+    all_sla = frappe.db.sql(sql, as_dict=1, debug=0)
+
+    for sla in all_sla:
+        project_label = sla["project"]
+
+        chart_data.append({
+            "project": project_label,
+            "sales_order_amount": sla["sales_order_amount"],
+            "sales_invoice_amount": sla["sales_invoice_amount"],
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["project"] for row in chart_data]
+
+    sales_order_amount_values = [row["sales_order_amount"] for row in chart_data]
+    sales_invoice_amount_values = [row["sales_invoice_amount"] for row in chart_data]
+
+    data = {
+        "element_id": "open_sla",
+        "type": "single",
+        "title": "Current open SLA's",
+        "labels": labels,
+        "isReverse": True,
+        "total_cards": [],
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Total Sales Order Amount",
+                "values": sales_order_amount_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Sales Invoice Amount",
+                "values": sales_invoice_amount_values
+            }
+        ]
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_open_sales_orders():
+    chart_data = []
+
+    final_dict = frappe.db.sql("""
+    SELECT
+        p.name AS project,
+        p.status
+        FROM `tabProject` p
+        WHERE p.status = 'Open'
+        GROUP BY p.name
+        ORDER BY p.name
+    """, as_dict=1, debug=0)
+
+    # Extract project names
+    projects = [d['project'] for d in final_dict]
+
+    # Fetch related sales data
+    data_map = get_all_data(projects)
+
+    # Enrich final_dict with totals
+    for d in final_dict:
+        billed = data_map['sales_invoices'].get(d['project'], 0) or 0
+        ordered = data_map['sales_orders'].get(d['project'], 0) or 0
+        to_be_billed = ordered - billed
+
+        d['total_billed_amount'] = billed
+        d['total_billed_sales_order'] = ordered
+        d['total_to_be_billed'] = to_be_billed if to_be_billed > 0 else 0
+
+    # Filter only projects that have sales orders
+    all_sales_orders = [d for d in final_dict if d['total_billed_sales_order'] > 0]
+
+    for sale_order in all_sales_orders:
+        project_label = sale_order["project"]
+
+        chart_data.append({
+            "project": project_label,
+            "total_billed_amount": sale_order["total_billed_amount"],
+            "total_billed_sales_order": sale_order["total_billed_sales_order"],
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["project"] for row in chart_data]
+
+    total_billed_amount_values = [row["total_billed_amount"] for row in chart_data]
+    total_billed_sales_order_values = [row["total_billed_sales_order"] for row in chart_data]
+
+    data = {
+        "element_id": "open_sales_orders",
+        "type": "single",
+        "title": "Current Open Sales Orders",
+        "labels": labels,
+        "isReverse": True,
+        "total_cards": [],
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Total Billed Amount",
+                "values": total_billed_amount_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Billed Sales Order",
+                "values": total_billed_sales_order_values
+            }
+        ]
+    }
+
+    return data
+
 
 
 

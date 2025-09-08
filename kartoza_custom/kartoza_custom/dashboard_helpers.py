@@ -292,3 +292,32 @@ def compute_department_summary(timesheets, billing_data, salary_data, all_depart
         for dept, vals in department_summary.items()
         if dept is not None
     ]
+
+def get_all_data(projects):
+    # Escape single quotes for all projects
+    projects_str = "', '".join([project.replace("'", "''") for project in projects])
+
+    # Query timesheet costing for all projects
+    sales_invoice_sql = f"""
+        SELECT ts.project, SUM(base_grand_total) as `total_billed_amount`
+        FROM `tabSales Invoice` ts
+        WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        AND project IN ('{projects_str}')
+        GROUP BY ts.project
+    """
+    
+    sales_order_sql = f"""
+        SELECT tso.project, SUM(base_grand_total) as `total_sales_order_amount`
+        FROM `tabSales Order` tso
+        WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        AND project IN ('{projects_str}')
+        GROUP BY tso.project
+    """
+    
+    sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=1)
+    sales_order_data = frappe.db.sql(sales_order_sql, as_dict=1, debug=1)
+
+    return {
+        'sales_invoices': {item['project']: item['total_billed_amount'] for item in sales_invoice_data},
+        'sales_orders': {item['project']: item['total_sales_order_amount'] for item in sales_order_data},
+    }

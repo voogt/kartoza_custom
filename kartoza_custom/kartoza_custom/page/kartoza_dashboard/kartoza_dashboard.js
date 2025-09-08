@@ -8,8 +8,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
     page.main.html(`
 
         <div class="flex items-center gap-8">
-            <input type="date" id="start_date" value=""  style="margin-right:5px; border-radius:5px"/>
-            <input type="date" id="end_date" value=""  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
@@ -73,6 +73,8 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
     ]
 
     // Helper to chain frappe.call requests sequentially
@@ -85,7 +87,7 @@ function fetchDataAndPlot() {
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
-                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
                         addCards(r.message.total_cards);
                     } else {
                         frappe.msgprint("No data returned.");
@@ -97,7 +99,7 @@ function fetchDataAndPlot() {
                         type: 'GET',
                         callback: function(r) {
                             if (r.message) {
-                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
                                 addCards(r.message.total_cards);
                             } else {
                                 frappe.msgprint("No data returned.");
@@ -116,7 +118,7 @@ function fetchDataAndPlot() {
             type: 'GET',
             callback: function(r) {
                 if (r.message) {
-                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type);
+                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
                     if(r.message.total_cards){
                         addCards(r.message.total_cards);
                     }
@@ -153,7 +155,7 @@ function addCards(data){
     }
 }
 
-function drawChart(labels, datasets, title, element_id, barmode) {
+function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
     // Ensure unique element_id for each chart
     const unique_element_id = `${element_id}-${generateRandomId()}`;
     const containerId = `${unique_element_id}-container`;
@@ -166,9 +168,23 @@ function drawChart(labels, datasets, title, element_id, barmode) {
         type: set.type || 'bar'
     }));
 
-    // Define chart layout
+
+
+    // Determine if any label is long (e.g., > 12 chars)
+    const maxLabelLength = Math.max(...labels.map(l => l.length));
+    const shouldRotate = maxLabelLength > 20;
+
     let layout = {
-        legend: {} // default, will be updated conditionally
+        legend: {},
+        margin: {b: shouldRotate ? 120 : 60, t: 60, l: 60, r: 30},
+        xaxis: {
+            tickangle: shouldRotate ? -45 : 0,
+            automargin: true,
+            tickfont: {size: 12},
+        },
+        yaxis: {
+            automargin: true
+        }
     };
 
     if (barmode === 'stack') {
@@ -184,9 +200,7 @@ function drawChart(labels, datasets, title, element_id, barmode) {
             xanchor: 'left',
             yanchor: 'bottom'
         };
-        layout.margin = {
-            t: 100 // increase top margin to accommodate legend
-        };
+        layout.margin.t = 100; // increase top margin to accommodate legend
     }
 
     // Create a container for the chart and table using insertAdjacentHTML to preserve previous DOM nodes
@@ -199,11 +213,12 @@ function drawChart(labels, datasets, title, element_id, barmode) {
         </div>
     `);
 
-    // Render the chart
-    Plotly.newPlot(unique_element_id, traces, layout);
+
+    // Render the chart without the top toolbar
+    Plotly.newPlot(unique_element_id, traces, layout, {displayModeBar: false});
 
     // Render the table below the chart
-    renderChartTable(labels, datasets, `${unique_element_id}-table`);
+    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse);
 }
 
 function generateRandomId(prefix = 'id') {
@@ -212,27 +227,49 @@ function generateRandomId(prefix = 'id') {
     return `${prefix}-${randomStr}`;
 }
 
-function renderChartTable(labels, datasets, tableContainerId) {
+function renderChartTable(labels, datasets, tableContainerId, isReverse) {
+    console.log("Rendering table in container:", tableContainerId);
     let id = generateRandomId('elem');
     let tableHTML = `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
 
-    // Header row (months across)
-    tableHTML += '<thead><tr><th></th>';  // Empty top-left cell
-    labels.forEach(label => {
-        tableHTML += `<th>${label}</th>`;
-    });
-    tableHTML += '</tr></thead><tbody>';
-
-    // Rows for each dataset
-    datasets.forEach(set => {
-        tableHTML += `<tr><td>${set.name}</td>`;
-        set.values.forEach(value => {
-            tableHTML += `<td>${value}</td>`;
+    if(!isReverse){
+        // Header row (months across)
+        tableHTML += '<thead><tr><th></th>';  // Empty top-left cell
+        labels.forEach(label => {
+            tableHTML += `<th>${label}</th>`;
         });
-        tableHTML += '</tr>';
-    });
+        tableHTML += '</tr></thead><tbody>';
 
-    tableHTML += '</tbody></table>';
+        // Rows for each dataset
+        datasets.forEach(set => {
+            tableHTML += `<tr><td>${set.name}</td>`;
+            set.values.forEach(value => {
+                tableHTML += `<td>${value}</td>`;
+            });
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody></table>';
+    }
+    else{
+        // Header row (datasets across)
+        tableHTML += '<thead><tr><th></th>';  // Empty top-left cell
+        datasets.forEach(set => {
+            tableHTML += `<th>${set.name}</th>`;
+        });
+        tableHTML += '</tr></thead><tbody>';
+
+        // Rows for each month
+        labels.forEach(label => {
+            tableHTML += `<tr><td>${label}</td>`;
+            datasets.forEach(set => {
+                tableHTML += `<td>${set.values[labels.indexOf(label)]}</td>`;
+            });
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody></table>';
+    }
 
     // Inject table
     const container = document.getElementById(tableContainerId);
