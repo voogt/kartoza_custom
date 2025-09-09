@@ -67,6 +67,7 @@ function fetchDataAndPlot() {
 
     var methods = [
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_staff_count',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
@@ -135,7 +136,7 @@ function fetchDataAndPlot() {
     callMethodsSequentially(0);
 }
 
-function addCards(data){
+const addCards = (data) => {
     const parentElement = document.getElementById('parent-cards');
     if (!parentElement) return;
 
@@ -148,7 +149,7 @@ function addCards(data){
             cardElement.style.margin = "10px"
             cardElement.innerHTML = `
                 <div class="card-header" style="height:60px">${card.title}</div>
-                <div class="card-body">${card.value}</div>
+                <div class="card-body">${formatNumberShortHand(card.value)}</div>
             `;
             parentElement.appendChild(cardElement);
         });
@@ -206,11 +207,13 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
     // Create a container for the chart and table using insertAdjacentHTML to preserve previous DOM nodes
     const parentElement = document.getElementById('parent-chart');
     parentElement.insertAdjacentHTML('beforeend', `
-        <div id="${containerId}" style="margin-bottom: 40px;">
+        <div id="${containerId}" style="margin-bottom: 80px;">
             <h3 style='text-align: center;'>${title}</h3>
-            <div id="${unique_element_id}" style="width: 100%; height: 500px;"></div>
+            <div id="${unique_element_id}" style="width: 100%; height: 480px;"></div>
             <div id="${unique_element_id}-table" style="margin-top: 20px;"></div>
+            <hr>
         </div>
+        
     `);
 
 
@@ -244,7 +247,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
         datasets.forEach(set => {
             tableHTML += `<tr><td>${set.name}</td>`;
             set.values.forEach(value => {
-                tableHTML += `<td>${value}</td>`;
+                tableHTML += `<td>${formatNumber(value)}</td>`;
             });
             tableHTML += '</tr>';
         });
@@ -263,7 +266,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
         labels.forEach(label => {
             tableHTML += `<tr><td>${label}</td>`;
             datasets.forEach(set => {
-                tableHTML += `<td>${set.values[labels.indexOf(label)]}</td>`;
+                tableHTML += `<td>${formatNumber(set.values[labels.indexOf(label)])}</td>`;
             });
             tableHTML += '</tr>';
         });
@@ -281,6 +284,37 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
         lengthChange: false, // Remove entries-per-page dropdown
         ordering: false      // Disable sorting
     });
+}
+// Format numbers with spaces as thousands separators, no M/K/B suffixes
+function formatNumber(value) {
+    if (typeof value === 'number') {
+        return value.toLocaleString('en-US').replace(/,/g, ' ');
+    }
+    let num = Number(value);
+    if (!isNaN(num)) {
+        return num.toLocaleString('en-US').replace(/,/g, ' ');
+    }
+    return value;
+}
+
+function formatNumberShortHand(value) {
+    if (typeof value === 'number') {
+        if (Math.abs(value) >= 1e9) {
+            return (value/1e9).toFixed(2).replace(/\.00$/, '') + 'B';
+        } else if (Math.abs(value) >= 1e6) {
+            return (value/1e6).toFixed(2).replace(/\.00$/, '') + 'M';
+        } else if (Math.abs(value) >= 1e3) {
+            return (value/1e3).toFixed(2).replace(/\.00$/, '') + 'K';
+        } else {
+            return value.toLocaleString();
+        }
+    }
+    // Try to parse if string
+    let num = Number(value);
+    if (!isNaN(num)) {
+        return formatNumberShortHand(num);
+    }
+    return value;
 }
 
 

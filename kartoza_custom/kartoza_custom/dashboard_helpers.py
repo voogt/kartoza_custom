@@ -305,7 +305,8 @@ def get_all_data(projects):
     """
     
     sales_order_sql = f"""
-        SELECT tso.project, SUM(base_grand_total) as `total_sales_order_amount`
+        SELECT tso.project, SUM(base_grand_total) as `total_sales_order_amount`,
+        tso.custom_risk_percentage_ as `risk_percentage`
         FROM `tabSales Order` tso
         WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
         AND project IN ('{projects_str}')
@@ -318,4 +319,5 @@ def get_all_data(projects):
     return {
         'sales_invoices': {item['project']: item['total_billed_amount'] for item in sales_invoice_data},
         'sales_orders': {item['project']: item['total_sales_order_amount'] for item in sales_order_data},
+        'risk_percentages': {item['project']: item['risk_percentage'] for item in sales_order_data if item['risk_percentage'] is not None}
     }

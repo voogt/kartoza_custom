@@ -99,10 +99,263 @@ def get_staff_count(start_date, end_date):
 def get_utilisation(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+    add = frappe.utils.add_to_date
+
+    for start, end in ranges:
+        print("START:", start)
+        print("END:", end)
+        b = False
+        cur_date = start
+        date_range = []
+        while b == False:
+            date_range.append(f"select '{cur_date}' as date")
+            if cur_date == end:
+                b = True
+                break
+            cur_date = add(cur_date, days=1)
+
+        date_range = " union all ".join(date_range)
+        #p(f"{date_range}") 
+        sql = f"""
+            SELECT
+            wd.employee_name, 
+            wd.name,
+            #totals
+            wd.holiday_hours,
+            wd.leave_hours,
+            SUM(tsd.hours) as `timesheet_hours`,
+            SUM(tsd.hours) + wd.holiday_hours + wd.leave_hours as `booked_hours`,
+            wd.total_hours as `hours_pm`,
+            wd.total_hours - wd.holiday_hours - wd.leave_hours as `total_hours`,
+            coalesce(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
+            sum(CASE 
+                WHEN tsd.is_billable = 0 THEN 
+                tsd.hours 
+                ELSE 0 
+            END) as `non_billing_hours`,
+            #billable
+            sum(CASE WHEN tsd.project is not null AND tsd.is_billable = 1  THEN tsd.hours ELSE 0 END) as `billable_hours`,
+            wd.total_hours - wd.holiday_hours - wd.leave_hours as `required_hours`,
+            sum(CASE WHEN tsd.project is not null THEN tsd.hours ELSE 0 END) 
+                / 
+            (wd.total_hours - wd.holiday_hours - wd.leave_hours) * 100 as `billable_percentage`,
+            sum(tsd.billing_amount) as `billing_rate`,
+            sum(tsd.costing_amount) as `costing_rate`,
+            sum(tsd.billing_amount) - sum(tsd.costing_amount) as `profit`,
+            
+            SUM(CASE WHEN tp.project_type = 'Investment' THEN tsd.hours ELSE 0 END) as `investment_hours`,
+            SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as 'external_hours',
+            SUM(CASE WHEN tp.project_type = 'Internal' THEN tsd.hours ELSE 0 END) as `internal_hours`
+            
+        FROM (
+            SELECT #WD
+                wd.employee_name as `employee_name`,
+                wd.name as `name`,
+                wd.emp_status as `emp_status`,
+                wd.custom_utilization as `custom_utilization`,
+                (CASE
+                    WHEN '{start}' < wd.date_of_joining AND '{end}' > wd.date_of_joining  THEN 
+                    ( COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)) -
+                    (
+                    SELECT 5 * (DATEDIFF(wd.date_of_joining, '{start}') DIV 7) 
+                        + MID('1234555512344445123333451222234511112345001234550', 
+                        7 * WEEKDAY('{start}') 
+                        + WEEKDAY(wd.date_of_joining) + 1, 1) 
+                    ) 
+                    WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
+                    ELSE
+                        COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)
+                        
+                    END
+                ) * 8 as `total_hours`,
+                (CASE
+                    WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
+                    ELSE
+                        COUNT(CASE WHEN wd.holiday_dates != '' THEN wd.holiday_dates END)
+                    END
+                ) * 8 as holiday_hours,
+                SUM(wd.leave_dates) * 8 as `leave_hours`
+                
+            FROM ( #wd
+                SELECT 
+                    emp.employee_name as `employee_name`,
+                    emp.name as `name`,
+                    emp.status as `emp_status`,
+                    emp.custom_utilization as `custom_utilization`,
+                    emp.date_of_joining as `date_of_joining`,
+                    date_range.date as `working_dates`,
+                    '' as `holiday_dates`,
+                    '' as `leave_dates`,
+                    'Working Days' as `type`
+                FROM `tabEmployee` emp
+                JOIN (	
+                    {date_range}
+                ) date_range on weekday(date_range.date) not in (5,6)
+
+                UNION ALL #Holidays
+                SELECT
+                    emp.employee_name as `employee_name`,
+                    emp.name as `name`,
+                    emp.status as `emp_status`,
+                    emp.custom_utilization as `custom_utilization`,
+                    emp.date_of_joining as `date_of_joining`,
+                    '' as `working_dates`,
+                    h.holiday_date as `holiday_dates`,
+                    '' as `leave_dates`,
+                    'Holiday Days' as `type`
+                FROM `tabEmployee` emp
+                JOIN `tabHoliday` h ON h.parent = emp.holiday_list
+
+                AND weekday(h.holiday_date) not in (5,6)
+                AND h.holiday_date >= '{start}' 
+                AND h.holiday_date <= '{end}'
+                
+                UNION ALL #LEAVE
+                SELECT
+                    employee_name,
+                    employee,
+                    '' as `emp_status`,
+                    '' as `custom_utilization`,
+                    '' as `date_of_joining`,
+                    '' as `working_dates`,
+                    '' as `holiday_dates`,
+                    SUM(
+                        CASE
+                            WHEN from_date >= '{start}' AND to_date >= '{end}' THEN (
+                                SELECT 5 * (DATEDIFF('{end}', from_date) DIV 7) 
+                                + MID('1234555512344445123333451222234511112345001234550', 
+                                7 * WEEKDAY(from_date) 
+                                + WEEKDAY('{end}') + 1, 1) 
+                                - (
+                                    SELECT COUNT(th.holiday_date)
+                                    FROM `tabEmployee` te 
+                                    LEFT JOIN `tabHoliday` th 
+                                    on th.parent = te.holiday_list 
+                                    
+                                    WHERE te.employee_name = la.employee_name
+                                    AND th.holiday_date >= from_date
+                                    AND th.holiday_date  <= '{end}' 
+                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                )
+                            )
+                            WHEN from_date <= '{start}' AND to_date >= '{start}' THEN (
+                                SELECT 5 * (DATEDIFF(to_date, '{start}')  DIV 7) 
+                                + MID('1234555512344445123333451222234511112345001234550', 
+                                7 * WEEKDAY('{start}') 
+                                + WEEKDAY(to_date) + 1, 1)
+                                - (
+                                    SELECT COUNT(th.holiday_date)
+                                    FROM `tabEmployee` te 
+                                    LEFT JOIN `tabHoliday` th 
+                                    on th.parent = te.holiday_list 
+                                    
+                                    WHERE te.employee_name = la.employee_name
+                                    AND te.status = 'Active'
+                                    AND th.holiday_date >= '{start}' 
+                                    AND th.holiday_date  <= to_date
+                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                )
+                            )
+                            WHEN la.from_date >= '{start}' AND la.to_date <= '{end}' THEN (total_leave_days)
+                            ELSE
+                                0
+                        END
+                    ) as `leave_dates`,
+                    'Leave Days'
+                FROM `tabLeave Application` la
+                WHERE la.status = "Approved" 
+                AND la.from_date BETWEEN '{add(start, days=-30)}' AND '{end}'
+                GROUP BY employee
+            ) wd
+            GROUP BY wd.name
+            ORDER BY wd.employee_name
+        ) wd
+
+        LEFT JOIN `tabTimesheet` ts ON wd.name = ts.employee 
+            AND ts.status in ('Submitted', 'Billed')
+        LEFT JOIN `tabTimesheet Detail` tsd 
+            ON tsd.parent = ts.name
+            AND tsd.activity_type NOT REGEXP 'Leave'
+            AND tsd.from_time >= '{start} 00:00:00'
+            AND tsd.to_time <= '{end} 23:59:59'
+        LEFT JOIN `tabProject` tp
+            ON tsd.project = tp.name
+        WHERE wd.emp_status = (CASE
+            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
+            WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
+            ELSE NULL
+            END
+        )
+        AND wd.total_hours != 0
+        GROUP BY wd.name
+        ORDER BY wd.employee_name
+            """
+
+        results = frappe.db.sql(sql, as_dict=True)
+
+        booked_hours = 0
+        total_hours = 0
+        staff_total = 0
+
+        for result in results:
+            booked_hours += 0 if result.get("booked_hours") is None else result.get("booked_hours")
+            total_hours += 0 if result.get("total_hours") is None else result.get("total_hours")
+            staff_total += 1
+
+        invoicable_hours_staff_median = total_hours / staff_total if staff_total else 0
+        utilisation_percent = (booked_hours / total_hours) * 100 if total_hours else 0
+
+        month_label = get_month_label(start)
+
+        print("TOTAL HOURS:", total_hours)  # --- IGNORE ---
+        print("BOOKED HOURS:", booked_hours)  # --- IGNORE ---
+        print("STAFF TOTAL:", staff_total)  # --- IGNORE ---
+
+        chart_data.append({
+            "month": month_label,
+            "invoicable_hours_staff_median": f"{invoicable_hours_staff_median:.0f}",
+            "utilisation_percent": f"{utilisation_percent:.0f}"
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    invoicable_hours_staff_median_values = [row["invoicable_hours_staff_median"] for row in chart_data]
+    utilisation_percent_values = [row["utilisation_percent"] for row in chart_data]
+
+    data = {
+        "element_id": "utilisation",
+        "isReverse": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "title": "Utilisation",
+        "total_cards": [],
+        "labels": labels,
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Invoicable Hours Staff",
+                "values": invoicable_hours_staff_median_values
+            },
+            {
+                "type": "line",
+                "name": "Utilisation %",
+                "values": utilisation_percent_values
+            },
+        ]
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_billable_hours(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
     total_external = 0
     total_internal = 0
     total_investment = 0
     total_no_project_linked = 0
+    total_invoicable_all_staff = 0
 
     for start, end in ranges:
         sql = f"""
@@ -117,7 +370,8 @@ def get_utilisation(start_date, end_date):
                 ) as `project_type`,
                 SUM(
                     CASE
-                        WHEN p.project_type IN ('External', 'Internal', 'Investment') AND task.is_billable = 1 THEN tsd.hours
+                        WHEN p.project_type IN ('External', 'Internal', 'Investment') AND tsd.is_billable = 1 
+                        THEN tsd.hours
                         ELSE 0
                     END
                 ) AS `billable_hours`
@@ -142,6 +396,22 @@ def get_utilisation(start_date, end_date):
             """
 
         results = frappe.db.sql(sql, as_dict=True)
+
+        invoicable_sql = f"""
+            SELECT 
+                SUM(
+                    CASE 
+                        WHEN is_billable = 1 THEN hours
+                        ELSE 0
+                    END
+                ) AS `invoicable_all_staff`
+            FROM `tabTimesheet Detail` tsd
+            WHERE tsd.from_time >= '{start} 00:00:00' 
+            AND tsd.to_time <= '{end} 23:59:59' 
+        """
+
+        invoicable_all_staff = frappe.db.sql(invoicable_sql, as_dict=True)[0]["invoicable_all_staff"]
+        total_invoicable_all_staff += invoicable_all_staff if invoicable_all_staff else 0
 
         no_project_linked = 0
         external = 0
@@ -170,6 +440,7 @@ def get_utilisation(start_date, end_date):
             "external": f"{external:.0f}",
             "internal": f"{internal:.0f}",
             "investment": f"{investment:.0f}",
+            "invoicable_all_staff": f"{invoicable_all_staff:.0f}"
         })
 
     # Transform chart_data for stacked chart
@@ -179,13 +450,14 @@ def get_utilisation(start_date, end_date):
     external_values = [row["external"] for row in chart_data]
     internal_values = [row["internal"] for row in chart_data]
     investment_values = [row["investment"] for row in chart_data]
+    invoicable_all_staff_values = [row["invoicable_all_staff"] for row in chart_data]
 
     data = {
-        "element_id": "utilisation",
+        "element_id": "billable_hours",
         "isReverse": False,
         "isLegendReverse": False,
         "type": "single",
-        "title": "Utilisation",
+        "title": "Billable Hours",
         "total_cards": [
             {
                 "title": "Total No Project Linked Hours",
@@ -202,6 +474,10 @@ def get_utilisation(start_date, end_date):
             {
                 "title": "Total Investment Hours",
                 "value": f"{total_investment:.0f}"
+            },
+            {
+                "title": "Total Invoicable Hours All Staff",
+                "value": f"{total_invoicable_all_staff:.0f}"
             }
         ],
         "labels": labels,
@@ -225,7 +501,12 @@ def get_utilisation(start_date, end_date):
                 "type": "bar",
                 "name": "Investment",
                 "values": investment_values
-            }
+            },
+            {
+                "type": "bar",
+                "name": "Invoicable All Staff",
+                "values": invoicable_all_staff_values
+            },
         ]
     }
 
@@ -878,6 +1159,7 @@ def get_open_sales_orders():
             "project": project_label,
             "total_billed_amount": f"{sale_order['total_billed_amount']:.0f}",
             "total_billed_sales_order": f"{sale_order['total_billed_sales_order']:.0f}",
+            "risk_percentage": f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0",
         })
 
     # Transform chart_data for stacked chart
@@ -901,8 +1183,13 @@ def get_open_sales_orders():
             },
             {
                 "type": "bar",
-                "name": "Total Billed Sales Order",
+                "name": "Total Sales Order",
                 "values": total_billed_sales_order_values
+            },
+            {
+                "type": "line",
+                "name": "Risk Percentage (%)",
+                "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders]
             }
         ]
     }
