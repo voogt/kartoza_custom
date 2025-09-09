@@ -286,7 +286,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
 
     new DataTable(`#${id}`, {
         lengthChange: false, // Remove entries-per-page dropdown
-        // ordering: false      // Disable sorting
+        ordering: false      // Disable sorting
     });
 }
 // Format numbers with spaces as thousands separators, no M/K/B suffixes
