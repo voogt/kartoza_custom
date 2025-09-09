@@ -222,6 +222,49 @@ def get_departments(company):
         if d.name
     ]
 
+def compute_department_summary_all(timesheets, billing_data, salary_data, all_departments):
+    # Convert salary data to dict for quick lookup
+    salary_map = {s.department: s.total_salary for s in salary_data}
+
+    department_summary = {}
+
+    # Initialize all departments with zeros
+    for dept in all_departments:
+        department_summary[dept] = {
+            'total_costing_amount': 0,
+            'total_billing_amount': 0,
+            'total_salary': 0
+        }
+
+    for ts in timesheets:
+        dept = ts.department
+        if not dept:
+            continue
+
+        costing = ts.total_costing_amount or 0
+        billing = billing_data.get(ts.name, 0)
+
+        if dept not in department_summary:
+            department_summary[dept] = {
+                'total_costing_amount': 0,
+                'total_billing_amount': 0,
+                'total_salary': 0
+            }
+
+        department_summary[dept]['total_costing_amount'] = department_summary[dept]['total_costing_amount'] + costing
+        department_summary[dept]['total_billing_amount'] = department_summary[dept]['total_billing_amount'] + billing
+
+    for dept, salary in salary_map.items():
+        if dept not in department_summary:
+            department_summary[dept] = {
+                'total_costing_amount': 0,
+                'total_billing_amount': 0,
+                'total_salary': 0
+            }
+        department_summary[dept]['total_salary'] = salary
+
+    return [{"department": dept, **vals} for dept, vals in department_summary.items()]
+
 def get_timesheet_data(start_date, end_date):
     return frappe.db.sql("""
         SELECT name, department, total_costing_amount

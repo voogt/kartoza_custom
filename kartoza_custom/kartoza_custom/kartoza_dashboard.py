@@ -9,7 +9,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data
+from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data
 
 @frappe.whitelist(allow_guest=True)
 def get_staff_count(start_date, end_date):
@@ -71,6 +71,11 @@ def get_staff_count(start_date, end_date):
         "datasets": [
             {
                 "type": "bar",
+                "name": "Opening Count",
+                "values": opening_values
+            },
+            {
+                "type": "bar",
                 "name": "New Staff",
                 "values": new_staff_values
             },
@@ -78,11 +83,6 @@ def get_staff_count(start_date, end_date):
                 "type": "bar",
                 "name": "Departures",
                 "values": departure_values
-            },
-            {
-                "type": "bar",
-                "name": "Opening Count",
-                "values": opening_values
             },
             {
                 "type": "bar",
@@ -307,10 +307,6 @@ def get_utilisation(start_date, end_date):
 
         month_label = get_month_label(start)
 
-        print("TOTAL HOURS:", total_hours)  # --- IGNORE ---
-        print("BOOKED HOURS:", booked_hours)  # --- IGNORE ---
-        print("STAFF TOTAL:", staff_total)  # --- IGNORE ---
-
         chart_data.append({
             "month": month_label,
             "invoicable_hours_staff_median": f"{invoicable_hours_staff_median:.0f}",
@@ -406,7 +402,7 @@ def get_billable_hours(start_date, end_date):
                     END
                 ) AS `invoicable_all_staff`
             FROM `tabTimesheet Detail` tsd
-            WHERE tsd.from_time >= '{start} 00:00:00' 
+            WHERE tsd.from_time >= '{start} 00:00:00'
             AND tsd.to_time <= '{end} 23:59:59' 
         """
 
@@ -874,9 +870,19 @@ def get_company_salary_pty(start_date, end_date):
 
         final_dict = compute_department_summary(timesheets, billing_data, salary_data, all_departments)
 
+        sql_check_management = f"""
+            SELECT * 
+            FROM `tabSalary Slip` 
+            WHERE employee = 'HR-EMP-00001'
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        check_management = frappe.db.sql(sql_check_management, as_dict=1, debug=0)
+
         for final in final_dict:
             if final["department"] == 'Management - K':
-                final['total_salary'] += 230000
+                if len(check_management) < 1:
+                    final['total_salary'] += 240000
             total_salary += final['total_salary']
 
         month_label = get_month_label(start)
@@ -902,7 +908,7 @@ def get_company_salary_pty(start_date, end_date):
             salary_map[name].append(f"{cost:.0f}")
 
     data = {
-        "title": f"Total Department Cost",
+        "title": f"Total Department Cost PTY",
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
@@ -910,7 +916,76 @@ def get_company_salary_pty(start_date, end_date):
         "type": "single",
         "total_cards": [
             {
-                "title": f"Total Department Costs",
+                "title": f"Total Department Costs PTY",
+                "value": f"{total_salary:.0f}"
+            }
+        ],
+        "datasets": []
+    }
+
+    for name, values in salary_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+
+    return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_company_salary_lda(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    total_salary = 0
+
+    for start, end in ranges:
+
+        final_dict = [
+            {
+                "department": "Management - KE",
+                "total_salary": 240000 
+            },
+            {
+                "department": "Admin - KE",
+                "total_salary": 20000
+            }
+        ]
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "salary_data": final_dict,
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    # Initialize a dict to hold profit/loss values per cost center
+    salary_map = {}
+
+    for row in chart_data:
+        month_data = row["salary_data"]
+        for item in month_data:
+            name = item["department"]
+            cost = item["total_salary"]
+            if name not in salary_map:
+                salary_map[name] = []
+            salary_map[name].append(f"{cost:.0f}")
+
+    data = {
+        "title": f"Total Department Cost LDA",
+        "labels": labels,
+        "element_id": "salary_cost",
+        "isReverse": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "total_cards": [
+            {
+                "title": f"Total Department Costs LDA",
                 "value": f"{total_salary:.0f}"
             }
         ],
@@ -1143,11 +1218,11 @@ def get_open_sales_orders():
     for d in final_dict:
         billed = data_map['sales_invoices'].get(d['project'], 0) or 0
         ordered = data_map['sales_orders'].get(d['project'], 0) or 0
-        to_be_billed = ordered - billed
+        total_to_be_billed = ordered - billed
 
         d['total_billed_amount'] = billed
         d['total_billed_sales_order'] = ordered
-        d['total_to_be_billed'] = to_be_billed if to_be_billed > 0 else 0
+        d['total_to_be_billed'] = total_to_be_billed
 
     # Filter only projects that have sales orders
     all_sales_orders = [d for d in final_dict if d['total_billed_sales_order'] > 0]
@@ -1159,6 +1234,7 @@ def get_open_sales_orders():
             "project": project_label,
             "total_billed_amount": f"{sale_order['total_billed_amount']:.0f}",
             "total_billed_sales_order": f"{sale_order['total_billed_sales_order']:.0f}",
+            "total_to_be_billed": f"{sale_order['total_to_be_billed']:.0f}",
             "risk_percentage": f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0",
         })
 
@@ -1187,10 +1263,16 @@ def get_open_sales_orders():
                 "values": total_billed_sales_order_values
             },
             {
+                "type": "bar",
+                "name": "Total To Be Billed",
+                "values": [f"{sale_order['total_to_be_billed']:.0f}" if sale_order.get('total_to_be_billed') else "0" for sale_order in all_sales_orders]
+            },
+            {
                 "type": "line",
                 "name": "Risk Percentage (%)",
                 "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders]
-            }
+            },
+            
         ]
     }
 

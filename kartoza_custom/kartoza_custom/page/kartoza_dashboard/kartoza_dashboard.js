@@ -72,6 +72,7 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
@@ -285,7 +286,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
 
     new DataTable(`#${id}`, {
         lengthChange: false, // Remove entries-per-page dropdown
-        ordering: false      // Disable sorting
+        // ordering: false      // Disable sorting
     });
 }
 // Format numbers with spaces as thousands separators, no M/K/B suffixes
