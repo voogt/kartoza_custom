@@ -166,7 +166,9 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
         x: labels,
         y: set.values,
         name: set.name,
-        type: set.type || 'bar'
+        type: set.type || 'bar',
+        customdata: set.values.map(v => formatNumberShortHand(v)),
+        hovertemplate: '%{x}<br>%{yaxis.title.text}: %{customdata}<extra></extra>'
     }));
 
 
@@ -184,7 +186,8 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
             tickfont: {size: 12},
         },
         yaxis: {
-            automargin: true
+            automargin: true,
+            title: { text: "" }
         }
     };
 
