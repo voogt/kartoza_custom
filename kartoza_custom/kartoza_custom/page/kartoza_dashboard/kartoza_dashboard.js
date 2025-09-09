@@ -149,7 +149,7 @@ const addCards = (data) => {
             cardElement.style.margin = "10px"
             cardElement.innerHTML = `
                 <div class="card-header" style="height:60px">${card.title}</div>
-                <div class="card-body">${formatNumberShortHand(card.value)}</div>
+                <div class="card-body">${formatNumber(card.value)}</div>
             `;
             parentElement.appendChild(cardElement);
         });
@@ -167,7 +167,7 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
         y: set.values,
         name: set.name,
         type: set.type || 'bar',
-        customdata: set.values.map(v => formatNumberShortHand(v)),
+        customdata: set.values.map(v => formatNumber(v)),
         hovertemplate: '%{x}<br>%{yaxis.title.text}: %{customdata}<extra></extra>'
     }));
 
