@@ -8,8 +8,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
     page.main.html(`
 
         <div class="flex items-center gap-8">
-            <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
-            <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="start_date" value=""  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="end_date" value=""  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
