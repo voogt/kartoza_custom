@@ -1198,6 +1198,10 @@ def get_open_sla():
 def get_open_sales_orders():
     chart_data = []
 
+    total_billed_amount = 0
+    total_billed_sales_orders = 0
+    total_to_be_billed_all = 0
+
     final_dict = frappe.db.sql("""
     SELECT
         p.name AS project,
@@ -1220,6 +1224,10 @@ def get_open_sales_orders():
         ordered = data_map['sales_orders'].get(d['project'], 0) or 0
         risk_percentages = data_map['risk_percentages'].get(d['project'], 0)
         total_to_be_billed = ordered - billed
+
+        total_billed_amount += billed
+        total_billed_sales_orders += ordered
+        total_to_be_billed_all += total_to_be_billed
 
         d['total_billed_amount'] = billed
         d['total_billed_sales_order'] = ordered
@@ -1252,7 +1260,20 @@ def get_open_sales_orders():
         "title": "Current Open Sales Orders",
         "labels": labels,
         "isReverse": True,
-        "total_cards": [],
+        "total_cards": [
+            {
+                "title": f"Total Billed Amount",
+                "value": f"{total_billed_amount:.0f}"
+            },
+            {
+                "title": f"Total Sales Orders",
+                "value": f"{total_billed_sales_orders:.0f}"
+            },
+            {
+                "title": f"Total To Be Billed",
+                "value": f"{total_to_be_billed_all:.0f}"
+            },
+        ],
         "datasets": [
             {
                 "type": "bar",
