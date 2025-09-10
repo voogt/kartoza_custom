@@ -1218,11 +1218,13 @@ def get_open_sales_orders():
     for d in final_dict:
         billed = data_map['sales_invoices'].get(d['project'], 0) or 0
         ordered = data_map['sales_orders'].get(d['project'], 0) or 0
+        risk_percentages = data_map['risk_percentages'].get(d['project'], 0)
         total_to_be_billed = ordered - billed
 
         d['total_billed_amount'] = billed
         d['total_billed_sales_order'] = ordered
         d['total_to_be_billed'] = total_to_be_billed
+        d["risk_percentage"] = risk_percentages
 
     # Filter only projects that have sales orders
     all_sales_orders = [d for d in final_dict if d['total_billed_sales_order'] > 0]
