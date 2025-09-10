@@ -177,7 +177,7 @@ const addCards = (data) => {
             cardElement.className = 'card col-md-2';
             cardElement.style.margin = "10px"
             cardElement.innerHTML = `
-                <div class="card-header" style="height:60px">${card.title}</div>
+                <div class="card-header" style="height:80px">${card.title}</div>
                 <div class="card-body">${formatNumber(card.value)}</div>
             `;
             parentElement.appendChild(cardElement);
