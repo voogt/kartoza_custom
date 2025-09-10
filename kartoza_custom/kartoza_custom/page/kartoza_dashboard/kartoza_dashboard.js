@@ -89,7 +89,7 @@ function fetchDataAndPlot() {
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
-                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
+                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
                         addCards(r.message.total_cards);
                     } else {
                         frappe.msgprint("No data returned.");
@@ -101,13 +101,41 @@ function fetchDataAndPlot() {
                         type: 'GET',
                         callback: function(r) {
                             if (r.message) {
-                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
+                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
                                 addCards(r.message.total_cards);
                             } else {
                                 frappe.msgprint("No data returned.");
                             }
                             // Hide loader after last chart/table
-                            document.getElementById('loader').style.display = 'none';
+                            frappe.call({
+                                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+                                args: { start_date, end_date, type_center:'Profit' },
+                                type: 'GET',
+                                callback: function(r) {
+                                    if (r.message) {
+                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                                        addCards(r.message.total_cards);
+                                    } else {
+                                        frappe.msgprint("No data returned.");
+                                    }
+                                    // Hide loader after last chart/table
+                                    frappe.call({
+                                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+                                        args: { start_date, end_date, type_center:'Cost' },
+                                        type: 'GET',
+                                        callback: function(r) {
+                                            if (r.message) {
+                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                                                addCards(r.message.total_cards);
+                                            } else {
+                                                frappe.msgprint("No data returned.");
+                                            }
+                                            // Hide loader after last chart/table
+                                            document.getElementById('loader').style.display = 'none';
+                                        }
+                                    });
+                                }
+                            });
                         }
                     });
                 }
@@ -120,7 +148,7 @@ function fetchDataAndPlot() {
             type: 'GET',
             callback: function(r) {
                 if (r.message) {
-                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse);
+                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
                     if(r.message.total_cards){
                         addCards(r.message.total_cards);
                     }
@@ -157,7 +185,7 @@ const addCards = (data) => {
     }
 }
 
-function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
+function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText) {
     // Ensure unique element_id for each chart
     const unique_element_id = `${element_id}-${generateRandomId()}`;
     const containerId = `${unique_element_id}-container`;
@@ -169,7 +197,8 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
         name: set.name,
         type: set.type || 'bar',
         customdata: set.values.map(v => formatNumber(v)),
-        hovertemplate: '%{x}<br>%{yaxis.title.text}: %{customdata}<extra></extra>'
+        // Show legend (dataset name) as the title in the hovertemplate
+        hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
     }));
 
 
@@ -210,15 +239,41 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse) {
 
     // Create a container for the chart and table using insertAdjacentHTML to preserve previous DOM nodes
     const parentElement = document.getElementById('parent-chart');
+    // Add info icon with custom HTML popover if helpText is provided
+    let infoIconHTML = '';
+    if (helpText) {
+        const popoverId = `${containerId}-popover`;
+        infoIconHTML = ` <span style="cursor:pointer;position:relative;display:inline-block;" tabindex="0" aria-describedby="${popoverId}" class="info-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#1f1f1f"><path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
+            <div id="${popoverId}" class="custom-popover" style="display:none; position:absolute; left:25px; top:0; z-index:1000; background:#fff; border:1px solid #ccc; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.15); padding:14px 18px; min-width:320px; max-width:420px; font-size:14px; color:#222;">
+                ${helpText}
+            </div>
+        </span>`;
+    }
     parentElement.insertAdjacentHTML('beforeend', `
         <div id="${containerId}" style="margin-bottom: 80px;">
-            <h3 style='text-align: center;'>${title}</h3>
+            <h3 style='text-align: center;'>${title}${infoIconHTML}</h3>
             <div id="${unique_element_id}" style="width: 100%; height: 480px;"></div>
             <div id="${unique_element_id}-table" style="margin-top: 20px;"></div>
             <hr>
         </div>
-        
     `);
+
+    // Add popover show/hide logic for info icon
+    if (helpText) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            const infoIcon = container.querySelector('.info-icon');
+            const popover = container.querySelector('.custom-popover');
+            if (infoIcon && popover) {
+                // Show on hover or focus
+                infoIcon.addEventListener('mouseenter', () => { popover.style.display = 'block'; });
+                infoIcon.addEventListener('mouseleave', () => { popover.style.display = 'none'; });
+                infoIcon.addEventListener('focus', () => { popover.style.display = 'block'; });
+                infoIcon.addEventListener('blur', () => { popover.style.display = 'none'; });
+            }
+        }
+    }
 
 
     // Render the chart without the top toolbar

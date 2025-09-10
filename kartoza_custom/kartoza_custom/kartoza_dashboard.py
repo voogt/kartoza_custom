@@ -68,6 +68,18 @@ def get_staff_count(start_date, end_date):
         "isReverse": False,
         "isLegendReverse": False,
         "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Calculates staff numbers for each month in the selected range:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Opening Count:</b> Employees who joined before the month and are not relieved before the month starts.</li>
+                <li><b>New Staff:</b> Employees who joined during the month.</li>
+                <li><b>Departures:</b> Employees whose relieving date falls within the month.</li>
+                <li><b>Closing Count:</b> Opening count + new staff - departures.</li>
+            </ul>
+            <span style='color: #888;'>All counts exclude employees with the designation <b>Sub-Contractor</b>.</span>
+        </div>
+        """,
         "datasets": [
             {
                 "type": "bar",
@@ -326,6 +338,17 @@ def get_utilisation(start_date, end_date):
         "type": "single",
         "title": "Utilisation",
         "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows staff utilisation per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Invoicable Hours Staff:</b> Median of total available hours per staff, considering working days, holidays, and approved leave.</li>
+                <li><b>Utilisation %:</b> (Total booked hours / total available hours) × 100.</li>
+                <li><b>Booked hours:</b> Includes timesheet, holiday, and leave hours.</li>
+                <li>Only staff with <b>custom_utilization=1</b> are included.</li>
+            </ul>
+        </div>
+        """,
         "labels": labels,
         "datasets": [
             {
@@ -454,6 +477,17 @@ def get_billable_hours(start_date, end_date):
         "isLegendReverse": False,
         "type": "single",
         "title": "Billable Hours",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays billable hours by project type per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>No Project Linked:</b> Billable hours not linked to any project.</li>
+                <li><b>External/Internal/Investment:</b> Billable hours for each project type.</li>
+                <li><b>Invoicable All Staff:</b> All billable hours, regardless of project link.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed across the selected period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": "Total No Project Linked Hours",
@@ -582,6 +616,22 @@ def get_projects_data(start_date, end_date):
         "type": "single",
         "isReverse": False,
         "isLegendReverse": False,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows project financials per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Backlog:</b> Value of sales orders not yet invoiced (uninvoiced total) for the month.<br>
+                    <span style='color: #555; font-size: 13px;'>
+                        <b>How is backlog calculated?</b><br>
+                        For each month, the system collects all sales orders within the month that have not yet been fully invoiced. It sums the <b>uninvoiced_total</b> for each of these sales orders (converted to Rand if needed). This total represents the amount of work sold but not yet invoiced, giving insight into expected future revenue.
+                    </span>
+                </li>
+                <li><b>Value (Closed Projects Rand):</b> Total billed amount for projects completed in the month, converted to Rand if needed.</li>
+                <li><b>Margin (Closed Projects) %:</b> (Total billed - total costing) / total billed × 100 for closed projects.</li>
+            </ul>
+            <span style='color: #888;'>Totals are aggregated for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": "Total Closed Projects Value",
@@ -723,14 +773,184 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
     }
 
     data = {
-        "title": f"{type_center} Centers",
+        "title": f"{type_center} Center True cost (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
         "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
+        "help": f"""
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays profit/loss per cost center for each month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Profit/Loss:</b> Total billed amount (from sales invoices) minus total costing (from timesheets) for each center.</li>
+                <li>Only centers of the specified type are included.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
-                "title": f"Total {type_center} Centre",
+                "title": f"Total {type_center} Centre True cost (Profit/Loss)",
+                "value": f"{total_cost_center:.0f}"
+            }
+        ],
+        "type": "single",
+        "datasets": []
+    }
+
+    for name, values in filtered_cost_center_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+    return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    total_cost_center = 0
+
+    for start, end in ranges:
+        zar_rate = get_rates(end, "EUR")
+
+        sales_invoice_sql = f"""
+        SELECT 
+            ts.cost_center, 
+            SUM(
+                CASE
+                    WHEN company = 'Kartoza (Pty) Ltd' THEN
+                        base_grand_total
+                    ELSE
+                        base_grand_total * {zar_rate}
+                END
+            ) as `total_billed_amount`
+            FROM `tabSales Invoice` ts
+            WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+            AND ts.posting_date BETWEEN '{start}' AND '{end}'
+            GROUP BY ts.cost_center
+        """
+
+        timesheet_costing_sql = f"""
+            SELECT 
+                p.cost_center, 
+                SUM(tsd.costing_amount) as `total_costing`,
+                SUM(tsd.billing_amount) as `total_timesheet_billing`
+            FROM `tabTimesheet Detail` tsd
+            JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+            LEFT JOIN `tabProject` p ON tsd.project = p.name
+                WHERE ts.docstatus = 1
+                AND tsd.from_time BETWEEN '{start}' AND '{end}'
+            GROUP BY p.cost_center
+        """
+
+        timesheet_costing_data = frappe.db.sql(timesheet_costing_sql, as_dict=1, debug=0)
+        sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
+
+        data_map = {
+            'timesheet_costing': {item['cost_center']: item['total_costing'] for item in timesheet_costing_data},
+            'total_timesheet_billing': {item['cost_center']: item['total_timesheet_billing'] for item in timesheet_costing_data},
+            'sales_invoices': {item['cost_center']: item['total_billed_amount'] for item in sales_invoice_data},
+        }
+
+        cost_center_data = frappe.db.sql(f"""
+            SELECT
+                p.cost_center as `cost_center`,
+                p.total_purchase_cost,
+                COALESCE(SUM(tpi.base_grand_total), 0) AS total_purchase_invoice,
+                COALESCE(SUM(teecd.amount), 0) AS total_expense_claim
+                
+            FROM `tabProject` p
+            LEFT JOIN `tabEmployee Expense Claim` teec ON 
+                p.name = teec.project AND teec.approval_status = 'Approved' AND teec.expense_type_parent = 'Purchase'
+            LEFT JOIN `tabEmployee Expense Claim Detail` teecd ON 
+                teecd.parent = teec.name AND teecd.expense_date BETWEEN '{start}' AND '{end}'
+            LEFT JOIN `tabPurchase Invoice` tpi ON 
+                p.name = tpi.project AND tpi.posting_date BETWEEN '{start}' AND '{end}'
+            LEFT JOIN `tabCost Center` tcc ON p.cost_center = tcc.name
+            WHERE
+                p.cost_center != ""
+                AND tcc.custom_cost_center_type = '{type_center}'
+            GROUP BY
+                p.cost_center
+            ORDER BY
+                p.cost_center
+        """, as_dict=1, debug=0)
+
+        cost_center_array = []
+
+        for dict in cost_center_data:
+            total_costing_amount = data_map['timesheet_costing'].get(dict['cost_center'], 0)
+            total_billed_amount = data_map['sales_invoices'].get(dict['cost_center'], 0)
+            total_timesheet_billing = data_map['total_timesheet_billing'].get(dict['cost_center'], 0)
+            profit_loss = total_billed_amount - total_costing_amount
+            potential_revenue_total = total_billed_amount - total_timesheet_billing
+
+            if profit_loss < 0:
+
+                total_cost_center += profit_loss
+                cost_center_array.append({
+                    'cost_center': dict['cost_center'],
+                    'profit_loss': f"{potential_revenue_total:.0f}",
+                })
+            else:
+                cost_center_array.append({
+                    'cost_center': dict['cost_center'],
+                    'profit_loss': "0",
+                })
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "cost_center_data": cost_center_array,
+        })
+
+    # Transform chart_data for stacked chart
+     # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    # Initialize a dict to hold profit/loss values per cost center
+    cost_center_map = {}
+
+    for row in chart_data:
+        month_data = row["cost_center_data"]
+        for item in month_data:
+            name = item["cost_center"]
+            profit_loss = item["profit_loss"]
+            if name not in cost_center_map:
+                cost_center_map[name] = []
+            cost_center_map[name].append(profit_loss)
+
+
+    # Remove cost centers with 0 for all months
+    filtered_cost_center_map = {
+        name: values for name, values in cost_center_map.items()
+        if any(float(v) != 0.0 for v in values)
+    }
+
+    data = {
+        "title": f"{type_center} Lost Revenue (Profit/Loss)",
+        "labels": labels,
+        "isReverse": False,
+        "isLegendReverse": False,
+        "element_id": f"{type_center}_centers",
+        "help": f"""
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows lost revenue (potential profit not realized) for centers with negative profit/loss:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Profit/Loss:</b> For centers with negative profit, shows the difference between total billed and total timesheet billing.</li>
+                <li>Only centers of the specified type are included.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
+        "total_cards": [
+            {
+                "title": f"Total {type_center} Lost Revenue (Profit/Loss)",
                 "value": f"{total_cost_center:.0f}"
             }
         ],
@@ -823,6 +1043,16 @@ def get_activity_cost_data(start_date, end_date):
         "labels": labels,
         "element_id": "activity_cost",
         "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays total cost per activity type for each month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Cost:</b> Sum of costing amounts from timesheet details for each activity type.</li>
+                <li>Only active activity types are included.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Activity Cost",
@@ -914,6 +1144,16 @@ def get_company_salary_pty(start_date, end_date):
         "isReverse": False,
         "isLegendReverse": False,
         "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows total salary costs per department for Kartoza (Pty) Ltd per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Total Salary:</b> Sum of gross pay on salary slips.</li>
+                <li>If no salary slip for 'Management - K', adds a fixed amount.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Department Costs PTY",
@@ -983,6 +1223,15 @@ def get_company_salary_lda(start_date, end_date):
         "isReverse": False,
         "isLegendReverse": False,
         "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows total salary costs per department for Kartoza Lda per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Total Salary:</b> Uses fixed values for each department per month.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Department Costs LDA",
@@ -1036,6 +1285,15 @@ def get_company_pipeline_pty():
         "element_id": "quote_pty",
         "type": "single",
         "datasets": datasets,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays open quotations for Kartoza (Pty) Ltd:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Amount:</b> Value of each open quotation (Draft/Open status), grouped by quote name.</li>
+            </ul>
+            <span style='color: #888;'>Total is the sum of all open quotations.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Quotes PTY",
@@ -1086,6 +1344,15 @@ def get_company_pipeline_lda():
         "element_id": "quote_lda",
         "type": "single",
         "datasets": datasets,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays open quotations for Kartoza Lda:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Amount:</b> Value of each open quotation (Draft/Open status), converted to Rand if needed, grouped by quote name.</li>
+            </ul>
+            <span style='color: #888;'>Total is the sum of all open quotations.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Quotes LDA",
@@ -1177,6 +1444,16 @@ def get_open_sla():
         "title": "Current open SLA's",
         "labels": labels,
         "isReverse": True,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows open SLA and hosting projects:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Total Sales Order Amount:</b> Sum of sales order items linked to each project.</li>
+                <li><b>Total Sales Invoice Amount:</b> Sum of paid sales invoices linked to each project.</li>
+                <li>Projects are filtered by name containing 'sla' or 'hosting' and status 'Open'.</li>
+            </ul>
+        </div>
+        """,
         "total_cards": [],
         "datasets": [
             {
@@ -1260,6 +1537,18 @@ def get_open_sales_orders():
         "title": "Current Open Sales Orders",
         "labels": labels,
         "isReverse": True,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays open sales orders by project:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Total Billed Amount:</b> Sum of sales invoices for each open project.</li>
+                <li><b>Total Sales Order:</b> Sum of sales orders for each open project.</li>
+                <li><b>Total To Be Billed:</b> Sales order total minus billed amount.</li>
+                <li><b>Risk Percentage:</b> Risk percentage for each project, if available.</li>
+            </ul>
+            <span style='color: #888;'>Totals are summed for the period.</span>
+        </div>
+        """,
         "total_cards": [
             {
                 "title": f"Total Billed Amount",
