@@ -790,7 +790,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         """,
         "total_cards": [
             {
-                "title": f"Total {type_center} Centre True cost (Profit/Loss)",
+                "title": f"Total {type_center} Center True cost (Profit/Loss)",
                 "value": f"{total_cost_center:.0f}"
             }
         ],
@@ -933,7 +933,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
     }
 
     data = {
-        "title": f"{type_center} Lost Revenue (Profit/Loss)",
+        "title": f"{type_center} Center Lost Revenue (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
         "isLegendReverse": False,
