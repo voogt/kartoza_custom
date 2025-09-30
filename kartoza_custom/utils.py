@@ -158,7 +158,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
     certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format_ym)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{employer_paye_num}{transaction_year}VIPL0000000"
+    certificate_num = f"{employer_paye_num}{transaction_year}VIPL000000000"
 
     period_recon = datetime.strptime(end, input_format_b).strftime(output_format_ym)
 
@@ -465,10 +465,18 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
             if employee["employee_status"] == 'Active':
                 joining_obj = datetime.strptime(str(employee["date_of_joining"]), input_format_b)
+
                 if joining_obj < date_object_start:
                     _3210 = 6
+
+                elif joining_obj.year == date_object_start.year and joining_obj.month == date_object_start.month:
+                    print("Employee joined in the same month as the start date", employee["employee"], joining_obj, date_object_start)
+                    _3210 = 6
+
                 elif joining_obj > date_object_start:
+                    print("Employee joined after the start date", employee["employee"], joining_obj, date_object_start)
                     _3210 = (joining_obj.year - date_object_start.year) * 12 + (joining_obj.month - date_object_start.month)
+
             else:
                 if employee["relieving_date"] and employee['relieving_date'] != None:
                     relieve_obj = datetime.strptime(str(employee["relieving_date"]), input_format_b)
