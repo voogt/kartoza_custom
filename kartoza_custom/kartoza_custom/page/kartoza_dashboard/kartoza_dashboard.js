@@ -8,8 +8,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
     page.main.html(`
 
         <div class="flex items-center gap-8">
-            <input type="date" id="start_date" value=""  style="margin-right:5px; border-radius:5px"/>
-            <input type="date" id="end_date" value=""  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
@@ -74,6 +74,8 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
@@ -89,31 +91,31 @@ function fetchDataAndPlot() {
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
-                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
                         addCards(r.message.total_cards);
                     } else {
                         frappe.msgprint("No data returned.");
                     }
                     // After cost center, call profit center
                     frappe.call({
-                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
-                        args: { start_date, end_date, type_center:'Profit' },
+                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+                        args: { start_date, end_date, type_center:'Cost' },
                         type: 'GET',
                         callback: function(r) {
                             if (r.message) {
-                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
                                 addCards(r.message.total_cards);
                             } else {
                                 frappe.msgprint("No data returned.");
                             }
                             // Hide loader after last chart/table
                             frappe.call({
-                                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+                                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
                                 args: { start_date, end_date, type_center:'Profit' },
                                 type: 'GET',
                                 callback: function(r) {
                                     if (r.message) {
-                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
                                         addCards(r.message.total_cards);
                                     } else {
                                         frappe.msgprint("No data returned.");
@@ -121,11 +123,11 @@ function fetchDataAndPlot() {
                                     // Hide loader after last chart/table
                                     frappe.call({
                                         method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
-                                        args: { start_date, end_date, type_center:'Cost' },
+                                        args: { start_date, end_date, type_center:'Profit' },
                                         type: 'GET',
                                         callback: function(r) {
                                             if (r.message) {
-                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
                                                 addCards(r.message.total_cards);
                                             } else {
                                                 frappe.msgprint("No data returned.");
@@ -148,7 +150,7 @@ function fetchDataAndPlot() {
             type: 'GET',
             callback: function(r) {
                 if (r.message) {
-                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help);
+                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
                     if(r.message.total_cards){
                         addCards(r.message.total_cards);
                     }
@@ -185,14 +187,46 @@ const addCards = (data) => {
     }
 }
 
-function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText) {
+function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText, shouldSplitLongLabels) {
     // Ensure unique element_id for each chart
     const unique_element_id = `${element_id}-${generateRandomId()}`;
     const containerId = `${unique_element_id}-container`;
 
+    // Determine if any label is long (e.g., > 12 chars)
+    const maxLabelLength = Math.max(...labels.map(l => l.length));
+    const shouldRotate = maxLabelLength > 20;
+
+    // If rotating, split long labels into two lines and reduce font size
+    let processedLabels = labels;
+    let tickfontSize = 12;
+    if (shouldRotate) {
+        processedLabels = labels.map(l => {
+            if (shouldSplitLongLabels) {
+                let spaceIdx = l.lastIndexOf(' ', 50);
+                if (spaceIdx === -1) spaceIdx = l.indexOf(' ', 50);
+                if (spaceIdx !== -1) {
+                    return l.slice(0, spaceIdx) + '<br>' + l.slice(spaceIdx + 1);
+                } else {
+                    // No space, just split at 50
+                    return l.slice(0, 50) + '<br>' + l.slice(50);
+                }
+            }
+            return l;
+        });
+        // Move the second line up a bit if <br> is present
+        processedLabels = processedLabels.map(lbl => {
+            if (typeof lbl === 'string' && lbl.includes('<br>')) {
+                // Wrap the second line in a span with negative margin-top
+                return lbl.replace(/<br>(.*)/, '<br><span style="display:inline-block; margin-top:-15px;">$1</span>');
+            }
+            return lbl;
+        });
+        tickfontSize = 9; // smaller font size for rotated labels
+    }
+
     // Generate traces for Plotly chart
     const traces = datasets.map(set => ({
-        x: labels,
+        x: processedLabels,
         y: set.values,
         name: set.name,
         type: set.type || 'bar',
@@ -201,19 +235,13 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
         hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
     }));
 
-
-
-    // Determine if any label is long (e.g., > 12 chars)
-    const maxLabelLength = Math.max(...labels.map(l => l.length));
-    const shouldRotate = maxLabelLength > 20;
-
     let layout = {
         legend: {},
         margin: {b: shouldRotate ? 120 : 60, t: 60, l: 60, r: 30},
         xaxis: {
             tickangle: shouldRotate ? -45 : 0,
             automargin: true,
-            tickfont: {size: 12},
+            tickfont: {size: tickfontSize},
         },
         yaxis: {
             automargin: true,
@@ -274,7 +302,6 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
             }
         }
     }
-
 
     // Render the chart without the top toolbar
     Plotly.newPlot(unique_element_id, traces, layout, {displayModeBar: false});

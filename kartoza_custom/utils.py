@@ -10,6 +10,15 @@ from frappe.utils import now_datetime
 import re
 import unicodedata
 
+def clean_passport_number(passport: str) -> str:
+    """
+    Remove dashes, spaces, and other non-alphanumeric characters 
+    from a passport number string.
+    """
+    if not isinstance(passport, str):
+        return ""
+    return re.sub(r'[^A-Za-z0-9]', '', passport)
+
 def get_country_code_by_name(country_name):
     try:
         country = frappe.get_doc("Country", country_name)
@@ -149,7 +158,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
     certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format_ym)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{employer_paye_num}{certificate_num_transaction_date}VIPL0000000"
+    certificate_num = f"{employer_paye_num}{transaction_year}VIPL0000000"
 
     period_recon = datetime.strptime(end, input_format_b).strftime(output_format_ym)
 
@@ -405,14 +414,20 @@ def export_report_to_text(start_date, end_date, transaction_year):
             else:
                 _3075 = country_codes.get(employee["custom_country_code"])
                 _3151 = employee["custom_country_code"]
+            
+            _3060 = employee["id_number"]
 
             salary_structure = employee.get("salary_structure", "Default Salary Structure")
             
-            if salary_structure == 'Basic + Tax + UIF 1':
+            if salary_structure == 'Basic + Tax + UIF 1' or salary_structure == 'Basic + Travel - Tax - UIF':
                 _3015 = "IRP5"
                 _4102 = employee['paye']
                 _3135 = normalize_number(_3135)
                 _3100 = employee["tax_payroll_number"]
+
+                if not is_valid_sa_id(employee["id_number"]):
+                    _3100 = employee["custom_south_african_tax_number"]
+                    _3060 = clean_passport_number(employee["passport_number"])
             else:
                 _3015 = 'IT3(a)'
                 _4102 = 0
@@ -424,7 +439,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3030 = normalize_text(employee["last_name"])
             _3040 = normalize_text(employee["first_name"])
             _3050 = get_initials(employee["first_name"])
-            _3060 = employee["id_number"]
+            
             _3070 = employee["id_number"] if employee["id_number"] != None else employee["passport_number"].replace(' ', '')
             _3080 = str(employee["date_of_birth"]).replace('-', '')
             
@@ -487,139 +502,6 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3699 = round(float(employee["total_taxable_earnings"]))
             _3651 = round(float(employee['3651_Non_Taxable_Backpay']))
 
-            # if employee["custom_employee_qualifies_for_eti"] == 1:
-            #     _3026 = 'Y'
-            #     _3015 = 'IT3(a)'
-            #     _4150 = '02'
-
-            #     sql = f"""
-            #         SELECT 
-            #             tss.posting_date,
-            #             2000 AS `Minimum_monthly_wage`,
-            #             160 AS `Actual_Hours_per_Month`,
-            #             COALESCE(tsd.amount, 0) AS `Actual_monthly_wage`,
-            #             COALESCE(tsd.amount, 0) AS `ETI_Remuneration`,
-            #             COALESCE(cast(tss.custom_monthly_eti as decimal(10,2)), 0) AS `calculated_incentive`
-            #         FROM tabEmployee te 
-            #         LEFT JOIN `tabSalary Slip` tss 
-            #             ON te.employee = tss.employee 
-            #         LEFT JOIN `tabSalary Detail` tsd
-            #             ON tsd.parent = tss.name
-            #         LEFT JOIN `tabTimesheet` tt
-            #             ON tt.employee  = tss.employee 
-            #         WHERE te.employee = '{employee['employee']}'
-            #         AND tsd.salary_component = '3601 Taxable Income Basic'
-            #         AND tss.status = 'Submitted'
-            #         AND tss.posting_date BETWEEN '{start_date}' AND '{end_date}'
-            #         GROUP BY tss.posting_date, tsd.amount, tss.custom_monthly_eti;
-
-            #     """
-            #     _eti_dict = frappe.db.sql(sql, as_dict=1, debug=1)
-
-            #     output_lines.append([
-            #         3010,_3010,
-            #         3015,_3015,
-            #         4150,_4150,
-            #         3020,_3020,
-            #         3025,_3025,
-            #         3030,_3030,
-            #         3040,_3040,
-            #         3050,_3050,
-            #         3060,_3060,
-            #         3075,_3075,
-            #         3080,_3080,
-            #         3100,_3100,
-            #         3263,_3263,
-            #         3125,_3125,
-            #         3135,_3135,
-            #         3136,_3136,
-            #         3138,_3138,
-            #         3144,_3144,
-            #         3145,_3145,
-            #         3146,_3146,
-            #         3147,_3147,
-            #         3148,_3148,
-            #         3149,_3149,
-            #         3150,_3150,
-            #         3151,_3151,
-            #         3160,_3160,
-            #         3170,_3170,
-            #         3180,_3180,
-            #         3190,_3190,
-            #         3285,_3285,
-            #         3200,_3200,
-            #         3210,_3210,
-            #         3213,_3213,
-            #         3214,_3214,
-            #         3215,_3215,
-            #         3216,_3216,
-            #         3217,_3217,
-            #         3279,_3279,
-            #         3240,_3240,
-            #         3288,_3288,
-            #         3026,_3026,
-            #         3601,_3601,
-            #         3699,_3699,
-            #         4141,_4141,
-            #         4142,_4142,
-            #         4149,_4149])
-                
-            #     # if employee["custom_employee_qualifies_for_eti"] == 1:
-            #     #     output_lines.append([4150,_4150])
-                
-            #     _4118 = 0
-            #     _7004 = []
-            #     _7006 = []
-            #     _7002 = []
-            #     _7003 = []
-            #     _7005 = []
-            #     _7007 = []
-            #     _7008 = []
-
-            #     # Group entries in eti_dict by month and year
-            #     eti_grouped_by_month = defaultdict(list)
-            #     for eti in _eti_dict:
-            #         _4118 = _4118 + eti['calculated_incentive']
-            #         posting_date_obj = datetime.strptime(str(eti['posting_date']), input_format_b)
-            #         month_year_key = (posting_date_obj.year, posting_date_obj.month)
-            #         eti_grouped_by_month[month_year_key].append(eti)
-
-            #     current_date = date_object_start
-            #     num_track = 0
-                
-            #     while current_date <= date_object_end:
-            #         month_str = f"{current_date.month:02d}"  # formats with leading zero
-            #         _7006.append(month_str)
-            #         month_year_key = (current_date.year, current_date.month)
-
-            #         if month_year_key in eti_grouped_by_month:
-            #             # Process all ETI entries for the current month
-            #             for eti in eti_grouped_by_month[month_year_key]:
-            #                 _7007.append(eti['Actual_Hours_per_Month'])
-            #                 _7002.append(eti['Actual_monthly_wage'])
-            #                 _7008.append(eti['Minimum_monthly_wage'])
-            #                 _7005.append(1)
-            #                 _7003.append(float(eti['Actual_Hours_per_Month']) / float(eti['Actual_Hours_per_Month']))
-            #                 _7004.append(eti['calculated_incentive'])
-            #         else:
-            #             # No entries for the current month
-            #             _7007.append(0)
-            #             _7002.append(0)
-            #             _7008.append(0)
-            #             _7005.append(0)
-            #             _7003.append(0)
-            #             _7004.append(0)
-
-            #         num_track += 1
-            #         current_date += relativedelta(months=1)
-
-            #     output_lines.append([4118, _4118,])
-
-            #     for i in range(num_track):
-            #         output_lines.append([7006, _7006[i], 7002, _7002[i], 7003, _7003[i], 7004, _7004[i], 7005, _7005[i], 7007, _7007[i], 7008, _7008[i],])
-
-            #     output_lines.append(9999)
-                
             _4150 = '05'
         
             output_lines.append([
@@ -649,7 +531,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                 3160,_3160,
                 3170,_3170,
                 3180,_3180,
-                3190,_3190,
+                # 3190,_3190,
                 3285,_3285,
                 3200,_3200,
                 3210,_3210,
@@ -673,7 +555,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     4582,round(_4582)
                 ])
             
-            if salary_structure != 'Basic + Tax + UIF 1':
+            if salary_structure != 'Basic + Tax + UIF 1' and salary_structure != 'Basic + Travel - Tax - UIF':
                 output_lines.append(
                     [
                         4150,'05',

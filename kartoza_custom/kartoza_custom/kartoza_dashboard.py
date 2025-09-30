@@ -66,6 +66,7 @@ def get_staff_count(start_date, end_date):
         "title": "Staff Count",
         "labels": labels,
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "total_cards": [],
         "help": """
@@ -334,6 +335,7 @@ def get_utilisation(start_date, end_date):
     data = {
         "element_id": "utilisation",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
         "title": "Utilisation",
@@ -474,6 +476,7 @@ def get_billable_hours(start_date, end_date):
     data = {
         "element_id": "billable_hours",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
         "title": "Billable Hours",
@@ -615,6 +618,7 @@ def get_projects_data(start_date, end_date):
         "element_id": "projects",
         "type": "single",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "help": """
         <div style='font-size: 14px;text-align: left'>
@@ -670,19 +674,20 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
 
         sales_invoice_sql = f"""
         SELECT 
-            ts.cost_center, 
+            tsi.cost_center, 
             SUM(
                 CASE
-                    WHEN company = 'Kartoza (Pty) Ltd' THEN
-                        base_grand_total
+                    WHEN ts.company = 'Kartoza (Pty) Ltd' THEN
+                        tsi.base_amount
                     ELSE
-                        base_grand_total * {zar_rate}
+                        tsi.base_amount * {zar_rate}
                 END
             ) as `total_billed_amount`
             FROM `tabSales Invoice` ts
+            LEFT JOIN `tabSales Invoice Item` tsi ON tsi.parent = ts.name
             WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
             AND ts.posting_date BETWEEN '{start}' AND '{end}'
-            GROUP BY ts.cost_center
+            GROUP BY tsi.cost_center
         """
 
         timesheet_costing_sql = f"""
@@ -773,9 +778,10 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
     }
 
     data = {
-        "title": f"{type_center} Center True cost (Profit/Loss)",
+        "title": f"{type_center} Center True Cost (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
         "help": f"""
@@ -790,7 +796,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         """,
         "total_cards": [
             {
-                "title": f"Total {type_center} Center True cost (Profit/Loss)",
+                "title": f"Total {type_center} Center True Cost (Profit/Loss)",
                 "value": f"{total_cost_center:.0f}"
             }
         ],
@@ -819,19 +825,20 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
 
         sales_invoice_sql = f"""
         SELECT 
-            ts.cost_center, 
+            tsi.cost_center, 
             SUM(
                 CASE
-                    WHEN company = 'Kartoza (Pty) Ltd' THEN
-                        base_grand_total
+                    WHEN ts.company = 'Kartoza (Pty) Ltd' THEN
+                        tsi.base_amount
                     ELSE
-                        base_grand_total * {zar_rate}
+                        tsi.base_amount * {zar_rate}
                 END
             ) as `total_billed_amount`
             FROM `tabSales Invoice` ts
+            LEFT JOIN `tabSales Invoice Item` tsi ON tsi.parent = ts.name
             WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
             AND ts.posting_date BETWEEN '{start}' AND '{end}'
-            GROUP BY ts.cost_center
+            GROUP BY tsi.cost_center
         """
 
         timesheet_costing_sql = f"""
@@ -936,6 +943,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         "title": f"{type_center} Center Lost Revenue (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
         "help": f"""
@@ -1039,6 +1047,7 @@ def get_activity_cost_data(start_date, end_date):
     data = {
         "title": f"Activity Cost",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "labels": labels,
         "element_id": "activity_cost",
@@ -1142,6 +1151,7 @@ def get_company_salary_pty(start_date, end_date):
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
         "help": """
@@ -1221,6 +1231,7 @@ def get_company_salary_lda(start_date, end_date):
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
         "help": """
@@ -1305,6 +1316,170 @@ def get_company_pipeline_pty():
     return data
 
 @frappe.whitelist(allow_guest=True)
+def get_company_pipeline_opportunities_pty():
+
+    chart_data = []
+
+    zar_eur_rate = get_rates(None, "EUR")
+    zar_usd_rate = get_rates(None, "USD")
+
+    total_opps = 0
+    sql = f"""
+        SELECT 
+        CONCAT(top.customer_name, " (", top.name, " | ", DATE(top.creation), ")") AS `opp_name`,
+        (CASE
+        WHEN top.currency = 'ZAR' THEN top.opportunity_amount
+        WHEN top.currency = 'EUR' THEN top.opportunity_amount * {zar_eur_rate}
+        WHEN top.currency = 'USD' THEN top.opportunity_amount * {zar_usd_rate}
+        ELSE top.opportunity_amount
+        END) AS `amount`,
+        top.probability as `probability`
+        FROM `tabOpportunity` top
+        WHERE top.status in ('Draft', 'Open')
+        AND top.company = 'Kartoza (Pty) Ltd'
+        ORDER BY `amount` DESC
+    """
+
+    result = frappe.db.sql(sql, as_dict=1, debug=0)
+    for obj in result:
+        total_opps += obj["amount"]
+
+        project_label = obj["opp_name"]
+
+        chart_data.append({
+            "project": project_label,
+            "amount": f"{obj['amount']:.0f}",
+            "probability": f"{obj['probability']:.0f}" if obj.get('probability') else "0",
+        })
+
+    # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
+    labels = [row["project"] for row in chart_data]
+
+    total_amount_values = [row["amount"] for row in chart_data]
+    total_probability_values = [row["probability"] for row in chart_data]
+
+    data = {
+        "title": "Pipeline Opportunity Kartoza PTY (Draft/Open)",
+        "labels": labels,
+        "isReverse": True,
+        "shouldSplitLongLabels": True,
+        "element_id": "quote_pty",
+        "type": "single",
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Total Amount",
+                "values": total_amount_values
+            },
+            {
+                "type": "bar",
+                "name": "Probability",
+                "values": total_probability_values
+            },
+            
+        ],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays open opportunities for Kartoza (Pty) Ltd:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Amount:</b> Value of each open opportunity (Draft/Open status), grouped by opportunity name.</li>
+            </ul>
+            <span style='color: #888;'>Total is the sum of all open opportunities.</span>
+        </div>
+        """,
+        "total_cards": [
+            {
+                "title": f"Total Opportunities PTY",
+                "value": f"{total_opps:.0f}"
+            }
+        ],
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_company_pipeline_opportunities_lda():
+
+    chart_data = []
+
+    zar_eur_rate = get_rates(None, "EUR")
+    zar_usd_rate = get_rates(None, "USD")
+
+    total_opps = 0
+    sql = f"""
+        SELECT 
+        CONCAT(top.customer_name, " (", top.name, " | ", DATE(top.creation), ")") AS `opp_name`,
+        (CASE
+        WHEN top.currency = 'ZAR' THEN top.opportunity_amount
+        WHEN top.currency = 'EUR' THEN top.opportunity_amount * {zar_eur_rate}
+        WHEN top.currency = 'USD' THEN top.opportunity_amount * {zar_usd_rate}
+        ELSE top.opportunity_amount
+        END) AS `amount`,
+        top.probability as `probability`
+        FROM `tabOpportunity` top
+        WHERE top.status in ('Draft', 'Open')
+        AND top.company = 'Kartoza Lda'
+        ORDER BY `amount` DESC
+    """
+
+    result = frappe.db.sql(sql, as_dict=1, debug=0)
+    for obj in result:
+        total_opps += obj["amount"]
+
+        project_label = obj["opp_name"]
+
+        chart_data.append({
+            "project": project_label,
+            "amount": f"{obj['amount']:.0f}",
+            "probability": f"{obj['probability']:.0f}" if obj.get('probability') else "0",
+        })
+
+    # Show all quote names as legends, and a single label for the chart (e.g., 'Top 10 Quotes')
+    labels = [row["project"] for row in chart_data]
+
+    total_amount_values = [row["amount"] for row in chart_data]
+    total_probability_values = [row["probability"] for row in chart_data]
+
+    data = {
+        "title": "Pipeline Opportunity Kartoza LDA (Draft/Open)",
+        "labels": labels,
+        "isReverse": True,
+        "shouldSplitLongLabels": True,
+        "element_id": "quote_pty",
+        "type": "single",
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Total Amount",
+                "values": total_amount_values
+            },
+            {
+                "type": "bar",
+                "name": "Probability",
+                "values": total_probability_values
+            },
+            
+        ],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays open opportunities for Kartoza Lda:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Amount:</b> Value of each open opportunity (Draft/Open status), grouped by opportunity name.</li>
+            </ul>
+            <span style='color: #888;'>Total is the sum of all open opportunities.</span>
+        </div>
+        """,
+        "total_cards": [
+            {
+                "title": f"Total Opportunities LDA",
+                "value": f"{total_opps:.0f}"
+            }
+        ],
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
 def get_company_pipeline_lda():
 
     total_quotes = 0
@@ -1340,6 +1515,7 @@ def get_company_pipeline_lda():
         "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
         "labels": label,
         "isReverse": False,
+        "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": "quote_lda",
         "type": "single",
@@ -1444,6 +1620,7 @@ def get_open_sla():
         "title": "Current open SLA's",
         "labels": labels,
         "isReverse": True,
+        "shouldSplitLongLabels": False,
         "help": """
         <div style='font-size: 14px;text-align: left'>
             <b>Shows open SLA and hosting projects:</b><br><br>
@@ -1537,6 +1714,7 @@ def get_open_sales_orders():
         "title": "Current Open Sales Orders",
         "labels": labels,
         "isReverse": True,
+        "shouldSplitLongLabels": False,
         "help": """
         <div style='font-size: 14px;text-align: left'>
             <b>Displays open sales orders by project:</b><br><br>
