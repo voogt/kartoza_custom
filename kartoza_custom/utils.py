@@ -563,7 +563,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     4582,round(_4582)
                 ])
             
-            if salary_structure != 'Basic + Tax + UIF 1' and salary_structure != 'Basic + Travel - Tax - UIF':
+            if salary_structure != 'Basic + Tax + UIF 1' or salary_structure != 'Basic + Travel - Tax - UIF':
                 output_lines.append(
                     [
                         4150,'05',
