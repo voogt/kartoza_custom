@@ -307,7 +307,7 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
     Plotly.newPlot(unique_element_id, traces, layout, {displayModeBar: false});
 
     // Render the table below the chart
-    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse);
+    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse, element_id);
 }
 
 function generateRandomId(prefix = 'id') {
@@ -316,19 +316,17 @@ function generateRandomId(prefix = 'id') {
     return `${prefix}-${randomStr}`;
 }
 
-function renderChartTable(labels, datasets, tableContainerId, isReverse) {
-    console.log("Rendering table in container:", tableContainerId);
+function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id) {
     let id = generateRandomId('elem');
     let tableHTML = `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
 
     if(!isReverse){
         // Header row (months across)
-        tableHTML += '<thead><tr><th></th>';  // Empty top-left cell
+        tableHTML += '<thead><tr><th></th>';
         labels.forEach(label => {
             tableHTML += `<th>${label}</th>`;
         });
         tableHTML += '</tr></thead><tbody>';
-
         // Rows for each dataset
         datasets.forEach(set => {
             tableHTML += `<tr><td>${set.name}</td>`;
@@ -337,17 +335,16 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
             });
             tableHTML += '</tr>';
         });
-
         tableHTML += '</tbody></table>';
+        
     }
     else{
         // Header row (datasets across)
-        tableHTML += '<thead><tr><th></th>';  // Empty top-left cell
+        tableHTML += '<thead><tr><th></th>';
         datasets.forEach(set => {
             tableHTML += `<th>${set.name}</th>`;
         });
         tableHTML += '</tr></thead><tbody>';
-
         // Rows for each month
         labels.forEach(label => {
             tableHTML += `<tr><td>${label}</td>`;
@@ -356,9 +353,11 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
             });
             tableHTML += '</tr>';
         });
-
         tableHTML += '</tbody></table>';
     }
+
+    // Add textarea and submit button below the table
+    tableHTML += `<div style="margin-top: 8px;"><label style="font-weight:bold; min-width:70px;">Comment:</label> <textarea id="${element_id}-comment" class="form-control" placeholder="Add comment for this table..." style="width:100%;"></textarea><br><button onclick="submitComment('${element_id}')" type="button" class="btn btn-primary">Submit</button></div><div id="${element_id}-comments-list"></div>`;
 
     // Inject table
     const container = document.getElementById(tableContainerId);
@@ -369,6 +368,36 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse) {
     new DataTable(`#${id}`, {
         lengthChange: false, // Remove entries-per-page dropdown
         ordering: false      // Disable sorting
+    });
+
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_comments_for_period',
+        args: { element_id, start_date, end_date },
+        type: 'GET',
+        callback: function(r) {
+            if (r.message) {
+                var comments = r.message["comments"];
+                var comment_html = ""
+
+                for(var i = 0; i < comments.length; i++){
+                    var c = comments[i];
+                    comment_html += `<div style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;">
+                        <div style="font-size:12px; color:#555; margin-bottom:6px;">
+                            <strong>${c.commented_by}</strong>
+                        </div>
+                        <div style="font-size:14px; color:#222;">${c.comment}</div>
+                    </div>`;
+                }
+
+                const commentsContainer = document.getElementById(`${element_id}-comments-list`);
+                if(commentsContainer){
+                    commentsContainer.innerHTML = comment_html;
+                }
+            } 
+        }
     });
 }
 // Format numbers with spaces as thousands separators, no M/K/B suffixes
@@ -403,5 +432,45 @@ function formatNumberShortHand(value) {
     return value;
 }
 
+function submitComment(element_id) {
+    const textarea = document.getElementById(`${element_id}-comment`);
+    if (textarea) {
+        const comment = textarea.value.trim();
+        if (!comment) {
+            frappe.msgprint("Please enter a comment before submitting.");
+            return;
+        }
+        // Get selected dates
+        const start_date = document.getElementById("start_date").value;
+        const end_date = document.getElementById("end_date").value;
+        // Send comment to server
+        frappe.call({
+            method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.submit_comment',
+            args: { element_id, comment, start_date, end_date },
+            callback: function(r) {
+                if (r.message && r.message.success) {
+                    frappe.msgprint("Comment submitted successfully.");
+                    textarea.value = '';
+                    var comments = r.message["comments"];
+                    var comment_html = ""
+
+                    comment_html += `<div style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;">
+                        <div style="font-size:12px; color:#555; margin-bottom:6px;">
+                            <strong>${r.message.commented_by}</strong>
+                        </div>
+                        <div style="font-size:14px; color:#222;">${r.message.comment}</div>
+                    </div>`;
+
+                    const commentsContainer = document.getElementById(`${element_id}-comments-list`);
+                    if(commentsContainer){
+                        commentsContainer.innerHTML += comment_html;
+                    }
+                } else {
+                    frappe.msgprint("Failed to submit comment. Please try again.");
+                }
+            }
+        });
+    }
+}
 
 

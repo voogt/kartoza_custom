@@ -36,9 +36,9 @@ def is_approx_six_or_twelve_months_apart(date1_str, date2_str):
     months = delta_days / 30.44  # average month length
 
     if 5.5 <= months <= 6.5:
-        return '02'
+        return '08'
     if 11.5 <= months <= 12.5:
-        return '03'
+        return '02'
     
 def is_valid_sa_id(id_number: str) -> bool:
     if len(id_number) != 13 or not id_number.isdigit():
@@ -158,7 +158,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
     certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format_ym)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{employer_paye_num}{transaction_year}VIPL000000000"
+    certificate_num = f"{employer_paye_num}{transaction_year}{recon_period}VIPL00000000"
 
     period_recon = datetime.strptime(end, input_format_b).strftime(output_format_ym)
 
@@ -419,7 +419,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
 
             salary_structure = employee.get("salary_structure", "Default Salary Structure")
             
-            if salary_structure == 'Basic + Tax + UIF 1' or salary_structure == 'Basic + Travel - Tax - UIF':
+            if salary_structure in ('Basic + Tax + UIF 1', 'Basic + Travel - Tax - UIF'):
                 _3015 = "IRP5"
                 _4102 = employee['paye']
                 _3135 = normalize_number(_3135)
@@ -563,7 +563,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     4582,round(_4582)
                 ])
             
-            if salary_structure != 'Basic + Tax + UIF 1' or salary_structure != 'Basic + Travel - Tax - UIF':
+            if salary_structure == "Foreign Staff Structure":
                 output_lines.append(
                     [
                         4150,'05',

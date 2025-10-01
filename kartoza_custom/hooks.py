@@ -243,6 +243,7 @@ fixtures = [
     {"doctype": "Kartoza Reports"},
     {"doctype": "EasyFile txt generator"},
     {"doctype": "User Procedure Acknowledgment"},
+    {"doctype": "Dashboard Table Comments"},
 	{
 	"doctype": "Report",
 	"filters": [["name", "in", ["Kartoza Cash Flow", "All Companies Consolidated Financial Report"]]]

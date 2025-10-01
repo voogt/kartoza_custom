@@ -1768,6 +1768,55 @@ def get_open_sales_orders():
 
     return data
 
+@frappe.whitelist(allow_guest=True)
+def submit_comment():
 
+    # Accept args from frappe.call (GET or POST)
+    data = frappe.local.form_dict or {}
 
+    comment_text = data.get("comment")
+    element_id = data.get("element_id")
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+    user = frappe.session.user
 
+    if not comment_text or not element_id or not start_date or not end_date:
+        return {"success": False, "error": "Missing required fields: comment, element_id, start_date, end_date."}
+
+    # Store comment in Communication doctype
+    comm = frappe.get_doc({
+        "doctype": "Dashboard Table Comments",
+        "table_id": element_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "comment": comment_text,
+        "commented_by": user,
+    })
+    comm.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "success": True,
+        "message": "Comment submitted successfully.",
+        "commented_by": user,
+        "comment": comment_text,
+    }
+
+@frappe.whitelist(allow_guest=True)
+def get_comments_for_period(element_id, start_date, end_date):
+    """
+    Fetch comments for a dashboard table for the selected period using Dashboard Table Comments doctype.
+    """
+    print(element_id, start_date, end_date)
+    filters = {
+        "table_id": element_id,
+        "start_date": ["=", start_date],
+        "end_date": ["=", end_date],
+    }
+    comments = frappe.get_all(
+        "Dashboard Table Comments",
+        fields=["comment", "commented_by", "start_date", "end_date"],
+        filters=filters,
+        order_by="creation desc"
+    )
+    return {"comments": comments}
