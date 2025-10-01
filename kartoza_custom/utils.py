@@ -158,7 +158,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
     certificate_num_transaction_date = datetime.strptime(end, input_format_b).strftime(output_format_ym)
     
     #add int to end of this for employee certificate_num
-    certificate_num = f"{employer_paye_num}{transaction_year}{recon_period}VIPL00000000"
+    certificate_num = f"{employer_paye_num}{transaction_year}{recon_period}VIPL0000000"
 
     period_recon = datetime.strptime(end, input_format_b).strftime(output_format_ym)
 
