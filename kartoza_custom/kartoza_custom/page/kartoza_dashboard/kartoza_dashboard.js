@@ -91,7 +91,7 @@ function fetchDataAndPlot() {
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
-                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
+                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                         addCards(r.message.total_cards);
                     } else {
                         frappe.msgprint("No data returned.");
@@ -103,7 +103,7 @@ function fetchDataAndPlot() {
                         type: 'GET',
                         callback: function(r) {
                             if (r.message) {
-                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
+                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                                 addCards(r.message.total_cards);
                             } else {
                                 frappe.msgprint("No data returned.");
@@ -115,7 +115,7 @@ function fetchDataAndPlot() {
                                 type: 'GET',
                                 callback: function(r) {
                                     if (r.message) {
-                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
+                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                                         addCards(r.message.total_cards);
                                     } else {
                                         frappe.msgprint("No data returned.");
@@ -127,7 +127,7 @@ function fetchDataAndPlot() {
                                         type: 'GET',
                                         callback: function(r) {
                                             if (r.message) {
-                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
+                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                                                 addCards(r.message.total_cards);
                                             } else {
                                                 frappe.msgprint("No data returned.");
@@ -150,7 +150,7 @@ function fetchDataAndPlot() {
             type: 'GET',
             callback: function(r) {
                 if (r.message) {
-                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels);
+                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                     if(r.message.total_cards){
                         addCards(r.message.total_cards);
                     }
@@ -187,7 +187,7 @@ const addCards = (data) => {
     }
 }
 
-function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText, shouldSplitLongLabels) {
+function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText, shouldSplitLongLabels, showTotal) {
     // Ensure unique element_id for each chart
     const unique_element_id = `${element_id}-${generateRandomId()}`;
     const containerId = `${unique_element_id}-container`;
@@ -307,7 +307,7 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
     Plotly.newPlot(unique_element_id, traces, layout, {displayModeBar: false});
 
     // Render the table below the chart
-    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse, element_id);
+    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse, element_id, showTotal);
 }
 
 function generateRandomId(prefix = 'id') {
@@ -316,7 +316,8 @@ function generateRandomId(prefix = 'id') {
     return `${prefix}-${randomStr}`;
 }
 
-function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id) {
+function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id, showTotal) {
+
     let id = generateRandomId('elem');
     let tableHTML = `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
 
@@ -335,8 +336,25 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
             });
             tableHTML += '</tr>';
         });
+        // Add totals row (sum for each column, excluding datasets with '%' in set.name)
+        if (datasets.length > 0 && showTotal) {
+            tableHTML += `<tr style="font-weight:bold;background:#f7f7f7;"><td>Total</td>`;
+
+            for (let i = 0; i < labels.length; i++) {
+                let colTotal = 0;
+
+                datasets.forEach(set => {
+                    if (!set.name.includes('%')) {
+                        colTotal += Number(set.values[i]) || 0;
+                    }
+                });
+
+                tableHTML += `<td>${formatNumber(colTotal)}</td>`;
+            }
+
+            tableHTML += '</tr>';
+        }
         tableHTML += '</tbody></table>';
-        
     }
     else{
         // Header row (datasets across)
@@ -345,14 +363,31 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
             tableHTML += `<th>${set.name}</th>`;
         });
         tableHTML += '</tr></thead><tbody>';
-        // Rows for each month
-        labels.forEach(label => {
+        // Rows for each label
+        labels.forEach((label, labelIdx) => {
             tableHTML += `<tr><td>${label}</td>`;
             datasets.forEach(set => {
-                tableHTML += `<td>${formatNumber(set.values[labels.indexOf(label)])}</td>`;
+                tableHTML += `<td>${formatNumber(set.values[labelIdx])}</td>`;
             });
             tableHTML += '</tr>';
         });
+        // Add totals row (sum for each dataset, exclude if name has '%')
+        if (showTotal) {
+            let hasNonPercent = datasets.some(set => !set.name.includes('%'));
+            if (hasNonPercent) {
+                tableHTML += `<tr style="font-weight:bold;background:#f7f7f7;"><td>Total</td>`;
+                datasets.forEach(set => {
+                    if (!set.name.includes('%')) {
+                        // Sum all values for this dataset
+                        let total = set.values.reduce((acc, v) => acc + (Number(v) || 0), 0);
+                        tableHTML += `<td>${formatNumber(total)}</td>`;
+                    } else {
+                        tableHTML += `<td></td>`;
+                    }
+                });
+                tableHTML += '</tr>';
+            }
+        }
         tableHTML += '</tbody></table>';
     }
 
@@ -365,9 +400,11 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
         container.innerHTML = tableHTML;
     }
 
-    new DataTable(`#${id}`, {
-        lengthChange: false, // Remove entries-per-page dropdown
-        ordering: false      // Disable sorting
+
+    // Initialize DataTable
+    const dt = new DataTable(`#${id}`, {
+        lengthChange: false,
+        ordering: false
     });
 
     const start_date = document.getElementById("start_date").value;

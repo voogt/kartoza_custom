@@ -418,10 +418,10 @@ def export_report_to_text(start_date, end_date, transaction_year):
             _3060 = employee["id_number"]
 
             salary_structure = employee.get("salary_structure", "Default Salary Structure")
+            _4102 = employee['paye']
             
-            if salary_structure in ('Basic + Tax + UIF 1', 'Basic + Travel - Tax - UIF'):
+            if _4102 > 0:
                 _3015 = "IRP5"
-                _4102 = employee['paye']
                 _3135 = normalize_number(_3135)
                 _3100 = employee["tax_payroll_number"]
 
@@ -563,7 +563,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     4582,round(_4582)
                 ])
             
-            if salary_structure == "Foreign Staff Structure":
+            if _4102 == 0:
                 output_lines.append(
                     [
                         4150,'05',

@@ -66,6 +66,7 @@ def get_staff_count(start_date, end_date):
         "title": "Staff Count",
         "labels": labels,
         "isReverse": False,
+        "showTotal": False,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "total_cards": [],
@@ -335,6 +336,7 @@ def get_utilisation(start_date, end_date):
     data = {
         "element_id": "utilisation",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
@@ -377,6 +379,7 @@ def get_billable_hours(start_date, end_date):
     total_investment = 0
     total_no_project_linked = 0
     total_invoicable_all_staff = 0
+    total_uninvoicable_all_staff = 0
 
     for start, end in ranges:
         sql = f"""
@@ -431,8 +434,23 @@ def get_billable_hours(start_date, end_date):
             AND tsd.to_time <= '{end} 23:59:59' 
         """
 
+        uninvoicable_sql = f"""
+            SELECT 
+                SUM(
+                    CASE 
+                        WHEN is_billable = 0 THEN hours
+                        ELSE 0
+                    END
+                ) AS `uninvoicable_all_staff`
+            FROM `tabTimesheet Detail` tsd
+            WHERE tsd.from_time >= '{start} 00:00:00'
+            AND tsd.to_time <= '{end} 23:59:59' 
+        """
+
         invoicable_all_staff = frappe.db.sql(invoicable_sql, as_dict=True)[0]["invoicable_all_staff"]
+        uninvoicable_all_staff = frappe.db.sql(uninvoicable_sql, as_dict=True)[0]["uninvoicable_all_staff"]
         total_invoicable_all_staff += invoicable_all_staff if invoicable_all_staff else 0
+        total_uninvoicable_all_staff += uninvoicable_all_staff if uninvoicable_all_staff else 0
 
         no_project_linked = 0
         external = 0
@@ -476,6 +494,7 @@ def get_billable_hours(start_date, end_date):
     data = {
         "element_id": "billable_hours",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
@@ -493,25 +512,13 @@ def get_billable_hours(start_date, end_date):
         """,
         "total_cards": [
             {
-                "title": "Total No Project Linked Hours",
-                "value": f"{total_no_project_linked:.0f}"
-            },
-            {
-                "title": "Total External Hours",
-                "value": f"{total_external:.0f}"
-            },
-            {
-                "title": "Total Internal Hours",
-                "value": f"{total_internal:.0f}"
-            },
-            {
-                "title": "Total Investment Hours",
-                "value": f"{total_investment:.0f}"
-            },
-            {
-                "title": "Total Invoicable Hours All Staff",
+                "title": "Billable Hours Total",
                 "value": f"{total_invoicable_all_staff:.0f}"
-            }
+            },
+            {
+                "title": "Unbillable Hours Total",
+                "value": f"{total_uninvoicable_all_staff:.0f}"
+            },
         ],
         "labels": labels,
         "datasets": [
@@ -618,6 +625,7 @@ def get_projects_data(start_date, end_date):
         "element_id": "projects",
         "type": "single",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "help": """
@@ -781,6 +789,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         "title": f"{type_center} Center True Cost (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
@@ -794,12 +803,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
         """,
-        "total_cards": [
-            {
-                "title": f"Total {type_center} Center True Cost (Profit/Loss)",
-                "value": f"{total_cost_center:.0f}"
-            }
-        ],
+        "total_cards": [],
         "type": "single",
         "datasets": []
     }
@@ -943,6 +947,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         "title": f"{type_center} Center Lost Revenue (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": f"{type_center}_centers",
@@ -956,12 +961,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
         """,
-        "total_cards": [
-            {
-                "title": f"Total {type_center} Lost Revenue (Profit/Loss)",
-                "value": f"{total_cost_center:.0f}"
-            }
-        ],
+        "total_cards": [],
         "type": "single",
         "datasets": []
     }
@@ -1047,6 +1047,7 @@ def get_activity_cost_data(start_date, end_date):
     data = {
         "title": f"Activity Cost",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "labels": labels,
@@ -1062,12 +1063,7 @@ def get_activity_cost_data(start_date, end_date):
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
         """,
-        "total_cards": [
-            {
-                "title": f"Total Activity Cost",
-                "value": f"{total_activity_costs:.0f}"
-            }
-        ],
+        "total_cards": [],
         "datasets": []
     }
 
@@ -1151,6 +1147,7 @@ def get_company_salary_pty(start_date, end_date):
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
@@ -1164,12 +1161,7 @@ def get_company_salary_pty(start_date, end_date):
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
         """,
-        "total_cards": [
-            {
-                "title": f"Total Department Costs PTY",
-                "value": f"{total_salary:.0f}"
-            }
-        ],
+        "total_cards": [],
         "datasets": []
     }
 
@@ -1231,6 +1223,7 @@ def get_company_salary_lda(start_date, end_date):
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
@@ -1243,12 +1236,7 @@ def get_company_salary_lda(start_date, end_date):
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
         """,
-        "total_cards": [
-            {
-                "title": f"Total Department Costs LDA",
-                "value": f"{total_salary:.0f}"
-            }
-        ],
+        "total_cards": [],
         "datasets": []
     }
 
@@ -1294,6 +1282,8 @@ def get_company_pipeline_pty():
         "title": "Pipeline Quotation Kartoza PTY (Draft/Open)",
         "labels": label,
         "element_id": "quote_pty",
+        "showTotal": True,
+        "isReverse": False,
         "type": "single",
         "datasets": datasets,
         "help": """
@@ -1362,6 +1352,7 @@ def get_company_pipeline_opportunities_pty():
         "title": "Pipeline Opportunity Kartoza PTY (Draft/Open)",
         "labels": labels,
         "isReverse": True,
+        "showTotal": True,
         "shouldSplitLongLabels": True,
         "element_id": "quote_pty",
         "type": "single",
@@ -1373,7 +1364,7 @@ def get_company_pipeline_opportunities_pty():
             },
             {
                 "type": "bar",
-                "name": "Probability",
+                "name": "Probability(%)",
                 "values": total_probability_values
             },
             
@@ -1444,6 +1435,7 @@ def get_company_pipeline_opportunities_lda():
         "title": "Pipeline Opportunity Kartoza LDA (Draft/Open)",
         "labels": labels,
         "isReverse": True,
+        "showTotal": True,
         "shouldSplitLongLabels": True,
         "element_id": "quote_pty",
         "type": "single",
@@ -1455,7 +1447,7 @@ def get_company_pipeline_opportunities_lda():
             },
             {
                 "type": "bar",
-                "name": "Probability",
+                "name": "Probability(%)",
                 "values": total_probability_values
             },
             
@@ -1515,6 +1507,7 @@ def get_company_pipeline_lda():
         "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
         "labels": label,
         "isReverse": False,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": "quote_lda",
@@ -1620,6 +1613,7 @@ def get_open_sla():
         "title": "Current open SLA's",
         "labels": labels,
         "isReverse": True,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "help": """
         <div style='font-size: 14px;text-align: left'>
@@ -1714,6 +1708,7 @@ def get_open_sales_orders():
         "title": "Current Open Sales Orders",
         "labels": labels,
         "isReverse": True,
+        "showTotal": True,
         "shouldSplitLongLabels": False,
         "help": """
         <div style='font-size: 14px;text-align: left'>
@@ -1728,14 +1723,6 @@ def get_open_sales_orders():
         </div>
         """,
         "total_cards": [
-            {
-                "title": f"Total Billed Amount",
-                "value": f"{total_billed_amount:.0f}"
-            },
-            {
-                "title": f"Total Sales Orders",
-                "value": f"{total_billed_sales_orders:.0f}"
-            },
             {
                 "title": f"Total To Be Billed",
                 "value": f"{total_to_be_billed_all:.0f}"
