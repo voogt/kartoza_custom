@@ -562,8 +562,12 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     3701,_3701,
                     4582,round(_4582)
                 ])
+
             
             if _4102 == 0:
+                if _3075 == "ZAF":
+                    output_lines.append([3060,_3060])
+                
                 output_lines.append(
                     [
                         4150,'05',
