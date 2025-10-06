@@ -92,7 +92,7 @@ def getTotalInvoicesProject(sales_order, end_date, zar_rate):
             AND tsi.posting_date <= %(end_date)s
     """
 
-    data_invoice_item = frappe.db.sql(sql_invoice_item, {"sales_order": sales_order, "zar_rate": zar_rate, "end_date": end_date}, as_dict=1, debug=1)
+    data_invoice_item = frappe.db.sql(sql_invoice_item, {"sales_order": sales_order, "zar_rate": zar_rate, "end_date": end_date}, as_dict=1, debug=0)
 
     if len(data_invoice_item) > 0:
         return data_invoice_item[0]["base_total"]
@@ -127,7 +127,7 @@ def getAllSalesOrdersProject(start_date, end_date, zar_rate):
     )
     """
 
-    data_orders = frappe.db.sql(sql, {"zar_rate": zar_rate, "start_date": start_date, "end_date": end_date}, as_dict=1, debug=1)
+    data_orders = frappe.db.sql(sql, {"zar_rate": zar_rate, "start_date": start_date, "end_date": end_date}, as_dict=1, debug=0)
 
     if len(data_orders) > 0:
         return data_orders
@@ -210,7 +210,7 @@ def getBacklogSalesOrders(start_date, end_date, zar_rate):
         "zar_rate": zar_rate,
         "start_date": start_date,
         "end_date": end_date
-    }, as_dict=1, debug=1) or []
+    }, as_dict=1, debug=0) or []
 
 def get_departments(company):
     return [
@@ -356,8 +356,8 @@ def get_all_data(projects):
         GROUP BY tso.project
     """
     
-    sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=1)
-    sales_order_data = frappe.db.sql(sales_order_sql, as_dict=1, debug=1)
+    sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
+    sales_order_data = frappe.db.sql(sales_order_sql, as_dict=1, debug=0)
 
     return {
         'sales_invoices': {item['project']: item['total_billed_amount'] for item in sales_invoice_data},

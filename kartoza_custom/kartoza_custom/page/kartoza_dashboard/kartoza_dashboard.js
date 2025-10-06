@@ -45,7 +45,6 @@ function loadScript() {
     script.src = "https://cdn.datatables.net/v/dt/dt-2.3.3/datatables.min.js";
     script.integrity = "sha384-qyN6ZT87DHLvgCDC+GYE3myTUDGpz3swpW19cYxOh4oa/8GNSGPMteQwbyM6Ot0D";
     script.crossOrigin = "anonymous";
-    script.onload = () => console.log("DataTables loaded");
     document.body.appendChild(script);
 }
 
@@ -170,8 +169,6 @@ function fetchDataAndPlot() {
 const addCards = (data) => {
     const parentElement = document.getElementById('parent-cards');
     if (!parentElement) return;
-
-    console.log(data)
 
     if(data.length > 0){
         data.forEach(card => {
@@ -367,7 +364,20 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
         labels.forEach((label, labelIdx) => {
             tableHTML += `<tr><td>${label}</td>`;
             datasets.forEach(set => {
-                tableHTML += `<td>${formatNumber(set.values[labelIdx])}</td>`;
+                if(set.isColorCoded != undefined && set.isColorCoded){
+                    if(set.values[labelIdx] >= 0 && set.values[labelIdx] < 41){
+                        tableHTML += `<td style="background-color:green"></td>`;
+                    }
+                    if(set.values[labelIdx] >= 41 && set.values[labelIdx] < 76){
+                        tableHTML += `<td style="background-color:yellow"></td>`;
+                    }
+                    if(set.values[labelIdx] >= 76){
+                        tableHTML += `<td style="background-color:red"></td>`;
+                    }
+                }
+                else{
+                    tableHTML += `<td>${formatNumber(set.values[labelIdx])}</td>`;
+                }
             });
             tableHTML += '</tr>';
         });

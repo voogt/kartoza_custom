@@ -944,7 +944,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
     }
 
     data = {
-        "title": f"{type_center} Center Lost Revenue (Profit/Loss)",
+        "title": f"{type_center} Center Lost Opportunity (Profit/Loss)",
         "labels": labels,
         "isReverse": False,
         "showTotal": True,
@@ -1717,7 +1717,7 @@ def get_open_sales_orders():
                 <li><b>Total Billed Amount:</b> Sum of sales invoices for each open project.</li>
                 <li><b>Total Sales Order:</b> Sum of sales orders for each open project.</li>
                 <li><b>Total To Be Billed:</b> Sales order total minus billed amount.</li>
-                <li><b>Risk Percentage:</b> Risk percentage for each project, if available.</li>
+                <li><b>Risk:</b> Green represents low risk or good performance (0-40%), amber represents moderate risk (41-75%), and red represents high risk (76-100%).</li>
             </ul>
             <span style='color: #888;'>Totals are summed for the period.</span>
         </div>
@@ -1732,22 +1732,26 @@ def get_open_sales_orders():
             {
                 "type": "bar",
                 "name": "Total Billed Amount",
-                "values": total_billed_amount_values
+                "values": total_billed_amount_values,
+                "isColorCoded": False
             },
             {
                 "type": "bar",
                 "name": "Total Sales Order",
-                "values": total_billed_sales_order_values
+                "values": total_billed_sales_order_values,
+                "isColorCoded": False
             },
             {
                 "type": "bar",
                 "name": "Total To Be Billed",
-                "values": [f"{sale_order['total_to_be_billed']:.0f}" if sale_order.get('total_to_be_billed') else "0" for sale_order in all_sales_orders]
+                "values": [f"{sale_order['total_to_be_billed']:.0f}" if sale_order.get('total_to_be_billed') else "0" for sale_order in all_sales_orders],
+                "isColorCoded": False
             },
             {
                 "type": "line",
-                "name": "Risk Percentage (%)",
-                "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders]
+                "name": "Risk",
+                "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders],
+                "isColorCoded": True
             },
             
         ]
