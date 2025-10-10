@@ -192,7 +192,7 @@ override_whitelisted_methods = {
 
 # Request Events
 # ----------------
-# before_request = ["kartoza_custom.utils.before_request"]
+before_request = ["kartoza_custom.security_hooks.check_sql_injection"]
 # after_request = ["kartoza_custom.utils.after_request"]
 
 # Job Events
