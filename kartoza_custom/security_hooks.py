@@ -18,8 +18,15 @@ import frappe
 
 # SQL injection patterns
 SQLI_PATTERNS = [
-    r"(\bUNION\b|\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bDROP\b|\bALTER\b)",
-    r"(\bSLEEP\s*\(|\bBENCHMARK\s*\(|\bIF\s*\()",
+    # Only match SQL keywords if followed by likely SQL structure (e.g., whitespace and another keyword or parenthesis)
+    r"\bUNION\b[\s\(]",
+    r"\bSELECT\b\s+(?:\*|[a-zA-Z0-9_]+|\()",  # select * or select col or select(
+    r"\bINSERT\b\s+INTO\b",
+    r"\bUPDATE\b\s+[a-zA-Z0-9_]+\s+SET\b",
+    r"\bDELETE\b\s+FROM\b",
+    r"\bDROP\b\s+(?:TABLE|DATABASE)\b",
+    r"\bALTER\b\s+TABLE\b",
+    r"(SLEEP\s*\(|BENCHMARK\s*\(|IF\s*\()",
     r"(--|#|/\*|\*/|;)",
     r"XOR\(",
 ]
