@@ -39,9 +39,18 @@ MAX_ATTEMPTS = 3     # max attempts before temporary block
 BLOCK_DURATION = 600 # seconds to block after max attempts (10 minutes)
 
 def check_sql_injection():
-    from frappe import local
+
+    from frappe import local, session, get_roles
     if not local.request:
         return
+
+    # Skip check if user is logged in and has Employee role
+    user = getattr(session, "user", None)
+    if user and user != "Guest":
+        roles = get_roles(user)
+        if "Employee" in roles:
+            print("IS EMPLOYEE")
+            return
 
     path = getattr(local.request, "path", "")
     method = (getattr(local.request, "method", "") or "").upper()
