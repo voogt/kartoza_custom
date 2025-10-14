@@ -578,7 +578,7 @@ def execute(filters=None):
 	_add_total_row_account(data, data, _("Net Change in Cash"), period_list, company_currency)
 	columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, 'Kartoza (Pty) Ltd')
 
-	print(f"COLUMNS {columns}\n DATA {data}")
+	data = [d for d in data if d]
 
 	return columns, data
 
