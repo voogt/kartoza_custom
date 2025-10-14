@@ -289,9 +289,9 @@ def add_data_for_operating_activities(
 			data.append(
 				{
 					"account_name": "Movement in working capital",
+					"account": "Movement in working capital",
 					"parent_account": None,
 					"indent": 1,
-					"account": "",
 				}
 			)
 			has_added_working_capital_header = True
@@ -315,8 +315,8 @@ def add_data_for_operating_activities(
 			print(f"MAPPERSECTION {mapper['section_header']}")
 			account_data.update(
 				{
-					"account_name": f"{account['label']} ({', '.join(account['names'])})" if account.get('names') and any(account['names']) else account['label'],
-					"account": account['label'] if isinstance(account["names"], list) and len(account["names"]) > 1 else (account["names"][0] if isinstance(account["names"], list) and len(account["names"]) == 1 else account['label']),
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
+					"account": account['label'],
 					"indent": 1,
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
@@ -351,7 +351,8 @@ def add_data_for_operating_activities(
 				{
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
-					"account_name": account["label"],
+					"account": account['label'],
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
 					"indent": 1,
 				}
 			)
@@ -375,7 +376,8 @@ def add_data_for_operating_activities(
 				{
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
-					"account_name": account["label"],
+					"account": account['label'],
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
 					"indent": 1,
 				}
 			)
@@ -436,6 +438,7 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
+				print("ACCOUNT DATA LABEL INVESTING", account)
 				if account["label"] == 'Purchase of fixed Assets':
 					account_data = _get_account_asset_based_data(
 					filters, account["names"], period_list, 'purchase'
@@ -449,8 +452,8 @@ def add_data_for_other_activities(
 					if account_data["total"] != 0:
 						account_data.update(
 							{
-								"account_name": f"{account['label']} ({', '.join(account['names'])})" if account.get('names') and any(account['names']) else account['label'],
-								"account": account['label'] if isinstance(account["names"], list) and len(account["names"]) > 1 else (account["names"][0] if isinstance(account["names"], list) and len(account["names"]) == 1 else account['label']),
+								"account_name": f"{account['label']} ({', '.join(account['names'])})",
+								"account": account['label'],
 								"indent": 1,
 								"parent_account": mapper["section_header"],
 								"currency": company_currency,
@@ -458,6 +461,7 @@ def add_data_for_other_activities(
 						)
 						data.append(account_data)
 						section_data.append(account_data)
+						print("SECTION DATA INVESTING", section_data)
 				except:
 					print(f"NO TOTAL {account}")
 
@@ -474,25 +478,23 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
+				print("ACCOUNT DATA LABEL OPERATING", account)
 				account_data = _get_account_type_based_data(
 					filters, account["names"], period_list, filters.accumulated_values
 				)
 				print(f"ACCOUNTDATA {account_data}")
-				try:
-					if account_data["total"] != 0:
-						account_data.update(
-							{
-								"account_name": account["label"],
-								"account": account["names"],
-								"indent": 1,
-								"parent_account": mapper["section_header"],
-								"currency": company_currency,
-							}
-						)
-						data.append(account_data)
-						section_data.append(account_data)
-				except:
-					print(f"NO TOTAL {account}")
+				account_data.update(
+					{
+						"account_name": f"{account['label']} ({', '.join(account['names'])})",
+						"account": account['label'],
+						"indent": 1,
+						"parent_account": mapper["section_header"],
+						"currency": company_currency,
+					}
+				)
+				data.append(account_data)
+				section_data.append(account_data)
+				print("SECTION DATA OPERATING", section_data)
 
 			_add_total_row_account(data, section_data, mapper["section_footer"], period_list, company_currency)
 
@@ -580,13 +582,22 @@ def execute(filters=None):
 
 	data = [d for d in data if d]
 
+	for d in data:
+		print(f"DATA ROW {d} \n")
+
 	return columns, data
 
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):
 	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
+		print(f"ACCOUNT NAMES WRONG {account_names}")
 		# only proceed if account_names is a list of account names
-		return {}
+		# return {}
+		account_names = account_names[0]
+		if account_names[0] == '':
+			return {}
+
+	print(f"ACCOUNT NAMES CORRECT {account_names}")
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 
@@ -648,6 +659,8 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 		data.setdefault(period["key"], flt(gl_sum))
 
 	data["total"] = total
+
+	print(f"DATA RETURNED {data}")
 	return data
 
 
