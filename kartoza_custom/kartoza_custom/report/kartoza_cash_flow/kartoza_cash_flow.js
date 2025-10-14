@@ -34,9 +34,9 @@ erpnext.utils.add_dimensions("Kartoza Cash Flow", 10);
 // of this if you are working here.
 
 
-var filters_to_remove = ["company", "finance_book", "presentation_currency", "cost_center", "project", "employee_type", "business_unit", "project"];
+// var filters_to_remove = ["company", "finance_book", "presentation_currency", "cost_center", "project", "employee_type", "business_unit", "project"];
 
-frappe.query_reports["Kartoza Cash Flow"]["filters"] = frappe.query_reports["Kartoza Cash Flow"]["filters"].filter(function(filter) {
-	return filters_to_remove.indexOf(filter.fieldname) === -1;
-});
+// frappe.query_reports["Kartoza Cash Flow"]["filters"] = frappe.query_reports["Kartoza Cash Flow"]["filters"].filter(function(filter) {
+// 	return filters_to_remove.indexOf(filter.fieldname) === -1;
+// });
 
