@@ -33,11 +33,10 @@ erpnext.utils.add_dimensions("Kartoza Cash Flow", 10);
 // filter. It won't be used in cash flow for now so we pop it. Please take
 // of this if you are working here.
 
-frappe.query_reports["Kartoza Cash Flow"]["filters"].splice(8, 1);
 
-frappe.query_reports["Kartoza Cash Flow"]["filters"].push({
-	fieldname: "include_default_book_entries",
-	label: __("Include Default FB Entries"),
-	fieldtype: "Check",
-	default: 1,
+var filters_to_remove = ["company", "finance_book", "presentation_currency", "cost_center", "project", "employee_type", "business_unit", "project"];
+
+frappe.query_reports["Kartoza Cash Flow"]["filters"] = frappe.query_reports["Kartoza Cash Flow"]["filters"].filter(function(filter) {
+	return filters_to_remove.indexOf(filter.fieldname) === -1;
 });
+
