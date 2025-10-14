@@ -49,7 +49,6 @@ def check_sql_injection():
     if user and user != "Guest":
         roles = get_roles(user)
         if "Employee" in roles:
-            print("IS EMPLOYEE")
             return
 
     path = getattr(local.request, "path", "")

@@ -97,9 +97,6 @@ def setup_mappers(mappers):
 
 		accounts = get_accounts_in_mappers(mapping_names)
 
-		for account in accounts:
-			print(f"ACCOUNT IN MAPPER {account}")
-
 		account_types = [
 			dict(
 				name=account[0],
@@ -312,7 +309,6 @@ def add_data_for_operating_activities(
 					account_data[key] *= -1
 
 		if account_data["total"] != 0:
-			print(f"MAPPERSECTION {mapper['section_header']}")
 			account_data.update(
 				{
 					"account_name": f"{account['label']} ({', '.join(account['names'])})",
@@ -423,7 +419,6 @@ def _calculate_adjustment(non_expense_closing, non_expense_opening, expense_data
 def add_data_for_other_activities(
 	filters, company_currency, profit_data, period_list, light_mappers, mapper_list, data
 ):
-	print(f"MAPPERLIST,{mapper_list}\n")
 	for mapper in mapper_list:
 			
 		if mapper['section_name'] == 'Investing Activities':
@@ -438,7 +433,6 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
-				print("ACCOUNT DATA LABEL INVESTING", account)
 				if account["label"] == 'Purchase of fixed Assets':
 					account_data = _get_account_asset_based_data(
 					filters, account["names"], period_list, 'purchase'
@@ -461,7 +455,6 @@ def add_data_for_other_activities(
 						)
 						data.append(account_data)
 						section_data.append(account_data)
-						print("SECTION DATA INVESTING", section_data)
 				except:
 					print(f"NO TOTAL {account}")
 
@@ -478,11 +471,9 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
-				print("ACCOUNT DATA LABEL OPERATING", account)
 				account_data = _get_account_type_based_data(
 					filters, account["names"], period_list, filters.accumulated_values
 				)
-				print(f"ACCOUNTDATA {account_data}")
 				account_data.update(
 					{
 						"account_name": f"{account['label']} ({', '.join(account['names'])})",
@@ -494,7 +485,6 @@ def add_data_for_other_activities(
 				)
 				data.append(account_data)
 				section_data.append(account_data)
-				print("SECTION DATA OPERATING", section_data)
 
 			_add_total_row_account(data, section_data, mapper["section_footer"], period_list, company_currency)
 
@@ -507,8 +497,6 @@ def compute_data(filters, company_currency, profit_data, period_list, light_mapp
 		get_mapper_for(light_mappers, position=2),
 		get_mapper_for(light_mappers, position=3),
 	]
-
-	print("operating_activities_mapper", operating_activities_mapper)
 
 	if operating_activities_mapper:
 		add_data_for_operating_activities(
@@ -545,8 +533,6 @@ def execute(filters=None):
 	mappers = get_mappers_from_db()
 
 	cash_flow_accounts = setup_mappers(mappers)
-
-	print("CASH FLOW ACCOUNTS", cash_flow_accounts)
 
 	# compute net profit / loss
 	income = get_data(
@@ -590,14 +576,12 @@ def execute(filters=None):
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):
 	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
-		print(f"ACCOUNT NAMES WRONG {account_names}")
 		# only proceed if account_names is a list of account names
 		# return {}
 		account_names = account_names[0]
 		if account_names[0] == '':
 			return {}
 
-	print(f"ACCOUNT NAMES CORRECT {account_names}")
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 
@@ -755,6 +739,7 @@ def _add_total_row_account(out, data, label, period_list, currency, indent=0):
 		"currency": currency,
 	}
 	for row in data:
+		print(f"ROW IN TOTAL {row}")
 		if row.get("parent_account"):
 			for period in period_list:
 				total_row.setdefault(period.key, 0)
