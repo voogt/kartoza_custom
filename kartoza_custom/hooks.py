@@ -137,7 +137,8 @@ doc_events = {
 
 scheduler_events = {
     "daily": [
-        "kartoza_custom.utils.update_exchange_rate_and_amount"
+        "kartoza_custom.utils.update_exchange_rate_and_amount",
+        "kartoza_custom.schedular_events.check_passport_expiry",
     ]
 }
 
