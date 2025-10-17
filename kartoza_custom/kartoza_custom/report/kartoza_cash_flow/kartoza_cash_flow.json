@@ -19,5 +19,15 @@
  "ref_doctype": "GL Entry",
  "report_name": "Kartoza Cash Flow",
  "report_type": "Script Report",
- "roles": []
+ "roles": [
+  {
+   "role": "Accounts User"
+  }, 
+  {
+   "role": "Accounts Manager"
+  }, 
+  {
+   "role": "Auditor"
+  }
+ ]
 }
