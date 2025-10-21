@@ -48,7 +48,7 @@ def check_sql_injection():
     user = getattr(session, "user", None)
     if user and user != "Guest":
         roles = get_roles(user)
-        if "Employee" in roles:
+        if "Employee" in roles or "Customer Support Portal" in roles:
             return
 
     path = getattr(local.request, "path", "")
