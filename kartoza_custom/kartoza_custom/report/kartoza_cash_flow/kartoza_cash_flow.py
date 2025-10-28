@@ -297,18 +297,29 @@ def add_data_for_operating_activities(
 			account_data = _get_account_tax_based_data(
 			filters, account["names"], period_list
 		)
+		elif account["label"] == 'Dividends Paid':
+			# Use standard GL aggregation per period (non-accumulated) for mapped dividend accounts
+			account_data = _get_dividends_paid_data(
+				filters, account["names"], period_list
+			)
 		else:
+			# Always compute per-period (non-accumulated) values for cash flow rows
 			account_data = _get_account_type_based_data(
-				filters, account["names"], period_list, filters.accumulated_values
+				filters, account["names"], period_list, 0
 			)
 
 		if not account["is_working_capital"]:
-			
-			for key in account_data:
+			# Invert period values for non-working-capital rows
+			for key in list(account_data.keys()):
 				if key != "total":
-					account_data[key] *= -1
+					account_data[key] = -flt(account_data.get(key, 0))
+			# Recompute total to reflect inverted period values
+			account_data["total"] = sum(flt(account_data.get(p["key"], 0)) for p in period_list)
 
-		if account_data["total"] != 0:
+		# Show the row if any period in the selected range has a non-zero value
+		has_nonzero_period = any(flt(account_data.get(p["key"], 0)) != 0 for p in period_list)
+
+		if has_nonzero_period or flt(account_data.get("total", 0)) != 0:
 			account_data.update(
 				{
 					"account_name": f"{account['label']} ({', '.join(account['names'])})",
@@ -328,10 +339,10 @@ def add_data_for_operating_activities(
 	)
 
 	# calculate adjustment for tax paid and add to data
-	if not mapper["tax_liabilities"]:
-		mapper["tax_liabilities"] = [
-			dict(label="Income tax paid", names=[""], tax_liability=1, tax_expense=0)
-		]
+	# if not mapper["tax_liabilities"]:
+	# 	mapper["tax_liabilities"] = [
+	# 		dict(label="Income tax paid", names=[""], tax_liability=1, tax_expense=0)
+	# 	]
 
 	for account in mapper["tax_liabilities"]:
 		tax_paid = calculate_adjustment(
@@ -355,8 +366,8 @@ def add_data_for_operating_activities(
 			data.append(tax_paid)
 			section_data.append(tax_paid)
 
-	if not mapper["finance_costs_adjustments"]:
-		mapper["finance_costs_adjustments"] = [dict(label="Interest Paid", names=[""])]
+	# if not mapper["finance_costs_adjustments"]:
+	# 	mapper["finance_costs_adjustments"] = [dict(label="Interest Paid", names=[""])]
 
 	for account in mapper["finance_costs_adjustments"]:
 		interest_paid = calculate_adjustment(
@@ -405,14 +416,22 @@ def calculate_adjustment(filters, non_expense_mapper, expense_mapper, use_accumu
 
 def _calculate_adjustment(non_expense_closing, non_expense_opening, expense_data):
 	account_data = {}
+	total = 0
 	for month in non_expense_opening.keys():
-		if non_expense_opening[month] and non_expense_closing[month]:
-			account_data[month] = (
-				non_expense_opening[month] - expense_data[month] + non_expense_closing[month]
-			)
-		elif expense_data[month]:
-			account_data[month] = expense_data[month]
+		if month == "total":
+			continue
+		opening = non_expense_opening.get(month, 0) or 0
+		closing = non_expense_closing.get(month, 0) or 0
+		expense = expense_data.get(month, 0) or 0
+		if opening or closing:
+			account_data[month] = opening - expense + closing
+		elif expense:
+			account_data[month] = expense
+		else:
+			account_data[month] = 0
+		total += account_data[month]
 
+	account_data["total"] = total
 	return account_data
 
 
@@ -438,8 +457,9 @@ def add_data_for_other_activities(
 					filters, account["names"], period_list, 'purchase'
 				)
 				else:
+					# Always compute per-period (non-accumulated) values
 					account_data = _get_account_type_based_data(
-					filters, account["names"], period_list, filters.accumulated_values
+					filters, account["names"], period_list, 0
 				)
 					
 				try:
@@ -471,8 +491,9 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
+				# Always compute per-period (non-accumulated) values
 				account_data = _get_account_type_based_data(
-					filters, account["names"], period_list, filters.accumulated_values
+					filters, account["names"], period_list, 0
 				)
 				account_data.update(
 					{
@@ -575,12 +596,35 @@ def execute(filters=None):
 
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):
-	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
-		# only proceed if account_names is a list of account names
-		# return {}
-		account_names = account_names[0]
-		if account_names[0] == '':
-			return {}
+	# Normalize account_names into a flat list of non-empty strings
+	def _flatten_names(names):
+		flat = []
+		if not names:
+			return flat
+		if isinstance(names, str):
+			names = [names]
+		for n in names:
+			if isinstance(n, str):
+				if n.strip():
+					flat.append(n.strip())
+			elif isinstance(n, (list, tuple, set)):
+				for m in n:
+					if isinstance(m, str) and m.strip():
+						flat.append(m.strip())
+		# Deduplicate preserving order
+		seen = set()
+		deduped = []
+		for n in flat:
+			if n not in seen:
+				seen.add(n)
+				deduped.append(n)
+		return deduped
+
+	account_names = _flatten_names(account_names)
+	if not account_names:
+		zero = {period["key"]: 0 for period in period_list}
+		zero["total"] = 0
+		return zero
 
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
@@ -591,12 +635,35 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 	GLEntry = frappe.qb.DocType("GL Entry")
 	Account = frappe.qb.DocType("Account")
 
+	# Expand to include all descendant accounts (full tree) for accurate aggregation
+	if account_names:
+		parents = frappe.db.get_all(
+			"Account", filters={"name": ["in", account_names]}, fields=["name", "lft", "rgt"]
+		)
+		expanded = []
+		for p in parents:
+			children = frappe.db.get_all(
+				"Account",
+				filters=[["lft", ">=", p["lft"]], ["rgt", "<=", p["rgt"]]],
+				fields=["name"],
+			)
+			expanded.extend([c["name"] for c in children])
+		# Deduplicate while preserving order
+		seen = set()
+		expanded_names = []
+		for n in expanded or account_names:
+			if n not in seen:
+				seen.add(n)
+				expanded_names.append(n)
+		account_names = expanded_names
+
 	for period in period_list:
 		start_date = get_start_date(period, accumulated_values, company)
 
+		# Build simple IN list from expanded account names
 		account_subquery = (
 			frappe.qb.from_(Account)
-			.where((Account.name.isin(account_names)) | (Account.parent_account.isin(account_names)))
+			.where(Account.name.isin(account_names))
 			.select(Account.name)
 			.as_("account_subquery")
 		)
@@ -649,9 +716,35 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 
 
 def _get_account_asset_based_data(filters, account_names, period_list, type):
-	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
-		# only proceed if account_names is a list of account names
-		return {}
+	# Normalize account names similarly to _get_account_type_based_data
+	def _flatten_names(names):
+		flat = []
+		if not names:
+			return flat
+		if isinstance(names, str):
+			names = [names]
+		for n in names:
+			if isinstance(n, str):
+				if n.strip():
+					flat.append(n.strip())
+			elif isinstance(n, (list, tuple, set)):
+				for m in n:
+					if isinstance(m, str) and m.strip():
+						flat.append(m.strip())
+		# Deduplicate preserving order
+		seen = set()
+		deduped = []
+		for n in flat:
+			if n not in seen:
+				seen.add(n)
+				deduped.append(n)
+		return deduped
+
+	account_names = _flatten_names(account_names)
+	if not account_names:
+		zero = {period["key"]: 0 for period in period_list}
+		zero["total"] = 0
+		return zero
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 	total = 0
@@ -687,8 +780,12 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 				"""
 			result = frappe.db.sql(sql, as_dict=1, debug=1)
 
-			data.setdefault(period["key"], -flt(result[0]['total']))
-			total += -flt(result[0]['total']) 
+			row_total = 0
+			if result and isinstance(result, list) and result[0] and 'total' in result[0] and result[0]['total'] is not None:
+				row_total = flt(result[0]['total'])
+
+			data.setdefault(period["key"], -row_total)
+			total += -row_total 
 
 	data["total"] = total
 	return data
@@ -696,9 +793,7 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 
 def _get_account_tax_based_data(filters, account_names, period_list):
 	###TO DO: to get tax paid use account 2608 - Taxation : Balance Sheet - K in gl. (Sum all totals in debit) - (Sum total in credit column if account against is bank account)
-	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
-		# only proceed if account_names is a list of account names
-		return {}
+	# account_names are not strictly required here; compute directly from GL
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 	total = 0
@@ -714,7 +809,7 @@ def _get_account_tax_based_data(filters, account_names, period_list):
 				SUM(tge.debit - credit) as `total`
 			FROM `tabGL Entry` tge
 			WHERE tge.account  = '2608 - Taxation : Balance Sheet - K'
-			AND tge.against IN ('62483083293 - FNB Business - K', 'SARS', '2606 - Dividends Payable - K, 3009 - Dividends Declared - K')
+			AND tge.against IN ('62483083293 - FNB Business - K', 'SARS', '2606 - Dividends Payable - K', '3009 - Dividends Declared - K')
 			AND tge.company = '{company}'
 			AND tge.posting_date BETWEEN '{start}' AND '{end}'
 
@@ -722,8 +817,81 @@ def _get_account_tax_based_data(filters, account_names, period_list):
 
 		result = frappe.db.sql(sql, as_dict=1, debug=1)
 
-		data.setdefault(period["key"], flt(result[0]['total']))
-		total += flt(result[0]['total']) 
+		row_total = 0
+		if result and isinstance(result, list) and result[0] and 'total' in result[0] and result[0]['total'] is not None:
+			row_total = flt(result[0]['total'])
+
+		data.setdefault(period["key"], row_total)
+		total += row_total 
+
+	data["total"] = total
+	return data
+
+
+def _get_dividends_paid_data(filters, dividend_account_names, period_list):
+	# Sum cash outflows where the bank account is debited/credited and against account is one of provided dividend accounts
+	# dividend_account_names can be a list of strings or nested lists; flatten and dedupe
+	def _flatten(names):
+		flat = []
+		if not names:
+			return flat
+		if isinstance(names, str):
+			names = [names]
+		for n in names:
+			if isinstance(n, str):
+				if n.strip():
+					flat.append(n.strip())
+			elif isinstance(n, (list, tuple, set)):
+				for m in n:
+					if isinstance(m, str) and m.strip():
+						flat.append(m.strip())
+		# dedupe preserve order
+		seen = set()
+		out = []
+		for n in flat:
+			if n not in seen:
+				seen.add(n)
+				out.append(n)
+		return out
+
+	dividend_accounts = _flatten(dividend_account_names)
+	if not dividend_accounts:
+		zero = {period["key"]: 0 for period in period_list}
+		zero["total"] = 0
+		return zero
+
+	company = 'Kartoza (Pty) Ltd'
+	data = {}
+	total = 0
+
+	# Build IN lists safely
+	dividend_in = ", ".join([frappe.db.escape(d) for d in dividend_accounts])
+
+	for period in period_list:
+		start, end = get_date_str(period["from_date"]), get_date_str(period["to_date"])
+		# We treat dividends paid as cash outflow from bank to dividends accounts.
+		# Compute as sum(debit - credit) on the bank account lines where against is in the dividend accounts.
+
+		sql = f"""
+			SELECT 
+				SUM(tge.credit - tge.debit) AS total
+				FROM `tabGL Entry` tge
+				JOIN `tabAccount` acc ON acc.name = tge.account
+				WHERE tge.account IN ({dividend_in})
+				AND (
+					tge.against LIKE '%2606 - Dividends Payable - K%'
+					OR tge.against LIKE '%3009 - Dividends Declared - K%'
+					OR tge.against LIKE '%62483083293 - FNB Business - K%'
+					OR tge.against LIKE '%1600 - Loan - Tim Sutton - K%'
+					OR tge.against LIKE '%1612 - Loan - Gavin Fleming - K%'
+				)
+				AND tge.posting_date BETWEEN {frappe.db.escape(start)} AND {frappe.db.escape(end)}
+		"""
+
+		res = frappe.db.sql(sql, as_dict=1)
+		val = flt(res[0]["total"]) if res and res[0] and res[0]["total"] is not None else 0
+		data.setdefault(period["key"], val)
+		total += val
 
 	data["total"] = total
 	return data
@@ -746,7 +914,7 @@ def _add_total_row_account(out, data, label, period_list, currency, indent=0):
 				total_row[period.key] += row.get(period.key, 0)
 
 			total_row.setdefault("total", 0)
-			total_row["total"] += row["total"]
+			total_row["total"] += row.get("total", 0)
 
 	out.append(total_row)
 	out.append({})
