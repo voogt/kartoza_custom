@@ -309,12 +309,13 @@ def add_data_for_operating_activities(
 			)
 
 		if not account["is_working_capital"]:
+			if account["label"] != 'Investment Income':
 			# Invert period values for non-working-capital rows
-			for key in list(account_data.keys()):
-				if key != "total":
-					account_data[key] = -flt(account_data.get(key, 0))
-			# Recompute total to reflect inverted period values
-			account_data["total"] = sum(flt(account_data.get(p["key"], 0)) for p in period_list)
+				for key in list(account_data.keys()):
+					if key != "total":
+						account_data[key] = -flt(account_data.get(key, 0))
+				# Recompute total to reflect inverted period values
+				account_data["total"] = sum(flt(account_data.get(p["key"], 0)) for p in period_list)
 
 		# Show the row if any period in the selected range has a non-zero value
 		has_nonzero_period = any(flt(account_data.get(p["key"], 0)) != 0 for p in period_list)
