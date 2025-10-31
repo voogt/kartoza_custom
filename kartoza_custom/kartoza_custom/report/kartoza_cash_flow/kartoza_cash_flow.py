@@ -1,17 +1,17 @@
 # Copyright (c) 2018, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
-
+import datetime
 import frappe
 from frappe import _
 from frappe.query_builder.functions import Sum
 from frappe.utils import add_to_date, flt, get_date_str
-
 from erpnext.accounts.report.financial_statements import get_columns, get_data, get_period_list
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import (
 	get_net_profit_loss,
 )
 
+from dateutil.relativedelta import relativedelta
 
 def get_mapper_for(mappers, position):
 	mapper_list = list(filter(lambda x: x["position"] == position, mappers))
@@ -294,9 +294,31 @@ def add_data_for_operating_activities(
 			has_added_working_capital_header = True
 
 		if account["label"] == 'Tax Paid':
-			account_data = _get_account_tax_based_data(
-			filters, account["names"], period_list
-		)
+
+			account_structure = _get_account_structure(period_list)
+			account_data = account_structure
+
+			income_tax = _get_account_type_based_data(
+				filters, ['5300 - Income Tax - K'], period_list, 0
+			)
+
+			current_tax_balance_data = get_tax_balance_data(period_list, filters, prev=False)[0]
+			prev_tax_balance_data = get_tax_balance_data(period_list, filters, prev=True)[0]
+
+			total = 0
+			for key, value in account_structure.items():
+				if key != 'total':
+					key_parsed = extract_text_and_year(key)
+					opening_balance = prev_tax_balance_data.get(f"{key_parsed['text']}_{key_parsed['year'] - 1}", 0)
+					closing_balance = current_tax_balance_data.get(f"{key_parsed['text']}_{key_parsed['year']}", 0)
+					diff = (opening_balance - closing_balance) - income_tax.get(key, 0)
+					if income_tax[key] != 0:
+						account_data[key] = diff
+					else:
+						account_data[key] = opening_balance
+					total = total + account_data[key]
+			account_data['total'] = total
+
 		elif account["label"] == 'Dividends Paid':
 			# Use standard GL aggregation per period (non-accumulated) for mapped dividend accounts
 			account_data = _get_dividends_paid_data(
@@ -552,6 +574,8 @@ def execute(filters=None):
 		company='Kartoza (Pty) Ltd',
 	)
 
+	
+
 	mappers = get_mappers_from_db()
 
 	cash_flow_accounts = setup_mappers(mappers)
@@ -590,13 +614,11 @@ def execute(filters=None):
 
 	data = [d for d in data if d]
 
-	for d in data:
-		print(f"DATA ROW {d} \n")
-
 	return columns, data
 
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):
+	print(f"Getting account type based data for accounts: {account_names}")
 	# Normalize account_names into a flat list of non-empty strings
 	def _flatten_names(names):
 		flat = []
@@ -712,7 +734,6 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 
 	data["total"] = total
 
-	print(f"DATA RETURNED {data}")
 	return data
 
 
@@ -747,7 +768,6 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 		zero["total"] = 0
 		return zero
 
-	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 	total = 0
 	company = 'Kartoza (Pty) Ltd'
 	data = {}
@@ -757,10 +777,8 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 		start, end = get_date_str(start), get_date_str(end)
 
 		if type == 'purchase':
-			print(f'account_names {account_names}')
 			# Convert list to a comma-separated string for the SQL query
 			placeholders = ', '.join([f"'{name}'" for name in account_names])
-			print(f"PLACEHOLDER {placeholders}")
 
 			sql = f"""
 				SELECT 
@@ -779,6 +797,7 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 				ORDER BY 
 					pi.posting_date DESC;
 				"""
+			print("Executing SQL for asset purchase:", sql)
 			result = frappe.db.sql(sql, as_dict=1, debug=1)
 
 			row_total = 0
@@ -792,11 +811,24 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 	return data
 
 
+def _get_account_structure(period_list):
+    """
+    Return the structure of tax-based data without fetching actual values.
+    """
+    data = {}
+    total = 0
+
+    for period in period_list:
+        # Keep the period keys but set values to 0
+        data.setdefault(period["key"], 0)
+
+    data["total"] = total
+    return data
+
 def _get_account_tax_based_data(filters, account_names, period_list):
 	###TO DO: to get tax paid use account 2608 - Taxation : Balance Sheet - K in gl. (Sum all totals in debit) - (Sum total in credit column if account against is bank account)
 	# account_names are not strictly required here; compute directly from GL
 
-	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 	total = 0
 	company = 'Kartoza (Pty) Ltd'
 	data = {}
@@ -908,7 +940,6 @@ def _add_total_row_account(out, data, label, period_list, currency, indent=0):
 		"currency": currency,
 	}
 	for row in data:
-		print(f"ROW IN TOTAL {row}")
 		if row.get("parent_account"):
 			for period in period_list:
 				total_row.setdefault(period.key, 0)
@@ -919,3 +950,168 @@ def _add_total_row_account(out, data, label, period_list, currency, indent=0):
 
 	out.append(total_row)
 	out.append({})
+
+
+def get_tax_balance_data(
+	period_list, filters, prev=True
+):
+	prev_period_list = get_previous_fiscal_year_from_period_list(filters)
+
+	filters_mod = frappe._dict({
+		'company': 'Kartoza (Pty) Ltd', 
+		'filter_based_on': 'Fiscal Year', 
+		'period_start_date': period_list[0]['year_start_date'].strftime('%Y-%m-%d'), 
+		'period_end_date': period_list[0]['year_end_date'].strftime('%Y-%m-%d'), 
+		'from_fiscal_year': filters.from_fiscal_year, 
+		'to_fiscal_year': filters.to_fiscal_year, 
+		'periodicity': 'Yearly', 
+		'cost_center': [], 
+		'employee_type': [], 
+		'business_unit': [], 
+		'project': [], 
+		'selected_view': 'Report', 
+		'accumulated_values': 1, 
+		'include_default_book_entries': 1})
+	
+	final_list = None
+	if prev:
+		final_list = prev_period_list
+	else:
+		final_list = period_list
+
+	liabilities = get_data(
+		filters.company,
+		"Liability",
+		"Credit",
+		final_list,
+		only_current_fiscal_year=False,
+		filters=filters_mod,
+		accumulated_values=1,
+	)
+
+	tax_data = []
+
+	for liability in liabilities:
+		if liability.get('account') == '2608 - Taxation : Balance Sheet - K':
+			tax_data.append(liability)
+
+	return tax_data
+
+def get_previous_fiscal_year_from_period_list(filters):
+	print("Getting previous fiscal year period list", filters)
+	test = {
+		'company': 'Kartoza (Pty) Ltd', 
+		'filter_based_on': 'Fiscal Year', 
+		'period_start_date': '2025-03-01', 
+		'period_end_date': '2026-02-28', 
+		'from_fiscal_year': '2022-2023', 
+		'to_fiscal_year': '2024-2025', 
+		'periodicity': 'Yearly', 
+		'cost_center': [], 
+		'employee_type': [], 
+		'business_unit': [], 
+		'project': []
+	}
+
+	fiscal_start_year = get_fiscal_year_by_name(filters.from_fiscal_year)
+	fiscal_end_year = get_fiscal_year_by_name(filters.to_fiscal_year)
+
+	dt_start = fiscal_start_year.year_start_date
+	dt_end = fiscal_end_year.year_end_date
+
+	period_start = dt_start - relativedelta(years=1)
+	period_end = subtract_year_adjust_feb(dt_end)
+
+	period_list = get_period_list(
+		get_fiscal_start_year_by_date(period_start.strftime('%Y-%m-%d')),
+		get_fiscal_end_year_by_date(period_end.strftime('%Y-%m-%d')),
+		period_start.strftime('%Y-%m-%d'),
+		period_end.strftime('%Y-%m-%d'),
+		filters.filter_based_on,
+		filters.periodicity,
+		company='Kartoza (Pty) Ltd',
+	)
+
+	return period_list
+
+
+def get_fiscal_year_by_name(name):
+    """
+    Fetch the Fiscal Year where a given name falls within its start and end dates.
+    """
+    fiscal_year = frappe.get_all(
+        "Fiscal Year",
+        filters={
+            "name": ["=", name],
+        },
+        fields=["name", "year_start_date", "year_end_date"],
+        limit_page_length=1
+    )
+    
+    if fiscal_year:
+        return fiscal_year[0]
+    else:
+        return None
+	
+
+def get_fiscal_start_year_by_date(date):
+    """
+    Fetch the Fiscal Year where a given date falls within its start and end dates.
+    """
+    fiscal_year = frappe.get_all(
+        "Fiscal Year",
+        filters={
+            "year_start_date": ["=", date],
+        },
+        fields=["name"],
+        limit_page_length=1
+    )
+    
+    if fiscal_year:
+        return fiscal_year[0]["name"]
+    else:
+        return None
+	
+
+def get_fiscal_end_year_by_date(date):
+    """
+    Fetch the Fiscal Year where a given date falls within its start and end dates.
+    """
+    fiscal_year = frappe.get_all(
+        "Fiscal Year",
+        filters={
+            "year_end_date": ["=", date],
+        },
+        fields=["name"],
+        limit_page_length=1
+    )
+    
+    if fiscal_year:
+        return fiscal_year[0]["name"]
+    else:
+        return None
+	
+
+def subtract_year_adjust_feb(dt_end):
+    # Subtract one year
+    new_date = dt_end - relativedelta(years=1)
+    
+    # If original date is February, adjust for leap year
+    if dt_end.month == 2:
+        year = new_date.year
+        # Check if the new year is a leap year
+        if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)):
+            new_date = new_date.replace(day=29)
+        else:
+            new_date = new_date.replace(day=min(new_date.day, 28))
+    
+    return new_date
+
+def extract_text_and_year(str):
+	parts = str.split('_')
+	
+	if len(parts) == 2 and parts[1].isdigit():
+		text, year = parts[0], int(parts[1])
+	else:
+		text, year = str, None
+	return {'text': text, 'year': year}
