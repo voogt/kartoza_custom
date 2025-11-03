@@ -302,8 +302,11 @@ def add_data_for_operating_activities(
 				filters, ['5300 - Income Tax - K'], period_list, 0
 			)
 
-			current_tax_balance_data = get_tax_balance_data(period_list, filters, prev=False)[0]
-			prev_tax_balance_data = get_tax_balance_data(period_list, filters, prev=True)[0]
+			# Safely handle cases where current or previous fiscal year tax data is missing
+			current_tax_list = get_tax_balance_data(period_list, filters, prev=False)
+			current_tax_balance_data = current_tax_list[0] if current_tax_list else {}
+			prev_tax_list = get_tax_balance_data(period_list, filters, prev=True)
+			prev_tax_balance_data = prev_tax_list[0] if prev_tax_list else {}
 
 			total = 0
 			for key, value in account_structure.items():
@@ -1022,9 +1025,18 @@ def get_previous_fiscal_year_from_period_list(filters):
 	period_start = dt_start - relativedelta(years=1)
 	period_end = subtract_year_adjust_feb(dt_end)
 
+	# Resolve previous fiscal year names by exact boundary dates.
+	from_fy_name = get_fiscal_start_year_by_date(period_start.strftime('%Y-%m-%d'))
+	to_fy_name = get_fiscal_end_year_by_date(period_end.strftime('%Y-%m-%d'))
+
+	# If the system only has one fiscal year (or boundaries don't match exactly),
+	# safely return an empty list to signal "no previous period".
+	if not from_fy_name or not to_fy_name:
+		return []
+
 	period_list = get_period_list(
-		get_fiscal_start_year_by_date(period_start.strftime('%Y-%m-%d')),
-		get_fiscal_end_year_by_date(period_end.strftime('%Y-%m-%d')),
+		from_fy_name,
+		to_fy_name,
 		period_start.strftime('%Y-%m-%d'),
 		period_end.strftime('%Y-%m-%d'),
 		filters.filter_based_on,
