@@ -132,177 +132,191 @@ def get_utilisation(start_date, end_date):
         #p(f"{date_range}") 
         sql = f"""
             SELECT
-            wd.employee_name, 
-            wd.name,
-            #totals
-            wd.holiday_hours,
-            wd.leave_hours,
-            SUM(tsd.hours) as `timesheet_hours`,
-            SUM(tsd.hours) + wd.holiday_hours + wd.leave_hours as `booked_hours`,
-            wd.total_hours as `hours_pm`,
-            wd.total_hours - wd.holiday_hours - wd.leave_hours as `total_hours`,
-            coalesce(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
-            sum(CASE 
-                WHEN tsd.is_billable = 0 THEN 
-                tsd.hours 
-                ELSE 0 
-            END) as `non_billing_hours`,
-            #billable
-            sum(CASE WHEN tsd.project is not null AND tsd.is_billable = 1  THEN tsd.hours ELSE 0 END) as `billable_hours`,
-            wd.total_hours - wd.holiday_hours - wd.leave_hours as `required_hours`,
-            sum(CASE WHEN tsd.project is not null THEN tsd.hours ELSE 0 END) 
-                / 
-            (wd.total_hours - wd.holiday_hours - wd.leave_hours) * 100 as `billable_percentage`,
-            sum(tsd.billing_amount) as `billing_rate`,
-            sum(tsd.costing_amount) as `costing_rate`,
-            sum(tsd.billing_amount) - sum(tsd.costing_amount) as `profit`,
-            
-            SUM(CASE WHEN tp.project_type = 'Investment' THEN tsd.hours ELSE 0 END) as `investment_hours`,
-            SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as 'external_hours',
-            SUM(CASE WHEN tp.project_type = 'Internal' THEN tsd.hours ELSE 0 END) as `internal_hours`
-            
-        FROM (
-            SELECT #WD
-                wd.employee_name as `employee_name`,
-                wd.name as `name`,
-                wd.emp_status as `emp_status`,
-                wd.custom_utilization as `custom_utilization`,
-                (CASE
-                    WHEN '{start}' < wd.date_of_joining AND '{end}' > wd.date_of_joining  THEN 
-                    ( COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)) -
-                    (
-                    SELECT 5 * (DATEDIFF(wd.date_of_joining, '{start}') DIV 7) 
-                        + MID('1234555512344445123333451222234511112345001234550', 
-                        7 * WEEKDAY('{start}') 
-                        + WEEKDAY(wd.date_of_joining) + 1, 1) 
-                    ) 
-                    WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
-                    ELSE
-                        COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)
-                        
-                    END
-                ) * 8 as `total_hours`,
-                (CASE
-                    WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
-                    ELSE
-                        COUNT(CASE WHEN wd.holiday_dates != '' THEN wd.holiday_dates END)
-                    END
-                ) * 8 as holiday_hours,
-                SUM(wd.leave_dates) * 8 as `leave_hours`
+                wd.employee_name, 
+                wd.name,
+                #totals
+                wd.holiday_hours,
+                wd.leave_hours,
+                SUM(tsd.hours) as `timesheet_hours`,
+                SUM(tsd.hours) + wd.holiday_hours + wd.leave_hours as `booked_hours`,
+                wd.total_hours as `hours_pm`,
+                wd.total_hours - wd.holiday_hours - wd.leave_hours as `total_hours`,
+                coalesce(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
+                sum(CASE 
+                    WHEN tsd.is_billable = 0 THEN 
+                    tsd.hours 
+                    ELSE 0 
+                END) as `non_billing_hours`,
+                #billable
+                sum(CASE WHEN tsd.project is not null AND tsd.is_billable = 1  THEN tsd.hours ELSE 0 END) as `billable_hours`,
+                wd.total_hours - wd.holiday_hours - wd.leave_hours as `required_hours`,
+                sum(CASE WHEN tsd.project is not null and tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) 
+                    / 
+                (wd.total_hours - wd.holiday_hours - wd.leave_hours) * 100 as `billable_percentage`,
+                sum(tsd.billing_amount) as `billing_rate`,
+                sum(tsd.costing_amount) as `costing_rate`,
+                sum(tsd.billing_amount) - sum(tsd.costing_amount) as `profit`,
                 
-            FROM ( #wd
-                SELECT 
-                    emp.employee_name as `employee_name`,
-                    emp.name as `name`,
-                    emp.status as `emp_status`,
-                    emp.custom_utilization as `custom_utilization`,
-                    emp.date_of_joining as `date_of_joining`,
-                    date_range.date as `working_dates`,
-                    '' as `holiday_dates`,
-                    '' as `leave_dates`,
-                    'Working Days' as `type`
-                FROM `tabEmployee` emp
-                JOIN (	
-                    {date_range}
-                ) date_range on weekday(date_range.date) not in (5,6)
-
-                UNION ALL #Holidays
-                SELECT
-                    emp.employee_name as `employee_name`,
-                    emp.name as `name`,
-                    emp.status as `emp_status`,
-                    emp.custom_utilization as `custom_utilization`,
-                    emp.date_of_joining as `date_of_joining`,
-                    '' as `working_dates`,
-                    h.holiday_date as `holiday_dates`,
-                    '' as `leave_dates`,
-                    'Holiday Days' as `type`
-                FROM `tabEmployee` emp
-                JOIN `tabHoliday` h ON h.parent = emp.holiday_list
-
-                AND weekday(h.holiday_date) not in (5,6)
-                AND h.holiday_date >= '{start}' 
-                AND h.holiday_date <= '{end}'
+                SUM(CASE WHEN tp.project_type = 'Investment' THEN tsd.hours ELSE 0 END) as `investment_hours`,
+                SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as 'external_hours',
+                SUM(CASE WHEN tp.project_type = 'Internal' THEN tsd.hours ELSE 0 END) as `internal_hours`
                 
-                UNION ALL #LEAVE
-                SELECT
-                    employee_name,
-                    employee,
-                    '' as `emp_status`,
-                    '' as `custom_utilization`,
-                    '' as `date_of_joining`,
-                    '' as `working_dates`,
-                    '' as `holiday_dates`,
-                    SUM(
-                        CASE
-                            WHEN from_date >= '{start}' AND to_date >= '{end}' THEN (
-                                SELECT 5 * (DATEDIFF('{end}', from_date) DIV 7) 
-                                + MID('1234555512344445123333451222234511112345001234550', 
-                                7 * WEEKDAY(from_date) 
-                                + WEEKDAY('{end}') + 1, 1) 
-                                - (
-                                    SELECT COUNT(th.holiday_date)
-                                    FROM `tabEmployee` te 
-                                    LEFT JOIN `tabHoliday` th 
-                                    on th.parent = te.holiday_list 
-                                    
-                                    WHERE te.employee_name = la.employee_name
-                                    AND th.holiday_date >= from_date
-                                    AND th.holiday_date  <= '{end}' 
-                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
-                                )
-                            )
-                            WHEN from_date <= '{start}' AND to_date >= '{start}' THEN (
-                                SELECT 5 * (DATEDIFF(to_date, '{start}')  DIV 7) 
-                                + MID('1234555512344445123333451222234511112345001234550', 
-                                7 * WEEKDAY('{start}') 
-                                + WEEKDAY(to_date) + 1, 1)
-                                - (
-                                    SELECT COUNT(th.holiday_date)
-                                    FROM `tabEmployee` te 
-                                    LEFT JOIN `tabHoliday` th 
-                                    on th.parent = te.holiday_list 
-                                    
-                                    WHERE te.employee_name = la.employee_name
-                                    AND te.status = 'Active'
-                                    AND th.holiday_date >= '{start}' 
-                                    AND th.holiday_date  <= to_date
-                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
-                                )
-                            )
-                            WHEN la.from_date >= '{start}' AND la.to_date <= '{end}' THEN (total_leave_days)
-                            ELSE
-                                0
+            FROM (
+                SELECT #WD
+                    wd.employee_name as `employee_name`,
+                    wd.name as `name`,
+                    wd.emp_status as `emp_status`,
+                    wd.custom_utilization as `custom_utilization`,
+                    (CASE
+                        WHEN '{start_date}' < wd.date_of_joining AND '{end_date}' > wd.date_of_joining  THEN 
+                        ( COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)) -
+                        (
+                        SELECT wd.working_days_required_per_week * (DATEDIFF(wd.date_of_joining, '{start_date}') DIV 7) 
+                            + MID('1234555512344445123333451222234511112345001234550', 
+                            7 * WEEKDAY('{start_date}') 
+                            + WEEKDAY(wd.date_of_joining) + 1, 1) 
+                        ) 
+                        WHEN '{end_date}' < wd.date_of_joining AND '{start_date}' < wd.date_of_joining THEN 0
+                        ELSE
+                            COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)
+                            
                         END
-                    ) as `leave_dates`,
-                    'Leave Days'
-                FROM `tabLeave Application` la
-                WHERE la.status = "Approved" 
-                AND la.from_date BETWEEN '{add(start, days=-30)}' AND '{end}'
-                GROUP BY employee
+                    ) * wd.working_hours_required_per_day as `total_hours`,
+                    (CASE
+                        WHEN '{end_date}' < wd.date_of_joining AND '{start_date}' < wd.date_of_joining THEN 0
+                        ELSE
+                            COUNT(CASE WHEN wd.holiday_dates != '' THEN wd.holiday_dates END)
+                        END
+                    ) * 8 as holiday_hours,
+                    SUM(wd.leave_dates) * 8 as `leave_hours`
+                    
+                FROM ( #wd
+                    SELECT 
+                        emp.employee_name as `employee_name`,
+                        emp.name as `name`,
+                        emp.status as `emp_status`,
+                        tewc.working_hours_required_per_day as `working_hours_required_per_day`,
+                        tewc.working_days_required_per_week as `working_days_required_per_week`,
+                        emp.custom_utilization as `custom_utilization`,
+                        emp.date_of_joining as `date_of_joining`,
+                        date_range.date as `working_dates`,
+                        '' as `holiday_dates`,
+                        '' as `leave_dates`,
+                        'Working Days' as `type`
+                    FROM `tabEmployee` emp
+                    JOIN (	
+                        {date_range}
+                    ) date_range on weekday(date_range.date) not in (5,6)
+                    LEFT JOIN `tabEmployee Work Cycle` tewc
+                    ON tewc.parent = emp.name
+                    AND tewc.applied_from = (
+                        SELECT MAX(applied_from)
+                        FROM `tabEmployee Work Cycle`
+                        WHERE parent = emp.name
+                            AND applied_from <= '{start_date}'   -- the start date you are checking
+                    )
+
+                    UNION ALL #Holidays
+                    SELECT
+                        emp.employee_name as `employee_name`,
+                        emp.name as `name`,
+                        emp.status as `emp_status`,
+                        '' as `working_hours_required_per_day`,
+                        '' as `working_days_required_per_week`,
+                        emp.custom_utilization as `custom_utilization`,
+                        emp.date_of_joining as `date_of_joining`,
+                        '' as `working_dates`,
+                        h.holiday_date as `holiday_dates`,
+                        '' as `leave_dates`,
+                        'Holiday Days' as `type`
+                    FROM `tabEmployee` emp
+                    JOIN `tabHoliday` h ON h.parent = emp.holiday_list
+                    AND h.description NOT IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+                    AND weekday(h.holiday_date) not in (5,6)
+                    AND h.holiday_date >= '{start_date}' 
+                    AND h.holiday_date <= '{end_date}'
+                    
+                    UNION ALL #LEAVE
+                    SELECT
+                        employee_name,
+                        employee,
+                        '' as `emp_status`,
+                        '' as `working_hours_required_per_day`,
+                        '' as `working_days_required_per_week`,
+                        '' as `custom_utilization`,
+                        '' as `date_of_joining`,
+                        '' as `working_dates`,
+                        '' as `holiday_dates`,
+                        SUM(
+                            CASE
+                                WHEN from_date >= '{start_date}' AND to_date >= '{end_date}' THEN (
+                                    SELECT 5 * (DATEDIFF('{end_date}', from_date) DIV 7) 
+                                    + MID('1234555512344445123333451222234511112345001234550', 
+                                    7 * WEEKDAY(from_date) 
+                                    + WEEKDAY('{end_date}') + 1, 1) 
+                                    - (
+                                        SELECT COUNT(th.holiday_date)
+                                        FROM `tabEmployee` te 
+                                        LEFT JOIN `tabHoliday` th 
+                                        on th.parent = te.holiday_list 
+                                        
+                                        WHERE te.employee_name = la.employee_name
+                                        AND th.holiday_date >= from_date
+                                        AND th.holiday_date  <= '{end_date}' 
+                                        AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                    )
+                                )
+                                WHEN from_date <= '{start_date}' AND to_date >= '{start_date}' THEN (
+                                    SELECT 5 * (DATEDIFF(to_date, '{start_date}')  DIV 7) 
+                                    + MID('1234555512344445123333451222234511112345001234550', 
+                                    7 * WEEKDAY('{start_date}') 
+                                    + WEEKDAY(to_date) + 1, 1)
+                                    - (
+                                        SELECT COUNT(th.holiday_date)
+                                        FROM `tabEmployee` te 
+                                        LEFT JOIN `tabHoliday` th 
+                                        on th.parent = te.holiday_list 
+                                        
+                                        WHERE te.employee_name = la.employee_name
+                                        AND te.status = 'Active'
+                                        AND th.holiday_date >= '{start_date}' 
+                                        AND th.holiday_date  <= to_date
+                                        AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                    )
+                                )
+                                WHEN la.from_date >= '{start_date}' AND la.to_date <= '{end_date}' THEN (total_leave_days)
+                                ELSE
+                                    0
+                            END
+                        ) as `leave_dates`,
+                        'Leave Days'
+                    FROM `tabLeave Application` la
+                    WHERE la.status = "Approved" 
+                    AND la.from_date BETWEEN '{add(start_date, days=-30)}' AND '{end_date}'
+                    GROUP BY employee
+                ) wd
+                GROUP BY wd.name
+                ORDER BY wd.employee_name
             ) wd
+
+            LEFT JOIN `tabTimesheet` ts ON wd.name = ts.employee 
+                AND ts.status in ('Submitted', 'Billed')
+            LEFT JOIN `tabTimesheet Detail` tsd 
+                ON tsd.parent = ts.name
+                AND tsd.activity_type NOT REGEXP 'Leave'
+                AND tsd.from_time >= '{start_date} 00:00:00'
+                AND tsd.to_time <= '{end_date} 23:59:59'
+            LEFT JOIN `tabProject` tp
+                ON tsd.project = tp.name
+            WHERE wd.emp_status = (CASE
+                WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
+                WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
+                ELSE NULL
+                END
+            )
+            AND wd.total_hours != 0
             GROUP BY wd.name
             ORDER BY wd.employee_name
-        ) wd
-
-        LEFT JOIN `tabTimesheet` ts ON wd.name = ts.employee 
-            AND ts.status in ('Submitted', 'Billed')
-        LEFT JOIN `tabTimesheet Detail` tsd 
-            ON tsd.parent = ts.name
-            AND tsd.activity_type NOT REGEXP 'Leave'
-            AND tsd.from_time >= '{start} 00:00:00'
-            AND tsd.to_time <= '{end} 23:59:59'
-        LEFT JOIN `tabProject` tp
-            ON tsd.project = tp.name
-        WHERE wd.emp_status = (CASE
-            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
-            WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
-            ELSE NULL
-            END
-        )
-        AND wd.total_hours != 0
-        GROUP BY wd.name
-        ORDER BY wd.employee_name
             """
 
         results = frappe.db.sql(sql, as_dict=True)
