@@ -131,70 +131,86 @@ def get_utilisation(start_date, end_date):
         date_range = " union all ".join(date_range)
         #p(f"{date_range}") 
         sql = f"""
-            SELECT
+        SELECT
             wd.employee_name, 
             wd.name,
-            #totals
+            -- totals
             wd.holiday_hours,
             wd.leave_hours,
             SUM(tsd.hours) as `timesheet_hours`,
             SUM(tsd.hours) + wd.holiday_hours + wd.leave_hours as `booked_hours`,
             wd.total_hours as `hours_pm`,
             wd.total_hours - wd.holiday_hours - wd.leave_hours as `total_hours`,
-            coalesce(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
-            sum(CASE 
-                WHEN tsd.is_billable = 0 THEN 
-                tsd.hours 
-                ELSE 0 
-            END) as `non_billing_hours`,
-            #billable
-            sum(CASE WHEN tsd.project is not null AND tsd.is_billable = 1  THEN tsd.hours ELSE 0 END) as `billable_hours`,
+            COALESCE(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
+            SUM(CASE WHEN tsd.is_billable = 0 THEN tsd.hours ELSE 0 END) as `non_billing_hours`,
+            -- billable
+            SUM(CASE WHEN tsd.project IS NOT NULL AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) as `billable_hours`,
             wd.total_hours - wd.holiday_hours - wd.leave_hours as `required_hours`,
-            sum(CASE WHEN tsd.project is not null THEN tsd.hours ELSE 0 END) 
-                / 
-            (wd.total_hours - wd.holiday_hours - wd.leave_hours) * 100 as `billable_percentage`,
-            sum(tsd.billing_amount) as `billing_rate`,
-            sum(tsd.costing_amount) as `costing_rate`,
-            sum(tsd.billing_amount) - sum(tsd.costing_amount) as `profit`,
-            
+            SUM(CASE WHEN tsd.project IS NOT NULL AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END)
+                /
+            NULLIF((wd.total_hours - wd.holiday_hours - wd.leave_hours),0) * 100 as `billable_percentage`,
+            SUM(tsd.billing_amount) as `billing_rate`,
+            SUM(tsd.costing_amount) as `costing_rate`,
+            SUM(tsd.billing_amount) - SUM(tsd.costing_amount) as `profit`,
+
             SUM(CASE WHEN tp.project_type = 'Investment' THEN tsd.hours ELSE 0 END) as `investment_hours`,
-            SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as 'external_hours',
+            SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as `external_hours`,
             SUM(CASE WHEN tp.project_type = 'Internal' THEN tsd.hours ELSE 0 END) as `internal_hours`
-            
+
         FROM (
-            SELECT #WD
+            SELECT -- wd (aggregated per employee)
                 wd.employee_name as `employee_name`,
                 wd.name as `name`,
                 wd.emp_status as `emp_status`,
                 wd.custom_utilization as `custom_utilization`,
-                (CASE
-                    WHEN '{start}' < wd.date_of_joining AND '{end}' > wd.date_of_joining  THEN 
-                    ( COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)) -
+
+                /* compute effective weekday-count in the period (Mon-Fri),
+                   adjust for join date if in the middle of the period,
+                   then scale by working_days_required_per_week / 5.0,
+                   finally multiply by working_hours_required_per_day */
+                (
                     (
-                    SELECT 5 * (DATEDIFF(wd.date_of_joining, '{start}') DIV 7) 
-                        + MID('1234555512344445123333451222234511112345001234550', 
-                        7 * WEEKDAY('{start}') 
-                        + WEEKDAY(wd.date_of_joining) + 1, 1) 
-                    ) 
-                    WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
-                    ELSE
+                        /* total weekdays in period (we count entries from the working_dates union which excludes weekends) */
                         COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)
-                        
-                    END
-                ) * 8 as `total_hours`,
+                        -
+                        /* if employee joined during period, subtract weekdays before their join date */
+                        (CASE
+                            WHEN '{start}' < wd.date_of_joining AND '{end}' > wd.date_of_joining THEN
+                                (
+                                    /* weekday-count from {start} up to (date_of_joining - 1) */
+                                    5 * (DATEDIFF(wd.date_of_joining, '{start}') DIV 7)
+                                    + MID('1234555512344445123333451222234511112345001234550',
+                                          7 * WEEKDAY('{start}') + WEEKDAY(wd.date_of_joining) + 1, 1)
+                                )
+                            WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN
+                                /* joined after period */
+                                (COUNT(CASE WHEN wd.working_dates != '' THEN wd.working_dates END)) /* will be nulled later by outer logic */
+                            ELSE
+                                0
+                         END)
+                    )
+                    /* scale weekday-count from a 5-day baseline to employee's required working days */
+                    * (COALESCE(wd.working_days_required_per_week, 5) / 5.0)
+                    /* multiply by hours per working day */
+                ) * COALESCE(wd.working_hours_required_per_day, 8) as `total_hours`,
+
+                /* holiday and leave hours: use employee hours-per-day (fallback to 8) */
                 (CASE
                     WHEN '{end}' < wd.date_of_joining AND '{start}' < wd.date_of_joining THEN 0
                     ELSE
                         COUNT(CASE WHEN wd.holiday_dates != '' THEN wd.holiday_dates END)
                     END
-                ) * 8 as holiday_hours,
-                SUM(wd.leave_dates) * 8 as `leave_hours`
-                
-            FROM ( #wd
+                ) * COALESCE(wd.working_hours_required_per_day, 8) as holiday_hours,
+
+                SUM(wd.leave_dates) * COALESCE(wd.working_hours_required_per_day, 8) as `leave_hours`
+
+            FROM ( -- wd detail union (working days / holidays / leave)
                 SELECT 
                     emp.employee_name as `employee_name`,
                     emp.name as `name`,
                     emp.status as `emp_status`,
+                    tewc.working_hours_required_per_day as `working_hours_required_per_day`,
+                    tewc.working_days_required_per_week as `working_days_required_per_week`,
                     emp.custom_utilization as `custom_utilization`,
                     emp.date_of_joining as `date_of_joining`,
                     date_range.date as `working_dates`,
@@ -204,13 +220,23 @@ def get_utilisation(start_date, end_date):
                 FROM `tabEmployee` emp
                 JOIN (	
                     {date_range}
-                ) date_range on weekday(date_range.date) not in (5,6)
+                ) date_range on WEEKDAY(date_range.date) NOT IN (5,6)  -- keep counting Mon-Fri dates then scale later
+                LEFT JOIN `tabEmployee Work Cycle` tewc
+                    ON tewc.parent = emp.name
+                    AND tewc.applied_from = (
+                        SELECT MAX(applied_from)
+                        FROM `tabEmployee Work Cycle`
+                        WHERE parent = emp.name
+                            AND applied_from <= '{start}'
+                    )
 
-                UNION ALL #Holidays
+                UNION ALL -- Holidays
                 SELECT
                     emp.employee_name as `employee_name`,
                     emp.name as `name`,
                     emp.status as `emp_status`,
+                    tewc2.working_hours_required_per_day as `working_hours_required_per_day`,
+                    tewc2.working_days_required_per_week as `working_days_required_per_week`,
                     emp.custom_utilization as `custom_utilization`,
                     emp.date_of_joining as `date_of_joining`,
                     '' as `working_dates`,
@@ -219,16 +245,26 @@ def get_utilisation(start_date, end_date):
                     'Holiday Days' as `type`
                 FROM `tabEmployee` emp
                 JOIN `tabHoliday` h ON h.parent = emp.holiday_list
+                    AND h.description NOT IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+                    AND WEEKDAY(h.holiday_date) NOT IN (5,6)
+                    AND h.holiday_date >= '{start}'
+                    AND h.holiday_date <= '{end}'
+                LEFT JOIN `tabEmployee Work Cycle` tewc2
+                    ON tewc2.parent = emp.name
+                    AND tewc2.applied_from = (
+                        SELECT MAX(applied_from)
+                        FROM `tabEmployee Work Cycle`
+                        WHERE parent = emp.name
+                            AND applied_from <= '{start}'
+                    )
 
-                AND weekday(h.holiday_date) not in (5,6)
-                AND h.holiday_date >= '{start}' 
-                AND h.holiday_date <= '{end}'
-                
-                UNION ALL #LEAVE
+                UNION ALL -- LEAVE
                 SELECT
-                    employee_name,
-                    employee,
+                    la.employee_name,
+                    la.employee,
                     '' as `emp_status`,
+                    tewc3.working_hours_required_per_day as `working_hours_required_per_day`,
+                    tewc3.working_days_required_per_week as `working_days_required_per_week`,
                     '' as `custom_utilization`,
                     '' as `date_of_joining`,
                     '' as `working_dates`,
@@ -236,47 +272,52 @@ def get_utilisation(start_date, end_date):
                     SUM(
                         CASE
                             WHEN from_date >= '{start}' AND to_date >= '{end}' THEN (
-                                SELECT 5 * (DATEDIFF('{end}', from_date) DIV 7) 
+                                /* count weekdays between from_date and {end} */
+                                5 * (DATEDIFF('{end}', from_date) DIV 7)
                                 + MID('1234555512344445123333451222234511112345001234550', 
-                                7 * WEEKDAY(from_date) 
-                                + WEEKDAY('{end}') + 1, 1) 
+                                      7 * WEEKDAY(from_date) + WEEKDAY('{end}') + 1, 1)
                                 - (
                                     SELECT COUNT(th.holiday_date)
                                     FROM `tabEmployee` te 
                                     LEFT JOIN `tabHoliday` th 
-                                    on th.parent = te.holiday_list 
-                                    
+                                        ON th.parent = te.holiday_list 
                                     WHERE te.employee_name = la.employee_name
-                                    AND th.holiday_date >= from_date
-                                    AND th.holiday_date  <= '{end}' 
-                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                      AND th.holiday_date >= from_date
+                                      AND th.holiday_date <= '{end}'
+                                      AND WEEKDAY(th.holiday_date) NOT IN (5,6)
                                 )
                             )
                             WHEN from_date <= '{start}' AND to_date >= '{start}' THEN (
-                                SELECT 5 * (DATEDIFF(to_date, '{start}')  DIV 7) 
-                                + MID('1234555512344445123333451222234511112345001234550', 
-                                7 * WEEKDAY('{start}') 
-                                + WEEKDAY(to_date) + 1, 1)
+                                /* count weekdays between {start} and to_date */
+                                5 * (DATEDIFF(to_date, '{start}') DIV 7)
+                                + MID('1234555512344445123333451222234511112345001234550',
+                                      7 * WEEKDAY('{start}') + WEEKDAY(to_date) + 1, 1)
                                 - (
                                     SELECT COUNT(th.holiday_date)
-                                    FROM `tabEmployee` te 
-                                    LEFT JOIN `tabHoliday` th 
-                                    on th.parent = te.holiday_list 
-                                    
+                                    FROM `tabEmployee` te
+                                    LEFT JOIN `tabHoliday` th
+                                        ON th.parent = te.holiday_list
                                     WHERE te.employee_name = la.employee_name
-                                    AND te.status = 'Active'
-                                    AND th.holiday_date >= '{start}' 
-                                    AND th.holiday_date  <= to_date
-                                    AND WEEKDAY(th.holiday_date) not in (5,6) 
+                                      AND te.status = 'Active'
+                                      AND th.holiday_date >= '{start}'
+                                      AND th.holiday_date <= to_date
+                                      AND WEEKDAY(th.holiday_date) NOT IN (5,6)
                                 )
                             )
-                            WHEN la.from_date >= '{start}' AND la.to_date <= '{end}' THEN (total_leave_days)
-                            ELSE
-                                0
+                            WHEN la.from_date >= '{start}' AND la.to_date <= '{end}' THEN total_leave_days
+                            ELSE 0
                         END
                     ) as `leave_dates`,
                     'Leave Days'
                 FROM `tabLeave Application` la
+                LEFT JOIN `tabEmployee Work Cycle` tewc3
+                    ON tewc3.parent = la.employee
+                    AND tewc3.applied_from = (
+                        SELECT MAX(applied_from)
+                        FROM `tabEmployee Work Cycle`
+                        WHERE parent = la.employee
+                            AND applied_from <= '{start}'
+                    )
                 WHERE la.status = "Approved" 
                 AND la.from_date BETWEEN '{add(start, days=-30)}' AND '{end}'
                 GROUP BY employee
@@ -303,7 +344,10 @@ def get_utilisation(start_date, end_date):
         AND wd.total_hours != 0
         GROUP BY wd.name
         ORDER BY wd.employee_name
-            """
+        """
+
+
+        print("SQL:", sql)
 
         results = frappe.db.sql(sql, as_dict=True)
 
