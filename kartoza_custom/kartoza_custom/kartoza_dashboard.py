@@ -346,9 +346,6 @@ def get_utilisation(start_date, end_date):
         ORDER BY wd.employee_name
         """
 
-
-        print("SQL:", sql)
-
         results = frappe.db.sql(sql, as_dict=True)
 
         booked_hours = 0
