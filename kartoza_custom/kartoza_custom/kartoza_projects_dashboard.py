@@ -41,9 +41,13 @@ def get_project_sla_overview_table():
         # Coalesce numeric values and guard against None/zero divisions
         expected_time = arr.get('expected_time') or 0
         billable_hours = (timesheet_details.get('billable_hours') or 0)
+        billable_hours_percent = (billable_hours / expected_time * 100) if expected_time else 0
+
+        if billable_hours_percent > 100:
+            billable_hours_percent = 100 - billable_hours_percent
 
         arr['billable_hours'] = billable_hours
-        arr['billable_hours_percent'] = (billable_hours / expected_time * 100) if expected_time else 0
+        arr['billable_hours_percent'] = billable_hours_percent
         arr['billable_hours_left'] = expected_time - billable_hours
 
         actual_progress = arr.get('actual_progress') or 0
@@ -126,8 +130,13 @@ def get_task_drill_down_table():
         expected_time = arr.get('expected_time') or 0
         billable_hours = (timesheet_details.get('billable_hours') or 0)
 
+        billable_hours_percent = (billable_hours / expected_time * 100) if expected_time else 0
+
+        if billable_hours_percent > 100:
+            billable_hours_percent = 100 - billable_hours_percent
+
         arr['billable_hours'] = billable_hours
-        arr['billable_hours_percent'] = (billable_hours / expected_time * 100) if expected_time else 0
+        arr['billable_hours_percent'] = billable_hours_percent
         arr['billable_hours_left'] = expected_time - billable_hours
 
         if expected_time > arr['billable_hours']:
