@@ -478,15 +478,20 @@ def add_data_for_other_activities(
 			)
 
 			for account in mapper["account_types"]:
+				
 				if account["label"] == 'Purchase of fixed Assets':
-					account_data = _get_account_asset_based_data(
-					filters, account["names"], period_list, 'purchase'
-				)
+						account_data = _get_account_asset_based_data(
+						filters, account["names"], period_list, 'purchase'
+					)
 				else:
 					# Always compute per-period (non-accumulated) values
 					account_data = _get_account_type_based_data(
-					filters, account["names"], period_list, 0
-				)
+						filters, account["names"], period_list, 0
+					)
+					for key in account_data:
+						if key != 'total':
+							if account_data[key] < 0:
+								account_data[key] = -account_data[key]
 					
 				try:
 					if account_data["total"] != 0:
@@ -772,43 +777,68 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 		return zero
 
 	total = 0
-	company = 'Kartoza (Pty) Ltd'
 	data = {}
 
 	for period in period_list:
 		start, end = period["from_date"], period["to_date"]
 		start, end = get_date_str(start), get_date_str(end)
+		placeholders = ', '.join([f"'{name}'" for name in account_names])
 
+		# sql = f"""
+		# 	SELECT 
+		# 		SUM(pi.base_net_total) as `total`
+		# 	FROM 
+		# 		`tabPurchase Invoice` pi
+		# 	JOIN 
+		# 		`tabPurchase Invoice Item` pii
+		# 		ON pi.name = pii.parent
+		# 	WHERE 
+		# 		pii.expense_account IN ({placeholders})
+		# 		AND pi.docstatus = 1
+		# 		AND pi.status = 'Paid'
+		# 		AND pi.posting_date BETWEEN '{start}' AND '{end}'
+		# 		AND pi.company = 'Kartoza (Pty) Ltd'
+		# 		AND pi.base_net_total > 7000
+		# 	ORDER BY 
+		# 		pi.posting_date DESC;
+		# 	"""
+		print(f"Executing SQL for asset purchase between {start} and {end} type {type}")
 		if type == 'purchase':
-			# Convert list to a comma-separated string for the SQL query
-			placeholders = ', '.join([f"'{name}'" for name in account_names])
-
+		
 			sql = f"""
-				SELECT 
-					SUM(pi.base_grand_total) as `total`
-				FROM 
-					`tabPurchase Invoice` pi
-				JOIN 
-					`tabPurchase Invoice Item` pii
-					ON pi.name = pii.parent
-				WHERE 
-					pii.expense_account IN ({placeholders})
-					AND pi.docstatus = 1
-					AND pi.status = 'Paid'
-					AND pi.posting_date BETWEEN '{start}' AND '{end}'
-					AND pi.company = 'Kartoza (Pty) Ltd'
-				ORDER BY 
-					pi.posting_date DESC;
-				"""
-			print("Executing SQL for asset purchase:", sql)
-			result = frappe.db.sql(sql, as_dict=1, debug=1)
+				SELECT SUM(te.debit) as `total`
+				FROM `tabGL Entry` te
+				LEFT JOIN `tabJournal Entry` tje 
+					ON tje.name = te.voucher_no
+				WHERE te.posting_date BETWEEN '{start}' AND '{end}'
+				AND te.account IN ({placeholders})
+				AND te.company = 'Kartoza (Pty) Ltd'
+				AND te.voucher_type IN ('Journal Entry', 'Purchase Invoice')
+				AND (
+					te.voucher_type = 'Purchase Invoice'
+					OR (te.voucher_type = 'Journal Entry' AND tje.custom_is_cash_item = 1)
+				);
+			"""
 
-			row_total = 0
-			if result and isinstance(result, list) and result[0] and 'total' in result[0] and result[0]['total'] is not None:
-				row_total = flt(result[0]['total'])
+		# if type == 'sale':
+		# 	sql = f"""
+		# 		SELECT SUM(te.credit) as `total`
+		# 		FROM `tabGL Entry` te
+		# 		WHERE te.posting_date BETWEEN '{start}' AND '{end}'
+		# 		AND te.account IN ({placeholders})
+		# 		AND te.company = 'Kartoza (Pty) Ltd'
+		# 		AND te.voucher_type = 'Sales Invoice'
+		# 		AND te.company = 'Kartoza (Pty) Ltd'
+		# 	"""
+		print("Executing SQL for asset purchase/sale:", sql)
+		result = frappe.db.sql(sql, as_dict=1, debug=1)
 
-			data.setdefault(period["key"], -row_total)
-			total += -row_total 
+		row_total = 0
+		if result and isinstance(result, list) and result[0] and 'total' in result[0] and result[0]['total'] is not None:
+			row_total = flt(result[0]['total'])
+
+		data.setdefault(period["key"], -row_total)
+		total += -row_total 
 
 	data["total"] = total
 	return data
