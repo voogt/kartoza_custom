@@ -14,15 +14,18 @@ from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement
 from dateutil.relativedelta import relativedelta
 
 def get_mapper_for(mappers, position):
+	print(f"Getting mapper for position: {position}")
 	mapper_list = list(filter(lambda x: x["position"] == position, mappers))
 	return mapper_list[0] if mapper_list else []
 
 
-def get_mappers_from_db():
+def get_mappers_from_db(company):
 	return frappe.get_all(
 		"Kartoza Cash Flow Mapper",
 		fields=[
 			"section_name",
+			"section_type",
+			"company",
 			"section_header",
 			"section_leader",
 			"section_subtotal",
@@ -30,6 +33,9 @@ def get_mappers_from_db():
 			"name",
 			"position",
 		],
+		filters={
+			"company": company
+		},
 		order_by="position",
 	)
 
@@ -466,7 +472,7 @@ def add_data_for_other_activities(
 ):
 	for mapper in mapper_list:
 			
-		if mapper['section_name'] == 'Investing Activities':
+		if mapper['section_type'] == 'Investing Activities':
 			section_data = []
 			data.append(
 				{
@@ -579,18 +585,19 @@ def execute(filters=None):
 		filters.period_end_date,
 		filters.filter_based_on,
 		filters.periodicity,
-		company='Kartoza (Pty) Ltd',
+		company=filters.company,
 	)
 
-	
+	company = filters.company
 
-	mappers = get_mappers_from_db()
+	mappers = get_mappers_from_db(company)
+	print(f"Retrieved {mappers} mappers from DB")
 
 	cash_flow_accounts = setup_mappers(mappers)
 
 	# compute net profit / loss
 	income = get_data(
-		'Kartoza (Pty) Ltd',
+		company,
 		"Income",
 		"Credit",
 		period_list,
@@ -601,7 +608,7 @@ def execute(filters=None):
 	)
 
 	expense = get_data(
-		'Kartoza (Pty) Ltd',
+		company,
 		"Expense",
 		"Debit",
 		period_list,
@@ -611,14 +618,14 @@ def execute(filters=None):
 		ignore_accumulated_values_for_fy=True,
 	)
 
-	net_profit_loss = get_net_profit_loss(income, expense, period_list, 'Kartoza (Pty) Ltd')
+	net_profit_loss = get_net_profit_loss(income, expense, period_list, company)
 
-	company_currency = frappe.get_cached_value("Company", 'Kartoza (Pty) Ltd', "default_currency")
+	company_currency = frappe.get_cached_value("Company", company, "default_currency")
 
 	data = compute_data(filters, company_currency, net_profit_loss, period_list, mappers, cash_flow_accounts)
 
 	_add_total_row_account(data, data, _("Net Change in Cash"), period_list, company_currency)
-	columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, 'Kartoza (Pty) Ltd')
+	columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, company)
 
 	data = [d for d in data if d]
 
@@ -660,7 +667,7 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 
-	company = 'Kartoza (Pty) Ltd'
+	company = filters.company
 	data = {}
 	total = 0
 	GLEntry = frappe.qb.DocType("GL Entry")
@@ -783,26 +790,6 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 		start, end = period["from_date"], period["to_date"]
 		start, end = get_date_str(start), get_date_str(end)
 		placeholders = ', '.join([f"'{name}'" for name in account_names])
-
-		# sql = f"""
-		# 	SELECT 
-		# 		SUM(pi.base_net_total) as `total`
-		# 	FROM 
-		# 		`tabPurchase Invoice` pi
-		# 	JOIN 
-		# 		`tabPurchase Invoice Item` pii
-		# 		ON pi.name = pii.parent
-		# 	WHERE 
-		# 		pii.expense_account IN ({placeholders})
-		# 		AND pi.docstatus = 1
-		# 		AND pi.status = 'Paid'
-		# 		AND pi.posting_date BETWEEN '{start}' AND '{end}'
-		# 		AND pi.company = 'Kartoza (Pty) Ltd'
-		# 		AND pi.base_net_total > 7000
-		# 	ORDER BY 
-		# 		pi.posting_date DESC;
-		# 	"""
-		print(f"Executing SQL for asset purchase between {start} and {end} type {type}")
 		if type == 'purchase':
 		
 			sql = f"""
@@ -812,7 +799,7 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 					ON tje.name = te.voucher_no
 				WHERE te.posting_date BETWEEN '{start}' AND '{end}'
 				AND te.account IN ({placeholders})
-				AND te.company = 'Kartoza (Pty) Ltd'
+				AND te.company = '{filters.company}'
 				AND te.voucher_type IN ('Journal Entry', 'Purchase Invoice')
 				AND (
 					te.voucher_type = 'Purchase Invoice'
@@ -820,17 +807,6 @@ def _get_account_asset_based_data(filters, account_names, period_list, type):
 				);
 			"""
 
-		# if type == 'sale':
-		# 	sql = f"""
-		# 		SELECT SUM(te.credit) as `total`
-		# 		FROM `tabGL Entry` te
-		# 		WHERE te.posting_date BETWEEN '{start}' AND '{end}'
-		# 		AND te.account IN ({placeholders})
-		# 		AND te.company = 'Kartoza (Pty) Ltd'
-		# 		AND te.voucher_type = 'Sales Invoice'
-		# 		AND te.company = 'Kartoza (Pty) Ltd'
-		# 	"""
-		print("Executing SQL for asset purchase/sale:", sql)
 		result = frappe.db.sql(sql, as_dict=1, debug=1)
 
 		row_total = 0
@@ -863,7 +839,7 @@ def _get_account_tax_based_data(filters, account_names, period_list):
 	# account_names are not strictly required here; compute directly from GL
 
 	total = 0
-	company = 'Kartoza (Pty) Ltd'
+	company = filters.company
 	data = {}
 
 	for period in period_list:
@@ -926,7 +902,7 @@ def _get_dividends_paid_data(filters, dividend_account_names, period_list):
 		zero["total"] = 0
 		return zero
 
-	company = 'Kartoza (Pty) Ltd'
+	company = filters.company
 	data = {}
 	total = 0
 
@@ -991,7 +967,7 @@ def get_tax_balance_data(
 	prev_period_list = get_previous_fiscal_year_from_period_list(filters)
 
 	filters_mod = frappe._dict({
-		'company': 'Kartoza (Pty) Ltd', 
+		'company': filters.company, 
 		'filter_based_on': 'Fiscal Year', 
 		'period_start_date': period_list[0]['year_start_date'].strftime('%Y-%m-%d'), 
 		'period_end_date': period_list[0]['year_end_date'].strftime('%Y-%m-%d'), 
@@ -1033,7 +1009,7 @@ def get_tax_balance_data(
 def get_previous_fiscal_year_from_period_list(filters):
 	print("Getting previous fiscal year period list", filters)
 	test = {
-		'company': 'Kartoza (Pty) Ltd', 
+		'company': filters.company, 
 		'filter_based_on': 'Fiscal Year', 
 		'period_start_date': '2025-03-01', 
 		'period_end_date': '2026-02-28', 
@@ -1071,7 +1047,7 @@ def get_previous_fiscal_year_from_period_list(filters):
 		period_end.strftime('%Y-%m-%d'),
 		filters.filter_based_on,
 		filters.periodicity,
-		company='Kartoza (Pty) Ltd',
+		company=filters.company,
 	)
 
 	return period_list
