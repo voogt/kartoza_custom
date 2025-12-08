@@ -8,8 +8,8 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
     page.main.html(`
 
         <div class="flex items-center gap-8">
-            <input type="date" id="start_date" value="2024-10-01"  style="margin-right:5px; border-radius:5px"/>
-            <input type="date" id="end_date" value="2025-04-30"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="start_date" value="2025-08-01"  style="margin-right:5px; border-radius:5px"/>
+            <input type="date" id="end_date" value="2025-10-31"  style="margin-right:5px; border-radius:5px"/>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
@@ -78,6 +78,13 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_lda',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_lda',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_pty',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
     ]
 
     // Helper to chain frappe.call requests sequentially

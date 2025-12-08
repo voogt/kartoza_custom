@@ -1,4 +1,5 @@
 import json
+from warnings import filters
 import frappe
 from frappe import whitelist
 from frappe import _
@@ -9,7 +10,16 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data
+from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
+from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
+    get_data,
+    get_period_list,
+    get_net_profit_loss,
+    get_chart_data,
+    compute_growth_view_data,
+    compute_margin_view_data,
+    get_filtered_list_for_consolidated_report,
+)
 
 @frappe.whitelist(allow_guest=True)
 def get_staff_count(start_date, end_date):
@@ -1270,7 +1280,7 @@ def get_company_salary_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Shows total salary costs per department for Kartoza Lda per month:</b><br><br>
+            <b>Shows total salary costs per department for Kartoza Lda per month (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Total Salary:</b> Uses fixed values for each department per month.</li>
             </ul>
@@ -1495,7 +1505,7 @@ def get_company_pipeline_opportunities_lda():
         ],
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays open opportunities for Kartoza Lda:</b><br><br>
+            <b>Displays open opportunities for Kartoza Lda (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Amount:</b> Value of each open opportunity (Draft/Open status), grouped by opportunity name.</li>
             </ul>
@@ -1556,7 +1566,7 @@ def get_company_pipeline_lda():
         "datasets": datasets,
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays open quotations for Kartoza Lda:</b><br><br>
+            <b>Displays open quotations for Kartoza Lda (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Amount:</b> Value of each open quotation (Draft/Open status), converted to Rand if needed, grouped by quote name.</li>
             </ul>
@@ -1799,6 +1809,613 @@ def get_open_sales_orders():
     }
 
     return data
+
+@frappe.whitelist(allow_guest=True)
+def get_item_wise_annual_sales_pty(start_date, end_date):
+
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    all_item_codes = set()
+    month_item_data = []
+
+    # First pass: collect all item_codes across all periods
+    for start, end in ranges:
+        final_dict = frappe.db.sql(f"""
+        SELECT 
+            item_code as `item_code`,
+            SUM(tsoi.base_amount ) as `item_total`
+        FROM `tabSales Invoice Item` tsoi
+        LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
+        WHERE tso.company = 'Kartoza (Pty) Ltd'
+        AND tso.po_date BETWEEN '{start}' AND '{end}'
+        AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
+        GROUP BY tsoi.item_code
+        """, as_dict=1, debug=0)
+        all_item_codes.update(item["item_code"] for item in final_dict)
+        month_item_data.append(final_dict)
+
+    labels = [get_month_label(start) for start, _ in ranges]
+
+    # Second pass: build item_map with 0 for missing item_codes
+    item_map = {item_code: [] for item_code in all_item_codes}
+    for period_data in month_item_data:
+        period_dict = {item["item_code"]: item["item_total"] for item in period_data}
+        for item_code in all_item_codes:
+            value = period_dict.get(item_code, 0)
+            item_map[item_code].append(f"{value:.0f}")
+
+    data = {
+        "title": f"Item Wise Annual Sales PTY",
+        "labels": labels,
+        "element_id": "item_wise_annual_sales_pty",
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays item-wise annual sales for Kartoza (Pty) Ltd:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
+                <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
+                <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
+                <li><b>Source:</b> Sales Invoice Items for Kartoza (Pty) Ltd, filtered by posting date and document status.</li>
+            </ul>
+        </div>
+        """,
+        "total_cards": [],
+        "datasets": []
+    }
+
+    for name, values in item_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_item_wise_annual_sales_lda(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    all_item_codes = set()
+    month_item_data = []
+
+
+    zar_eur_rate = get_rates(None, "EUR")
+
+    # First pass: collect all item_codes across all periods
+    for start, end in ranges:
+        final_dict = frappe.db.sql(f"""
+        SELECT 
+            item_code as `item_code`,
+            SUM(tsoi.base_amount ) * {zar_eur_rate} as `item_total`
+        FROM `tabSales Invoice Item` tsoi
+        LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
+        WHERE tso.company = 'Kartoza Lda'
+        AND tso.po_date BETWEEN '{start}' AND '{end}'
+        AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
+        GROUP BY tsoi.item_code
+        """, as_dict=1, debug=0)
+        all_item_codes.update(item["item_code"] for item in final_dict)
+        month_item_data.append(final_dict)
+
+    labels = [get_month_label(start) for start, _ in ranges]
+
+    # Initialize a dict to hold profit/loss values per cost center
+    # Second pass: build item_map with 0 for missing item_codes
+    item_map = {item_code: [] for item_code in all_item_codes}
+    for period_data in month_item_data:
+        period_dict = {item["item_code"]: item["item_total"] for item in period_data}
+        for item_code in all_item_codes:
+            value = period_dict.get(item_code, 0)
+            item_map[item_code].append(f"{value:.0f}")
+
+    data = {
+        "title": f"Item Wise Annual Sales LDA",
+        "labels": labels,
+        "element_id": "item_wise_annual_sales_lda",
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays item-wise annual sales for Kartoza LDA:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
+                <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
+                <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
+                <li><b>Source:</b> Sales Invoice Items for Kartoza LDA, filtered by posting date and document status.</li>
+            </ul>
+        </div>
+        """,
+        "total_cards": [],
+        "datasets": []
+    }
+
+    for name, values in item_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_sales_analytics_customers_pty(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    all_customers = set()
+    month_item_data = []
+
+    # First pass: collect all item_codes across all periods
+    for start, end in ranges:
+        final_dict = frappe.db.sql(f"""
+        SELECT 
+            party_name as `customer`,
+            SUM(base_paid_amount) as `paid_amount`
+        FROM `tabPayment Entry`
+        WHERE payment_type = 'Receive'
+        AND company = 'Kartoza (Pty) Ltd'
+        AND party_name != ''
+        AND posting_date BETWEEN '{start}' AND '{end}'
+        GROUP BY party_name
+        """, as_dict=1, debug=0)
+        all_customers.update(item["customer"] for item in final_dict)
+        month_item_data.append(final_dict)
+
+    labels = [get_month_label(start) for start, _ in ranges]
+
+    # Initialize a dict to hold profit/loss values per cost center
+    # Second pass: build item_map with 0 for missing item_codes
+    customer_map = {customer: [] for customer in all_customers}
+    for period_data in month_item_data:
+        period_dict = {item["customer"]: item["paid_amount"] for item in period_data}
+        for customer in all_customers:
+            value = period_dict.get(customer, 0)
+            customer_map[customer].append(f"{value:.0f}")
+
+    data = {
+        "title": f"Sales Analytics Customers PTY",
+        "labels": labels,
+        "element_id": "sales_analytics_customers_pty",
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays customer payment analytics for Kartoza (Pty) Ltd:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Customer Payments:</b> Shows the total amount paid by each customer during each month in the selected period.</li>
+                <li><b>Source:</b> Data is based on Payment Entry records for customers, filtered by company and posting date.</li>
+                <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
+            </ul>
+        </div>
+        """,
+        "total_cards": [],
+        "datasets": []
+    }
+
+    for name, values in customer_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_sales_analytics_customers_lda(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    all_customers = set()
+    month_item_data = []
+
+    zar_eur_rate = get_rates(None, "EUR")
+
+    # First pass: collect all item_codes across all periods
+    for start, end in ranges:
+        final_dict = frappe.db.sql(f"""
+        SELECT 
+            party_name as `customer`,
+            SUM(base_paid_amount) * {zar_eur_rate} as `paid_amount`
+        FROM `tabPayment Entry`
+        WHERE party_type = 'Customer'
+        AND company = 'Kartoza Lda'
+        AND party_name != ''
+        AND posting_date BETWEEN '{start}' AND '{end}'
+        GROUP BY party_name
+        """, as_dict=1, debug=0)
+        all_customers.update(item["customer"] for item in final_dict)
+        month_item_data.append(final_dict)
+
+    labels = [get_month_label(start) for start, _ in ranges]
+
+    # Initialize a dict to hold profit/loss values per cost center
+    customer_map = {customer: [] for customer in all_customers}
+    for period_data in month_item_data:
+        period_dict = {item["customer"]: item["paid_amount"] for item in period_data}
+        for customer in all_customers:
+            value = period_dict.get(customer, 0)
+            customer_map[customer].append(f"{value:.0f}")
+
+    data = {
+        "title": f"Sales Analytics Customers LDA",
+        "labels": labels,
+        "element_id": "sales_analytics_customers_lda",
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays customer payment analytics for Kartoza LDA:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Customer Payments:</b> Shows the total amount paid by each customer during each month in the selected period.</li>
+                <li><b>Source:</b> Data is based on Payment Entry records for customers, filtered by company and posting date.</li>
+                <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
+            </ul>
+        </div>
+        """,
+        "total_cards": [],
+        "datasets": []
+    }
+
+    for name, values in customer_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_overhead_cost_pty(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    for start, end in ranges:
+        overhead_cost_salaries_sql = f"""
+            SELECT 
+                SUM(tss.total_cost) as `total_cost`
+            FROM `tabSalary Slip` tss
+            LEFT JOIN `tabEmployee` te ON te.name = tss.employee
+            WHERE te.department IN ('PMO - K', 'PMO - KE', 'Admin - K', 'Admin - KE', 'Management - K', 'Management - KE')
+            AND tss.posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        overhead_cost_supplier_sql = f"""
+            SELECT 
+                SUM(base_paid_amount) as `total_cost`
+            FROM `tabPayment Entry`
+            WHERE payment_type = 'Pay'
+            AND company = 'Kartoza (Pty) Ltd'
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        filters = frappe._dict({
+            "company": "Kartoza (Pty) Ltd",
+            "filter_based_on": "Date Range",
+            "period_start_date": start,
+            "period_end_date": end,
+            "from_fiscal_year": start,
+            "to_fiscal_year": end,
+            "periodicity": "Monthly",
+            "cost_center": [],
+            "employee_type": [],
+            "business_unit": [],
+            "project": [],
+            "selected_view": "Report",
+            "accumulated_values": 1,
+            "include_default_book_entries": 1,
+            "prepared_report_name": "1qn7c95eop"
+           })
+
+        period_list = get_period_list(
+            filters.from_fiscal_year,
+            filters.to_fiscal_year,
+            filters.period_start_date,
+            filters.period_end_date,
+            filters.filter_based_on,
+            filters.periodicity,
+            company="Kartoza (Pty) Ltd",
+	    )
+
+
+        income = get_data(
+            "Kartoza (Pty) Ltd",
+            "Income",
+            "Credit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
+        )
+
+        total_revenue =  get_profit(
+		income, period_list, filters.company, filters.presentation_currency
+	    )
+
+        overhead_cost_salaries = frappe.db.sql(overhead_cost_salaries_sql, as_dict=True)[0].total_cost or 0
+        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
+        overhead_cost = overhead_cost_salaries + overhead_cost_supplier
+        overhead_percantage = (overhead_cost / total_revenue) * 100
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "overhead_cost": overhead_cost,
+            "total_revenue": total_revenue,
+            "overhead_percantage": overhead_percantage
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    overhead_cost_values = [row["overhead_cost"] for row in chart_data]
+    total_revenue_values = [row["total_revenue"] for row in chart_data]
+    overhead_percantage_values = [row["overhead_percantage"] for row in chart_data]
+
+    data = {
+        "element_id": "overhead_cost_pty",
+        "type": "single",
+        "title": "Overhead Cost PTY",
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": False,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays overhead costs for Kartoza (Pty) Ltd per month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Overhead Cost:</b> Sum of salary costs for selected overhead departments (PMO, Admin, Management) plus supplier payments for the period.</li>
+                <li><b>Total Revenue:</b> Total Income as calculated from income accounts for the period.</li>
+                <li><b>Overhead %:</b> Overhead cost as a percentage of total revenue for the period.</li>
+            </ul>
+            <span style='color: #888;'>Helps track the proportion of overhead costs relative to revenue each month.</span>
+        </div>
+        """,
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Overhead Cost",
+                "values": overhead_cost_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Revenue",
+                "values": total_revenue_values
+            },
+            {
+                "type": "Line",
+                "name": "Overhead %",
+                "values": overhead_percantage_values
+            }
+        ]
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_overhead_cost_lda(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    zar_eur_rate = get_rates(None, "EUR")
+
+    for start, end in ranges:
+        
+
+        overhead_cost_supplier_sql = f"""
+            SELECT 
+                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
+            FROM `tabPayment Entry`
+            WHERE payment_type = 'Pay'
+            AND company = 'Kartoza Lda'
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        filters = frappe._dict({
+            "company": "Kartoza Lda",
+            "filter_based_on": "Date Range",
+            "period_start_date": start,
+            "period_end_date": end,
+            "from_fiscal_year": start,
+            "to_fiscal_year": end,
+            "periodicity": "Monthly",
+            "cost_center": [],
+            "employee_type": [],
+            "business_unit": [],
+            "project": [],
+            "selected_view": "Report",
+            "accumulated_values": 1,
+            "include_default_book_entries": 1,
+            "prepared_report_name": "1qn7c95eop"
+           })
+
+        period_list = get_period_list(
+            filters.from_fiscal_year,
+            filters.to_fiscal_year,
+            filters.period_start_date,
+            filters.period_end_date,
+            filters.filter_based_on,
+            filters.periodicity,
+            company="Kartoza Lda",
+	    )
+
+
+        income = get_data(
+            "Kartoza Lda",
+            "Income",
+            "Credit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
+        )
+
+        total_revenue =  get_profit(
+		income, period_list, filters.company, filters.presentation_currency
+	    )
+
+        total_revenue = total_revenue * zar_eur_rate
+
+        overhead_cost_salaries = 260000
+        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
+        overhead_cost = overhead_cost_salaries + overhead_cost_supplier
+        overhead_percantage = (overhead_cost / total_revenue) * 100
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "overhead_cost": overhead_cost,
+            "total_revenue": total_revenue,
+            "overhead_percantage": overhead_percantage
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    overhead_cost_values = [row["overhead_cost"] for row in chart_data]
+    total_revenue_values = [row["total_revenue"] for row in chart_data]
+    overhead_percantage_values = [row["overhead_percantage"] for row in chart_data]
+
+    data = {
+        "element_id": "overhead_cost_lda",
+        "type": "single",
+        "title": "Overhead Cost Lda",
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": False,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays overhead costs for Kartoza Lda per month (Currency ZAR):</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Overhead Cost:</b> Sum of salary costs for selected overhead departments</li>
+                <li><b>Total Revenue:</b> Total Income as calculated from income accounts for the period.</li>
+                <li><b>Overhead %:</b> Overhead cost as a percentage of total revenue for the period.</li>
+            </ul>
+            <span style='color: #888;'>Helps track the proportion of overhead costs relative to revenue each month.</span>
+        </div>
+        """,
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Overhead Cost",
+                "values": overhead_cost_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Revenue",
+                "values": total_revenue_values
+            },
+            {
+                "type": "Line",
+                "name": "Overhead %",
+                "values": overhead_percantage_values
+            }
+        ]
+    }
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_project_closed_summary(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+    all_projects= set()
+    month_item_data = []
+
+    # First pass: collect all item_codes across all periods
+    for start, end in ranges:
+        zar_rate = get_rates(end, 'EUR')
+        final_dict = frappe.db.sql(f"""
+        SELECT
+            name as `project_name`,
+            (CASE
+                WHEN company = 'Kartoza (Pty) Ltd' THEN
+                    total_billed_amount
+                ELSE
+                    total_billed_amount * {zar_rate}
+            END) AS total_billed_amount,
+            total_costing_amount,
+            ROUND(
+                ( (CASE
+                    WHEN company = 'Kartoza (Pty) Ltd' THEN total_billed_amount
+                    ELSE total_billed_amount * {zar_rate}
+                END) - total_costing_amount
+                ) 
+            ) AS gross_margin
+        FROM `tabProject`
+        WHERE status = 'Completed'
+        AND actual_end_date >= '{start}'
+        AND actual_end_date <= '{end}'
+        """, as_dict=1, debug=0)
+        all_projects.update(item["project_name"] for item in final_dict)
+        month_item_data.append(final_dict)
+
+    labels = [get_month_label(start) for start, _ in ranges]
+
+    # Second pass: build item_map with 0 for missing item_codes
+    item_map = {project_name: [] for project_name in all_projects}
+    for period_data in month_item_data:
+        period_dict = {item["project_name"]: item["gross_margin"] for item in period_data}
+        for project_name in all_projects:
+            value = period_dict.get(project_name, 0)
+            item_map[project_name].append(f"{value:.0f}")
+
+    data = {
+        "title": f"Project Closed Summary",
+        "labels": labels,
+        "element_id": "project_closed_summary",
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays closed project summaries:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Project Names:</b> Each bar represents the total gross margin for a project that is closed during the period.</li>
+                <li><b>Missing Projects:</b> If a project is present in one month but not in another, a value of 0 is shown for the missing month.</li>
+                <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
+                <li><b>Source:</b> Closed projects with their gross margins, converted to ZAR if needed, filtered by actual end date.</li>
+        </div>
+        """,
+        "total_cards": [],
+        "datasets": []
+    }
+
+    for name, values in item_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+    return data
+
 
 @frappe.whitelist(allow_guest=True)
 def submit_comment():
