@@ -2120,12 +2120,25 @@ def get_overhead_cost_pty(start_date, end_date):
             AND tss.posting_date BETWEEN '{start}' AND '{end}'
         """
 
+        overhead_cost_insurance_sql = f"""
+            SELECT 
+                SUM(base_paid_amount) as `total_cost`
+            FROM `tabPayment Entry` te
+            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
+            WHERE payment_type = 'Pay'
+            AND company = 'Kartoza (Pty) Ltd'
+            AND ts.supplier_group = 'Insurance'
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
         overhead_cost_supplier_sql = f"""
             SELECT 
                 SUM(base_paid_amount) as `total_cost`
-            FROM `tabPayment Entry`
+            FROM `tabPayment Entry` te
+            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
             WHERE payment_type = 'Pay'
             AND company = 'Kartoza (Pty) Ltd'
+            AND ts.supplier_group NOT IN ('Insurance')
             AND posting_date BETWEEN '{start}' AND '{end}'
         """
 
@@ -2174,14 +2187,18 @@ def get_overhead_cost_pty(start_date, end_date):
 
         overhead_cost_salaries = frappe.db.sql(overhead_cost_salaries_sql, as_dict=True)[0].total_cost or 0
         overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier
+        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
+        overhead_variable_cost = overhead_cost_supplier
+        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
+        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
         month_label = get_month_label(start)
 
         chart_data.append({
             "month": month_label,
-            "overhead_cost": overhead_cost,
+            "overhead_fixed_cost": overhead_fixed_cost,
+            "overhead_variable_cost": overhead_variable_cost,
             "total_revenue": total_revenue,
             "overhead_percantage": overhead_percantage
         })
@@ -2189,7 +2206,8 @@ def get_overhead_cost_pty(start_date, end_date):
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
-    overhead_cost_values = [row["overhead_cost"] for row in chart_data]
+    overhead_fixed_cost_values = [row["overhead_fixed_cost"] for row in chart_data]
+    overhead_variable_cost_values = [row["overhead_variable_cost"] for row in chart_data]
     total_revenue_values = [row["total_revenue"] for row in chart_data]
     overhead_percantage_values = [row["overhead_percantage"] for row in chart_data]
 
@@ -2217,8 +2235,13 @@ def get_overhead_cost_pty(start_date, end_date):
         "datasets": [
             {
                 "type": "bar",
-                "name": "Overhead Cost",
-                "values": overhead_cost_values
+                "name": "Overhead Fixed Cost",
+                "values": overhead_fixed_cost_values
+            },
+            {
+                "type": "bar",
+                "name": "Overhead Variable Cost",
+                "values": overhead_variable_cost_values
             },
             {
                 "type": "bar",
@@ -2239,17 +2262,30 @@ def get_overhead_cost_pty(start_date, end_date):
 def get_overhead_cost_lda(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
+
     zar_eur_rate = get_rates(None, "EUR")
 
     for start, end in ranges:
-        
+
+        overhead_cost_insurance_sql = f"""
+            SELECT 
+                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
+            FROM `tabPayment Entry` te
+            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
+            WHERE payment_type = 'Pay'
+            AND company = 'Kartoza Lda'
+            AND ts.supplier_group = 'Insurance'
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
 
         overhead_cost_supplier_sql = f"""
             SELECT 
                 SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
-            FROM `tabPayment Entry`
+            FROM `tabPayment Entry` te
+            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
             WHERE payment_type = 'Pay'
             AND company = 'Kartoza Lda'
+            AND ts.supplier_group NOT IN ('Insurance')
             AND posting_date BETWEEN '{start}' AND '{end}'
         """
 
@@ -2302,15 +2338,18 @@ def get_overhead_cost_lda(start_date, end_date):
 
         overhead_cost_salaries = 260000
         overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier
-
+        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
+        overhead_variable_cost = overhead_cost_supplier
+        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
+        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
         overhead_percantage = (overhead_cost / total_revenue) * 100 if total_revenue else 0.0
 
         month_label = get_month_label(start)
 
         chart_data.append({
             "month": month_label,
-            "overhead_cost": overhead_cost,
+            "overhead_fixed_cost": overhead_fixed_cost,
+            "overhead_variable_cost": overhead_variable_cost,
             "total_revenue": total_revenue,
             "overhead_percantage": overhead_percantage
         })
@@ -2318,7 +2357,8 @@ def get_overhead_cost_lda(start_date, end_date):
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
-    overhead_cost_values = [row["overhead_cost"] for row in chart_data]
+    overhead_fixed_cost_values = [row["overhead_fixed_cost"] for row in chart_data]
+    overhead_variable_cost_values = [row["overhead_variable_cost"] for row in chart_data]
     total_revenue_values = [row["total_revenue"] for row in chart_data]
     overhead_percantage_values = [row["overhead_percantage"] for row in chart_data]
 
@@ -2334,9 +2374,9 @@ def get_overhead_cost_lda(start_date, end_date):
         "total_cards": [],
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays overhead costs for Kartoza Lda per month (Currency ZAR):</b><br><br>
+            <b>Displays overhead costs for Kartoza Lda per month:</b><br><br>
             <ul style='margin-left: 1em;'>
-                <li><b>Overhead Cost:</b> Sum of salary costs for selected overhead departments</li>
+                <li><b>Overhead Cost:</b> Sum of salary costs for selected overhead departments (PMO, Admin, Management) plus supplier payments for the period.</li>
                 <li><b>Total Revenue:</b> Total Income as calculated from income accounts for the period.</li>
                 <li><b>Overhead %:</b> Overhead cost as a percentage of total revenue for the period.</li>
             </ul>
@@ -2346,8 +2386,13 @@ def get_overhead_cost_lda(start_date, end_date):
         "datasets": [
             {
                 "type": "bar",
-                "name": "Overhead Cost",
-                "values": overhead_cost_values
+                "name": "Overhead Fixed Cost",
+                "values": overhead_fixed_cost_values
+            },
+            {
+                "type": "bar",
+                "name": "Overhead Variable Cost",
+                "values": overhead_variable_cost_values
             },
             {
                 "type": "bar",
