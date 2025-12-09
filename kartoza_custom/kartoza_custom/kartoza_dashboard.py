@@ -2496,7 +2496,7 @@ def get_tender_summary(start_date, end_date):
 
         time_sql = f"""
         SELECT 
-            SUM(ttd.billing_hours) as `total_hours`,
+            SUM(ttd.hours) as `total_hours`,
             SUM(ttd.costing_amount) as `total_costing`
             FROM `tabTask` tt 
             LEFT JOIN `tabTimesheet Detail` ttd ON ttd.task = tt.name
