@@ -725,6 +725,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
+        print("ZAR RATE:", zar_rate)
 
         sales_invoice_sql = f"""
         SELECT 
@@ -770,7 +771,6 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
                 p.total_purchase_cost,
                 COALESCE(SUM(tpi.base_grand_total), 0) AS total_purchase_invoice,
                 COALESCE(SUM(teecd.amount), 0) AS total_expense_claim
-                
             FROM `tabProject` p
             LEFT JOIN `tabEmployee Expense Claim` teec ON 
                 p.name = teec.project AND teec.approval_status = 'Approved' AND teec.expense_type_parent = 'Purchase'
@@ -2197,10 +2197,10 @@ def get_overhead_cost_pty(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "overhead_fixed_cost": overhead_fixed_cost,
-            "overhead_variable_cost": overhead_variable_cost,
-            "total_revenue": total_revenue,
-            "overhead_percantage": overhead_percantage
+            "overhead_fixed_cost": f"{overhead_fixed_cost:.0f}",
+            "overhead_variable_cost": f"{overhead_variable_cost:.0f}",
+            "total_revenue": f"{total_revenue:.0f}",
+            "overhead_percantage": f"{overhead_percantage:.0f}"
         })
 
     # Transform chart_data for stacked chart
@@ -2348,10 +2348,10 @@ def get_overhead_cost_lda(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "overhead_fixed_cost": overhead_fixed_cost,
-            "overhead_variable_cost": overhead_variable_cost,
-            "total_revenue": total_revenue,
-            "overhead_percantage": overhead_percantage
+            "overhead_fixed_cost": f"{overhead_fixed_cost:.0f}",
+            "overhead_variable_cost": f"{overhead_variable_cost:.0f}",
+            "total_revenue": f"{total_revenue:.0f}",
+            "overhead_percantage": f"{overhead_percantage:.0f}"
         })
 
     # Transform chart_data for stacked chart
@@ -2585,16 +2585,16 @@ def get_tender_summary(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "lost_opportunities_count": lost_opportunities[0]['count_lost'] or 0,
-            "lost_opportunities_amount": lost_opportunities[0]['amount'] or 0,
-            "lost_quotes_count": lost_quotes[0]['count_lost'] or 0,
-            "lost_quotes_amount": lost_quotes[0]['amount'] or 0,
-            "won_opportunities_count": won_opportunities[0]['count_lost'] or 0,
-            "won_opportunities_amount": won_opportunities[0]['amount'] or 0,
-            "won_quotes_count": won_quotes[0]['count_lost'] or 0,
-            "won_quotes_amount": won_quotes[0]['amount'] or 0,
-            "total_hours": time_arr[0]['total_hours'] or 0,
-            "total_costing": time_arr[0]['total_costing'] or 0,
+            "lost_opportunities_count": f"{lost_opportunities[0]['count_lost']:.0f}" or 0,
+            "lost_opportunities_amount": f"{lost_opportunities[0]['amount']:.0f}" or 0,
+            "lost_quotes_count": f"{lost_quotes[0]['count_lost']:.0f}" or 0,
+            "lost_quotes_amount": f"{lost_quotes[0]['amount']:.0f}" or 0,
+            "won_opportunities_count": f"{won_opportunities[0]['count_lost']:.0f}" or 0,
+            "won_opportunities_amount": f"{won_opportunities[0]['amount']:.0f}" or 0,
+            "won_quotes_count": f"{won_quotes[0]['count_lost']:.0f}" or 0,
+            "won_quotes_amount": f"{won_quotes[0]['amount']:.0f}" or 0,
+            "total_hours": f"{time_arr[0]['total_hours']:.0f}" or 0,
+            "total_costing": f"{time_arr[0]['total_costing']:.0f}" or 0,
         })
 
     # Transform chart_data for stacked chart
