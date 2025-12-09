@@ -2493,12 +2493,23 @@ def get_tender_summary(start_date, end_date):
             WHERE status IN ('Ordered', 'Partially Ordered')
             AND transaction_date BETWEEN '{start}' AND '{end}' 
         """
+
+        time_sql = f"""
+        SELECT 
+            SUM(ttd.billing_hours) as `total_hours`,
+            SUM(ttd.costing_amount) as `total_costing`
+            FROM `tabTask` tt 
+            LEFT JOIN `tabTimesheet Detail` ttd ON ttd.task = tt.name
+            WHERE LOWER(subject) LIKE '%tender%'
+            AND ttd.from_time BETWEEN '{start}' AND '{end}';
+        """
         
 
         lost_quotes = frappe.db.sql(lost_quotes_sql, as_dict=True)
         lost_opportunities = frappe.db.sql(lost_opportunities_sql, as_dict=True)
         won_opportunities = frappe.db.sql(won_opportunities_sql, as_dict=True)
         won_quotes = frappe.db.sql(won_quotes_sql, as_dict=True)
+        time_arr = frappe.db.sql(time_sql, as_dict=True)
 
         month_label = get_month_label(start)
 
@@ -2511,7 +2522,9 @@ def get_tender_summary(start_date, end_date):
             "won_opportunities_count": won_opportunities[0]['count_lost'] or 0,
             "won_opportunities_amount": won_opportunities[0]['amount'] or 0,
             "won_quotes_count": won_quotes[0]['count_lost'] or 0,
-            "won_quotes_amount": won_quotes[0]['amount'] or 0
+            "won_quotes_amount": won_quotes[0]['amount'] or 0,
+            "total_hours": time_arr[0]['total_hours'] or 0,
+            "total_costing": time_arr[0]['total_costing'] or 0,
         })
 
     # Transform chart_data for stacked chart
@@ -2525,6 +2538,8 @@ def get_tender_summary(start_date, end_date):
     won_opportunities_amounts = [row["won_opportunities_amount"] for row in chart_data]
     won_quotes_values = [row["won_quotes_count"] for row in chart_data]
     won_quotes_amounts = [row["won_quotes_amount"] for row in chart_data]
+    total_hours_values = [row["total_hours"] for row in chart_data]
+    total_costing_values = [row["total_costing"] for row in chart_data]
 
     data = {
         "element_id": "tender_summary",
@@ -2590,6 +2605,16 @@ def get_tender_summary(start_date, end_date):
                 "type": "bar",
                 "name": "Won Quotes Amount",
                 "values": won_quotes_amounts
+            },
+            {
+                "type": "bar",
+                "name": "Total Tender Hours",
+                "values": total_hours_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Tender Costing",
+                "values": total_costing_values
             }
         ]
     }
