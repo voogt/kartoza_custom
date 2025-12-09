@@ -13,12 +13,7 @@ import requests
 from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
     get_data,
-    get_period_list,
-    get_net_profit_loss,
-    get_chart_data,
-    compute_growth_view_data,
-    compute_margin_view_data,
-    get_filtered_list_for_consolidated_report,
+    get_period_list
 )
 
 @frappe.whitelist(allow_guest=True)
@@ -2279,6 +2274,11 @@ def get_overhead_cost_lda(start_date, end_date):
         overhead_cost_salaries = 260000
         overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
         overhead_cost = overhead_cost_salaries + overhead_cost_supplier
+
+        if total_revenue is None:
+            total_revenue = 0.0
+        total_revenue = total_revenue * zar_eur_rate
+
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
         month_label = get_month_label(start)
@@ -2413,6 +2413,186 @@ def get_project_closed_summary(start_date, end_date):
             "name": name,
             "values": values
         })
+
+    return data
+
+@frappe.whitelist(allow_guest=True)
+def get_tender_summary(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    for start, end in ranges:
+        lost_opportunities_sql = f"""
+        SELECT
+            COUNT(name) as `count_lost`,
+            SUM(
+                CASE
+                    WHEN currency = 'EUR' THEN
+                        opportunity_amount * {get_rates(end, 'EUR')}
+                    WHEN currency = 'USD' THEN
+                        opportunity_amount * {get_rates(end, 'USD')}
+                    WHEN currency = 'GBP' THEN
+                        opportunity_amount * {get_rates(end, 'GBP')}
+                    ELSE
+                        opportunity_amount
+                END
+            ) as `amount`
+            FROM `tabOpportunity` 
+            WHERE status IN ('Lost')
+            AND creation BETWEEN '{start}' AND '{end}'
+        """
+        
+        lost_quotes_sql = f"""
+        SELECT
+            COUNT(name) as `count_lost`,
+            SUM(
+                CASE
+                    WHEN company = 'Kartoza Lda' THEN
+                        base_total * {get_rates(end, 'EUR')}
+                    ELSE
+                        base_total
+                END
+            ) as `amount`
+            FROM `tabQuotation` 
+            WHERE status IN ('Lost')
+            AND transaction_date BETWEEN '{start}' AND '{end}' 
+        """
+
+        won_opportunities_sql = f"""
+        SELECT
+            COUNT(name) as `count_lost`,
+            SUM(
+                CASE
+                    WHEN currency = 'EUR' THEN
+                        opportunity_amount * {get_rates(end, 'EUR')}
+                    WHEN currency = 'USD' THEN
+                        opportunity_amount * {get_rates(end, 'USD')}
+                    WHEN currency = 'GBP' THEN
+                        opportunity_amount * {get_rates(end, 'GBP')}
+                    ELSE
+                        opportunity_amount
+                END
+            ) as `amount`
+            FROM `tabOpportunity`
+            WHERE status IN ('Quotation', 'Converted')
+            AND creation BETWEEN '{start}' AND '{end}'
+        """
+        
+        won_quotes_sql = f"""
+        SELECT
+            COUNT(name) as `count_lost`,
+            SUM(
+                CASE
+                    WHEN company = 'Kartoza Lda' THEN
+                        base_total * {get_rates(end, 'EUR')}
+                    ELSE
+                        base_total
+                END
+            ) as `amount`
+            FROM `tabQuotation` 
+            WHERE status IN ('Ordered', 'Partially Ordered')
+            AND transaction_date BETWEEN '{start}' AND '{end}' 
+        """
+        
+
+        lost_quotes = frappe.db.sql(lost_quotes_sql, as_dict=True)
+        lost_opportunities = frappe.db.sql(lost_opportunities_sql, as_dict=True)
+        won_opportunities = frappe.db.sql(won_opportunities_sql, as_dict=True)
+        won_quotes = frappe.db.sql(won_quotes_sql, as_dict=True)
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "lost_opportunities_count": lost_opportunities[0]['count_lost'] or 0,
+            "lost_opportunities_amount": lost_opportunities[0]['amount'] or 0,
+            "lost_quotes_count": lost_quotes[0]['count_lost'] or 0,
+            "lost_quotes_amount": lost_quotes[0]['amount'] or 0,
+            "won_opportunities_count": won_opportunities[0]['count_lost'] or 0,
+            "won_opportunities_amount": won_opportunities[0]['amount'] or 0,
+            "won_quotes_count": won_quotes[0]['count_lost'] or 0,
+            "won_quotes_amount": won_quotes[0]['amount'] or 0
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    lost_opportunities_values = [row["lost_opportunities_count"] for row in chart_data]
+    lost_opportunities_amounts = [row["lost_opportunities_amount"] for row in chart_data]
+    lost_quotes_values = [row["lost_quotes_count"] for row in chart_data]
+    lost_quotes_amounts = [row["lost_quotes_amount"] for row in chart_data]
+    won_opportunities_values = [row["won_opportunities_count"] for row in chart_data]
+    won_opportunities_amounts = [row["won_opportunities_amount"] for row in chart_data]
+    won_quotes_values = [row["won_quotes_count"] for row in chart_data]
+    won_quotes_amounts = [row["won_quotes_amount"] for row in chart_data]
+
+    data = {
+        "element_id": "tender_summary",
+        "type": "single",
+        "title": "Tender Summary",
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": False,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Displays summary of tenders (opportunities and quotations) for the selected period:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Lost Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Lost' (converted to ZAR if needed).</li>
+                <li><b>Lost Quotes Count/Amount:</b> Number and total value of quotations marked as 'Lost' (converted to ZAR if needed).</li>
+                <li><b>Won Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Quotation' or 'Converted' (converted to ZAR if needed).</li>
+                <li><b>Won Quotes Count/Amount:</b> Number and total value of quotations marked as 'Ordered' or 'Partially Ordered' (converted to ZAR if needed).</li>
+                <li>All amounts are summed for the period and currency conversions are applied where necessary.</li>
+                <li>Each bar represents the count or amount for the corresponding category per month.</li>
+            </ul>
+            <span style='color: #888;'>Helps track tender performance and conversion rates over time.</span>
+        </div>
+        """,
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Lost Opportunities Count",
+                "values": lost_opportunities_values
+            },
+            {
+                "type": "bar",
+                "name": "Lost Opportunities Amount",
+                "values": lost_opportunities_amounts
+            },
+            {
+                "type": "bar",
+                "name": "Lost Quotes Count",
+                "values": lost_quotes_values
+            },
+            {
+                "type": "bar",
+                "name": "Lost Quotes Amount",
+                "values": lost_quotes_amounts
+            },
+            {
+                "type": "bar",
+                "name": "Won Opportunities Count",
+                "values": won_opportunities_values
+            },
+            {
+                "type": "bar",
+                "name": "Won Opportunities Amount",
+                "values": won_opportunities_amounts
+            },
+            {
+                "type": "bar",
+                "name": "Won Quotes Count",
+                "values": won_quotes_values
+            },
+            {
+                "type": "bar",
+                "name": "Won Quotes Amount",
+                "values": won_quotes_amounts
+            }
+        ]
+    }
 
     return data
 
