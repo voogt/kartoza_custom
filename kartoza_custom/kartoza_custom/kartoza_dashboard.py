@@ -725,7 +725,6 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
-        print("ZAR RATE:", zar_rate)
 
         sales_invoice_sql = f"""
         SELECT 
@@ -2544,7 +2543,7 @@ def get_tender_summary(start_date, end_date):
                 END
             ) as `amount`
             FROM `tabOpportunity`
-            WHERE status IN ('Quotation', 'Converted')
+            WHERE status IN ('Converted')
             AND creation BETWEEN '{start}' AND '{end}'
         """
         
@@ -2585,16 +2584,16 @@ def get_tender_summary(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "lost_opportunities_count": f"{lost_opportunities[0]['count_lost']:.0f}" or 0,
-            "lost_opportunities_amount": f"{lost_opportunities[0]['amount']:.0f}" or 0,
-            "lost_quotes_count": f"{lost_quotes[0]['count_lost']:.0f}" or 0,
-            "lost_quotes_amount": f"{lost_quotes[0]['amount']:.0f}" or 0,
-            "won_opportunities_count": f"{won_opportunities[0]['count_lost']:.0f}" or 0,
-            "won_opportunities_amount": f"{won_opportunities[0]['amount']:.0f}" or 0,
-            "won_quotes_count": f"{won_quotes[0]['count_lost']:.0f}" or 0,
-            "won_quotes_amount": f"{won_quotes[0]['amount']:.0f}" or 0,
-            "total_hours": f"{time_arr[0]['total_hours']:.0f}" or 0,
-            "total_costing": f"{time_arr[0]['total_costing']:.0f}" or 0,
+            "lost_opportunities_count": f"{(lost_opportunities[0]['count_lost'] or 0):.0f}",
+            "lost_opportunities_amount": f"{(lost_opportunities[0]['amount'] or 0):.0f}",
+            "lost_quotes_count": f"{(lost_quotes[0]['count_lost'] or 0):.0f}",
+            "lost_quotes_amount": f"{(lost_quotes[0]['amount'] or 0):.0f}",
+            "won_opportunities_count": f"{(won_opportunities[0]['count_lost'] or 0):.0f}",
+            "won_opportunities_amount": f"{(won_opportunities[0]['amount'] or 0):.0f}",
+            "won_quotes_count": f"{(won_quotes[0]['count_lost'] or 0):.0f}",
+            "won_quotes_amount": f"{(won_quotes[0]['amount'] or 0):.0f}",
+            "total_hours": f"{(time_arr[0]['total_hours'] or 0):.0f}",
+            "total_costing": f"{(time_arr[0]['total_costing'] or 0):.0f}",
         })
 
     # Transform chart_data for stacked chart
@@ -2627,7 +2626,7 @@ def get_tender_summary(start_date, end_date):
             <ul style='margin-left: 1em;'>
                 <li><b>Lost Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Lost' (converted to ZAR if needed).</li>
                 <li><b>Lost Quotes Count/Amount:</b> Number and total value of quotations marked as 'Lost' (converted to ZAR if needed).</li>
-                <li><b>Won Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Quotation' or 'Converted' (converted to ZAR if needed).</li>
+                <li><b>Won Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Converted' (converted to ZAR if needed).</li>
                 <li><b>Won Quotes Count/Amount:</b> Number and total value of quotations marked as 'Ordered' or 'Partially Ordered' (converted to ZAR if needed).</li>
                 <li>All amounts are summed for the period and currency conversions are applied where necessary.</li>
                 <li>Each bar represents the count or amount for the corresponding category per month.</li>
