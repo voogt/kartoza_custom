@@ -2275,7 +2275,7 @@ def get_overhead_cost_lda(start_date, end_date):
         overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
         overhead_cost = overhead_cost_salaries + overhead_cost_supplier
 
-        if total_revenue is None:
+        if total_revenue is None or total_revenue == "":
             total_revenue = 0.0
         total_revenue = total_revenue * zar_eur_rate
 
