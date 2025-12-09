@@ -1822,7 +1822,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
         FROM `tabSales Invoice Item` tsoi
         LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
         WHERE tso.company = 'Kartoza (Pty) Ltd'
-        AND tso.po_date BETWEEN '{start}' AND '{end}'
+        AND tso.posting_date BETWEEN '{start}' AND '{end}'
         AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
         GROUP BY tsoi.item_code
         """, as_dict=1, debug=0)
@@ -1891,7 +1891,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
         FROM `tabSales Invoice Item` tsoi
         LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
         WHERE tso.company = 'Kartoza Lda'
-        AND tso.po_date BETWEEN '{start}' AND '{end}'
+        AND tso.posting_date BETWEEN '{start}' AND '{end}'
         AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
         GROUP BY tsoi.item_code
         """, as_dict=1, debug=0)
