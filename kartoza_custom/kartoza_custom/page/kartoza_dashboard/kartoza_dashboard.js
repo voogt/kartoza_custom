@@ -69,6 +69,7 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
@@ -84,7 +85,6 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_pty',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_opportunity_trend',
     ]

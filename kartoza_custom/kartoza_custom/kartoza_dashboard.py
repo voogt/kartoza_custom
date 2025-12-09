@@ -1189,7 +1189,7 @@ def get_company_salary_pty(start_date, end_date):
             salary_map[name].append(f"{cost:.0f}")
 
     data = {
-        "title": f"Total Department Cost PTY",
+        "title": f"Total Department Cost Pty",
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
@@ -1325,7 +1325,7 @@ def get_company_pipeline_pty():
         })
 
     data = {
-        "title": "Pipeline Quotation Kartoza PTY (Draft/Open)",
+        "title": "Pipeline Quotation Kartoza Pty (Draft/Open)",
         "labels": label,
         "element_id": "quote_pty",
         "showTotal": True,
@@ -1343,7 +1343,7 @@ def get_company_pipeline_pty():
         """,
         "total_cards": [
             {
-                "title": f"Total Quotes PTY",
+                "title": f"Total Quotes Pty",
                 "value": f"{total_quotes:.0f}"
             }
         ],
@@ -1395,7 +1395,7 @@ def get_company_pipeline_opportunities_pty():
     total_probability_values = [row["probability"] for row in chart_data]
 
     data = {
-        "title": "Pipeline Opportunity Kartoza PTY (Draft/Open)",
+        "title": "Pipeline Opportunity Kartoza Pty (Draft/Open)",
         "labels": labels,
         "isReverse": True,
         "showTotal": True,
@@ -1426,7 +1426,7 @@ def get_company_pipeline_opportunities_pty():
         """,
         "total_cards": [
             {
-                "title": f"Total Opportunities PTY",
+                "title": f"Total Opportunities Pty",
                 "value": f"{total_opps:.0f}"
             }
         ],
@@ -1811,6 +1811,20 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
     all_item_codes = set()
+    all_item_codes_sql = f"""
+        SELECT 
+            item_code as `item_code`
+        FROM `tabSales Invoice Item` tsoi
+        LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
+        WHERE tso.company = 'Kartoza (Pty) Ltd'
+        AND tso.posting_date BETWEEN '{start_date}' AND '{end_date}'
+        AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
+        GROUP BY tsoi.item_code
+    """
+
+    all_item_codes_result = frappe.db.sql(all_item_codes_sql, as_dict=1, debug=0)
+    for item in all_item_codes_result:
+        all_item_codes.add(item["item_code"])
     month_item_data = []
 
     # First pass: collect all item_codes across all periods
@@ -1840,7 +1854,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
             item_map[item_code].append(f"{value:.0f}")
 
     data = {
-        "title": f"Per Item Annual Sales PTY",
+        "title": f"Per Item Annual Sales Pty",
         "labels": labels,
         "element_id": "item_wise_annual_sales_pty",
         "isReverse": False,
@@ -1877,8 +1891,21 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
     all_item_codes = set()
-    month_item_data = []
+    all_item_codes_sql = f"""
+        SELECT 
+            item_code as `item_code`
+        FROM `tabSales Invoice Item` tsoi
+        LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
+        WHERE tso.company = 'Kartoza Lda'
+        AND tso.posting_date BETWEEN '{start_date}' AND '{end_date}'
+        AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
+        GROUP BY tsoi.item_code
+    """
 
+    all_item_codes_result = frappe.db.sql(all_item_codes_sql, as_dict=1, debug=0)
+    for item in all_item_codes_result:
+        all_item_codes.add(item["item_code"])
+    month_item_data = []
 
     zar_eur_rate = get_rates(None, "EUR")
 
@@ -1978,7 +2005,7 @@ def get_sales_analytics_customers_pty(start_date, end_date):
             customer_map[customer].append(f"{value:.0f}")
 
     data = {
-        "title": f"Sales Analytics Customers PTY",
+        "title": f"Sales Analytics Customers Pty",
         "labels": labels,
         "element_id": "sales_analytics_customers_pty",
         "isReverse": False,
@@ -2169,7 +2196,7 @@ def get_overhead_cost_pty(start_date, end_date):
     data = {
         "element_id": "overhead_cost_pty",
         "type": "single",
-        "title": "Overhead Cost PTY",
+        "title": "Overhead Cost Pty",
         "labels": labels,
         "isReverse": False,
         "showTotal": False,
