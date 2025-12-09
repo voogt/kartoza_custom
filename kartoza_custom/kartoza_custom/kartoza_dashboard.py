@@ -766,25 +766,12 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
 
         cost_center_data = frappe.db.sql(f"""
             SELECT
-                p.cost_center as `cost_center`,
-                p.total_purchase_cost,
-                COALESCE(SUM(tpi.base_grand_total), 0) AS total_purchase_invoice,
-                COALESCE(SUM(teecd.amount), 0) AS total_expense_claim
-            FROM `tabProject` p
-            LEFT JOIN `tabEmployee Expense Claim` teec ON 
-                p.name = teec.project AND teec.approval_status = 'Approved' AND teec.expense_type_parent = 'Purchase'
-            LEFT JOIN `tabEmployee Expense Claim Detail` teecd ON 
-                teecd.parent = teec.name AND teecd.expense_date BETWEEN '{start}' AND '{end}'
-            LEFT JOIN `tabPurchase Invoice` tpi ON 
-                p.name = tpi.project AND tpi.posting_date BETWEEN '{start}' AND '{end}'
-            LEFT JOIN `tabCost Center` tcc ON p.cost_center = tcc.name
+               tcc.name as `cost_center`
+            FROM  `tabCost Center` tcc
             WHERE
-                p.cost_center != ""
-                AND tcc.custom_cost_center_type = '{type_center}'
-            GROUP BY
-                p.cost_center
+              tcc.custom_cost_center_type = '{type_center}'
             ORDER BY
-                p.cost_center
+                tcc.name
         """, as_dict=1, debug=0)
 
         cost_center_array = []
@@ -914,26 +901,12 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
 
         cost_center_data = frappe.db.sql(f"""
             SELECT
-                p.cost_center as `cost_center`,
-                p.total_purchase_cost,
-                COALESCE(SUM(tpi.base_grand_total), 0) AS total_purchase_invoice,
-                COALESCE(SUM(teecd.amount), 0) AS total_expense_claim
-                
-            FROM `tabProject` p
-            LEFT JOIN `tabEmployee Expense Claim` teec ON 
-                p.name = teec.project AND teec.approval_status = 'Approved' AND teec.expense_type_parent = 'Purchase'
-            LEFT JOIN `tabEmployee Expense Claim Detail` teecd ON 
-                teecd.parent = teec.name AND teecd.expense_date BETWEEN '{start}' AND '{end}'
-            LEFT JOIN `tabPurchase Invoice` tpi ON 
-                p.name = tpi.project AND tpi.posting_date BETWEEN '{start}' AND '{end}'
-            LEFT JOIN `tabCost Center` tcc ON p.cost_center = tcc.name
+               tcc.name as `cost_center`
+            FROM  `tabCost Center` tcc
             WHERE
-                p.cost_center != ""
-                AND tcc.custom_cost_center_type = '{type_center}'
-            GROUP BY
-                p.cost_center
+              tcc.custom_cost_center_type = '{type_center}'
             ORDER BY
-                p.cost_center
+                tcc.name
         """, as_dict=1, debug=0)
 
         cost_center_array = []
