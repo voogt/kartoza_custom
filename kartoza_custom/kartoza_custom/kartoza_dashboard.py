@@ -2150,14 +2150,14 @@ def get_overhead_cost_pty(start_date, end_date):
         overhead_cost = overhead_cost_salaries + overhead_cost_supplier
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
-    month_label = get_month_label(start)
+        month_label = get_month_label(start)
 
-    chart_data.append({
-        "month": month_label,
-        "overhead_cost": overhead_cost,
-        "total_revenue": total_revenue,
-        "overhead_percantage": overhead_percantage
-    })
+        chart_data.append({
+            "month": month_label,
+            "overhead_cost": overhead_cost,
+            "total_revenue": total_revenue,
+            "overhead_percantage": overhead_percantage
+        })
 
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
