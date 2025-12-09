@@ -962,7 +962,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
-        "element_id": f"{type_center}_centers",
+        "element_id": f"{type_center}_lost_centers",
         "help": f"""
         <div style='font-size: 14px;text-align: left'>
             <b>Shows lost revenue (potential profit not realized) for centers with negative profit/loss:</b><br><br>
