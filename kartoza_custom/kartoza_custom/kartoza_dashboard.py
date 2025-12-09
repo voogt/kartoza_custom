@@ -726,6 +726,44 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
 
+        sales_invoice_sql = f"""
+        SELECT 
+            tsi.cost_center, 
+            SUM(
+                CASE
+                    WHEN ts.company = 'Kartoza (Pty) Ltd' THEN
+                        tsi.base_amount
+                    ELSE
+                        tsi.base_amount * {zar_rate}
+                END
+            ) as `total_billed_amount`
+            FROM `tabSales Invoice` ts
+            LEFT JOIN `tabSales Invoice Item` tsi ON tsi.parent = ts.name
+            WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+            AND ts.posting_date BETWEEN '{start}' AND '{end}'
+            GROUP BY tsi.cost_center
+        """
+
+        timesheet_costing_sql = f"""
+            SELECT 
+                p.cost_center, 
+                SUM(tsd.costing_amount) as `total_costing`
+            FROM `tabTimesheet Detail` tsd
+            JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+            LEFT JOIN `tabProject` p ON tsd.project = p.name
+                WHERE ts.docstatus = 1
+                AND tsd.from_time BETWEEN '{start}' AND '{end}'
+            GROUP BY p.cost_center
+        """
+
+        timesheet_costing_data = frappe.db.sql(timesheet_costing_sql, as_dict=1, debug=0)
+        sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
+
+        data_map = {
+            'timesheet_costing': {item['cost_center']: item['total_costing'] for item in timesheet_costing_data},
+            'sales_invoices': {item['cost_center']: item['total_billed_amount'] for item in sales_invoice_data},
+        }
+
         cost_center_data = frappe.db.sql(f"""
             SELECT
                tcc.name as `cost_center`
@@ -739,41 +777,10 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         cost_center_array = []
 
         for dict in cost_center_data:
-
-            sales_invoice_sql = f"""
-            SELECT 
-                SUM(
-                    CASE
-                        WHEN ts.company = 'Kartoza (Pty) Ltd' THEN
-                            tsi.base_amount
-                        ELSE
-                            tsi.base_amount * {zar_rate}
-                    END
-                ) as `total_billed_amount`
-                FROM `tabSales Invoice` ts
-                LEFT JOIN `tabSales Invoice Item` tsi ON tsi.parent = ts.name
-                WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
-                AND ts.posting_date BETWEEN '{start}' AND '{end}'
-                AND tsi.cost_center = '{dict['cost_center']}'
-            """
-
-            timesheet_costing_sql = f"""
-            SELECT 
-                SUM(tsd.costing_amount) as `total_costing`
-            FROM `tabTimesheet Detail` tsd
-            JOIN `tabTimesheet` ts ON tsd.parent = ts.name
-            LEFT JOIN `tabProject` p ON tsd.project = p.name
-                WHERE ts.docstatus = 1
-                AND tsd.from_time BETWEEN '{start}' AND '{end}'
-                AND p.cost_center = '{dict['cost_center']}'
-            """
-
-            timesheet_costing_data = frappe.db.sql(timesheet_costing_sql, as_dict=1, debug=0)
-            sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
-
-            total_costing_amount = timesheet_costing_data[0]['total_costing'] if timesheet_costing_data else 0
-            total_billed_amount = sales_invoice_data[0]['total_billed_amount'] if sales_invoice_data else 0
-            profit_loss = (total_billed_amount or 0.0) - (total_costing_amount or 0.0)
+            
+            total_costing_amount = data_map['timesheet_costing'].get(dict['cost_center'], 0)
+            total_billed_amount = data_map['sales_invoices'].get(dict['cost_center'], 0)
+            profit_loss = total_billed_amount - total_costing_amount
 
             total_cost_center += profit_loss
             cost_center_array.append({
@@ -962,7 +969,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         "showTotal": True,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
-        "element_id": f"{type_center}_lost_centers",
+        "element_id": f"{type_center}_centers",
         "help": f"""
         <div style='font-size: 14px;text-align: left'>
             <b>Shows lost revenue (potential profit not realized) for centers with negative profit/loss:</b><br><br>
