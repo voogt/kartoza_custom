@@ -86,6 +86,7 @@ function fetchDataAndPlot() {
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
         'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
+        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_opportunity_trend',
     ]
 
     // Helper to chain frappe.call requests sequentially

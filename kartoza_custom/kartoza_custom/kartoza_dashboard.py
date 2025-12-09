@@ -1840,7 +1840,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
             item_map[item_code].append(f"{value:.0f}")
 
     data = {
-        "title": f"Item Wise Annual Sales PTY",
+        "title": f"Per Item Annual Sales PTY",
         "labels": labels,
         "element_id": "item_wise_annual_sales_pty",
         "isReverse": False,
@@ -1850,7 +1850,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays item-wise annual sales for Kartoza (Pty) Ltd:</b><br><br>
+            <b>Displays per item annual sales for Kartoza (Pty) Ltd:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
                 <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
@@ -1910,7 +1910,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
             item_map[item_code].append(f"{value:.0f}")
 
     data = {
-        "title": f"Item Wise Annual Sales LDA",
+        "title": f"Per Item Annual Sales LDA",
         "labels": labels,
         "element_id": "item_wise_annual_sales_lda",
         "isReverse": False,
@@ -1920,7 +1920,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays item-wise annual sales for Kartoza LDA:</b><br><br>
+            <b>Displays per item annual sales for Kartoza LDA:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
                 <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
@@ -2150,14 +2150,14 @@ def get_overhead_cost_pty(start_date, end_date):
         overhead_cost = overhead_cost_salaries + overhead_cost_supplier
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
-        month_label = get_month_label(start)
+    month_label = get_month_label(start)
 
-        chart_data.append({
-            "month": month_label,
-            "overhead_cost": overhead_cost,
-            "total_revenue": total_revenue,
-            "overhead_percantage": overhead_percantage
-        })
+    chart_data.append({
+        "month": month_label,
+        "overhead_cost": overhead_cost,
+        "total_revenue": total_revenue,
+        "overhead_percantage": overhead_percantage
+    })
 
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
@@ -2269,17 +2269,15 @@ def get_overhead_cost_lda(start_date, end_date):
 		income, period_list, filters.company, filters.presentation_currency
 	    )
 
+        if total_revenue is None or total_revenue == "":
+            total_revenue = 0.0
         total_revenue = total_revenue * zar_eur_rate
 
         overhead_cost_salaries = 260000
         overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
         overhead_cost = overhead_cost_salaries + overhead_cost_supplier
 
-        if total_revenue is None or total_revenue == "":
-            total_revenue = 0.0
-        total_revenue = total_revenue * zar_eur_rate
-
-        overhead_percantage = (overhead_cost / total_revenue) * 100
+        overhead_percantage = (overhead_cost / total_revenue) * 100 if total_revenue else 0.0
 
         month_label = get_month_label(start)
 
@@ -2620,6 +2618,60 @@ def get_tender_summary(start_date, end_date):
     }
 
     return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_opportunity_trend(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    for start, end in ranges:
+        opp_count_sql = f"""
+            SELECT COUNT(name) as `opp_count` 
+            FROM `tabOpportunity`
+            WHERE creation BETWEEN '{start}' AND '{end}'
+        """
+
+        opp_count = frappe.db.sql(opp_count_sql, as_dict=True)[0].opp_count or 0
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "opp_count": opp_count
+        })
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    opp_count_values = [row["opp_count"] for row in chart_data]
+
+    data = {
+        "element_id": "opportunity_trend",
+        "type": "single",
+        "title": "Opportunity Trend",
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": False,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "total_cards": [],
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Calculates the number of opportunities created in the selected range</b><br><br>
+        </div>
+        """,
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Opportunity Count",
+                "values": opp_count_values
+            },
+        ]
+    }
+
+    return data
+
 
 
 @frappe.whitelist(allow_guest=True)
