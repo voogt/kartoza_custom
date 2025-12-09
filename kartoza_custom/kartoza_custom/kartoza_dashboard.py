@@ -1265,7 +1265,7 @@ def get_company_salary_lda(start_date, end_date):
             salary_map[name].append(f"{cost:.0f}")
 
     data = {
-        "title": f"Total Department Cost LDA",
+        "title": f"Total Department Cost Lda",
         "labels": labels,
         "element_id": "salary_cost",
         "isReverse": False,
@@ -1478,7 +1478,7 @@ def get_company_pipeline_opportunities_lda():
     total_probability_values = [row["probability"] for row in chart_data]
 
     data = {
-        "title": "Pipeline Opportunity Kartoza LDA (Draft/Open)",
+        "title": "Pipeline Opportunity Kartoza Lda (Draft/Open)",
         "labels": labels,
         "isReverse": True,
         "showTotal": True,
@@ -1509,7 +1509,7 @@ def get_company_pipeline_opportunities_lda():
         """,
         "total_cards": [
             {
-                "title": f"Total Opportunities LDA",
+                "title": f"Total Opportunities Lda",
                 "value": f"{total_opps:.0f}"
             }
         ],
@@ -1550,7 +1550,7 @@ def get_company_pipeline_lda():
         })
 
     data = {
-        "title": "Pipeline Quotation Kartoza LDA (Draft/Open)",
+        "title": "Pipeline Quotation Kartoza Lda (Draft/Open)",
         "labels": label,
         "isReverse": False,
         "showTotal": True,
@@ -1570,7 +1570,7 @@ def get_company_pipeline_lda():
         """,
         "total_cards": [
             {
-                "title": f"Total Quotes LDA",
+                "title": f"Total Quotes Lda",
                 "value": f"{total_quotes:.0f}"
             }
         ],
@@ -1910,7 +1910,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
             item_map[item_code].append(f"{value:.0f}")
 
     data = {
-        "title": f"Per Item Annual Sales LDA",
+        "title": f"Per Item Annual Sales Lda",
         "labels": labels,
         "element_id": "item_wise_annual_sales_lda",
         "isReverse": False,
@@ -1920,12 +1920,12 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays per item annual sales for Kartoza LDA:</b><br><br>
+            <b>Displays per item annual sales for Kartoza Lda:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
                 <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
                 <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
-                <li><b>Source:</b> Sales Invoice Items for Kartoza LDA, filtered by posting date and document status.</li>
+                <li><b>Source:</b> Sales Invoice Items for Kartoza Lda, filtered by posting date and document status.</li>
             </ul>
         </div>
         """,
@@ -2046,7 +2046,7 @@ def get_sales_analytics_customers_lda(start_date, end_date):
             customer_map[customer].append(f"{value:.0f}")
 
     data = {
-        "title": f"Sales Analytics Customers LDA",
+        "title": f"Sales Analytics Customers Lda",
         "labels": labels,
         "element_id": "sales_analytics_customers_lda",
         "isReverse": False,
@@ -2056,7 +2056,7 @@ def get_sales_analytics_customers_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays customer payment analytics for Kartoza LDA:</b><br><br>
+            <b>Displays customer payment analytics for Kartoza Lda:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Customer Payments:</b> Shows the total amount paid by each customer during each month in the selected period.</li>
                 <li><b>Source:</b> Data is based on Payment Entry records for customers, filtered by company and posting date.</li>
