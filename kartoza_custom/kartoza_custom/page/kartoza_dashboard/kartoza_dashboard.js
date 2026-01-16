@@ -65,114 +65,157 @@ function fetchDataAndPlot() {
     }
 
     var methods = [
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_staff_count',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_pty',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
-        'kartoza_custom.kartoza_custom.kartoza_dashboard.get_opportunity_trend',
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_staff_count',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_timesheet_data',
+            "args": { start_date, end_date, 'type_returned': "hours" },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_timesheet_data',
+            "args": { start_date, end_date, 'type_returned': "cost_vs_lost" },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_lda',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
+            "args": { start_date, end_date },
+        },
+        
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_lda',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_lda',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_pty',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_opportunity_trend',
+            "args": { start_date, end_date },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+            "args": { start_date, end_date, "type_center":'Cost' },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+            "args": { start_date, end_date, "type_center":'Cost' },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+            "args": { start_date, end_date, "type_center":'Profit' },
+        },
+        {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+            "args": { start_date, end_date, "type_center":'Profit' },
+        }
     ]
 
-    // Helper to chain frappe.call requests sequentially
-    function callMethodsSequentially(index) {
-        if (index >= methods.length) {
-            // After all methods, call cost center
+    // Helper to wrap frappe.call in a Promise for sequential execution
+    function callMethodAsync(index) {
+        return new Promise((resolve, reject) => {
             frappe.call({
-                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
-                args: { start_date, end_date, type_center:'Cost' },
+                method: methods[index]["method"],
+                args: methods[index]["args"],
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
                         drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                        addCards(r.message.total_cards);
+                        if(r.message.total_cards){
+                            addCards(r.message.total_cards);
+                        }
+                        resolve();
                     } else {
                         frappe.msgprint("No data returned.");
+                        resolve();
                     }
-                    // After cost center, call profit center
-                    frappe.call({
-                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
-                        args: { start_date, end_date, type_center:'Cost' },
-                        type: 'GET',
-                        callback: function(r) {
-                            if (r.message) {
-                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                                addCards(r.message.total_cards);
-                            } else {
-                                frappe.msgprint("No data returned.");
-                            }
-                            // Hide loader after last chart/table
-                            frappe.call({
-                                method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
-                                args: { start_date, end_date, type_center:'Profit' },
-                                type: 'GET',
-                                callback: function(r) {
-                                    if (r.message) {
-                                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                                        addCards(r.message.total_cards);
-                                    } else {
-                                        frappe.msgprint("No data returned.");
-                                    }
-                                    // Hide loader after last chart/table
-                                    frappe.call({
-                                        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
-                                        args: { start_date, end_date, type_center:'Profit' },
-                                        type: 'GET',
-                                        callback: function(r) {
-                                            if (r.message) {
-                                                drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                                                addCards(r.message.total_cards);
-                                            } else {
-                                                frappe.msgprint("No data returned.");
-                                            }
-                                            // Hide loader after last chart/table
-                                            document.getElementById('loader').style.display = 'none';
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
+                },
+                error: function(err) {
+                    frappe.msgprint("Error occurred while fetching data.");
+                    resolve(); // Continue to next even on error
                 }
             });
-            return;
-        }
-        frappe.call({
-            method: methods[index],
-            args: { start_date, end_date },
-            type: 'GET',
-            callback: function(r) {
-                if (r.message) {
-                    drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                    if(r.message.total_cards){
-                        addCards(r.message.total_cards);
-                    }
-                } else {
-                    frappe.msgprint("No data returned.");
-                }
-                // Call next method in sequence
-                callMethodsSequentially(index + 1);
-            }
         });
     }
 
-    // Start the chain
-    callMethodsSequentially(0);
+    // Sequentially call all methods using async/await
+    (async function runSequentially() {
+        for (let i = 0; i < methods.length; i++) {
+            await callMethodAsync(i);
+        }
+        // Hide loader after all calls
+        document.getElementById('loader').style.display = 'none';
+    })();
+    
 }
 
 const addCards = (data) => {

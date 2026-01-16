@@ -1112,17 +1112,28 @@ def get_company_salary_pty(start_date, end_date):
         timesheets = get_timesheet_data(start, end)
         salary_data = get_salary_slips(start, end)
 
-        # collect departments from both sources
-        all_departments.update(ts.department for ts in timesheets if ts.department)
-        all_departments.update(s.department for s in salary_data if s.department)
+        # collect departments from both sources, with type check
+        all_departments.update(
+            ts.department for ts in timesheets
+            if hasattr(ts, 'department') and ts.department
+        )
+        all_departments.update(
+            s.department for s in salary_data
+            if hasattr(s, 'department') and s.department
+        )
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
         timesheets = get_timesheet_data(start, end)
-        billing_data = get_billing_data([ts.name for ts in timesheets])
+        billing_data = get_billing_data([
+            ts.name for ts in timesheets
+            if hasattr(ts, 'name')
+        ])
         salary_data = get_salary_slips(start, end)
 
-        final_dict = compute_department_summary(timesheets, billing_data, salary_data, all_departments)
+        # Filter timesheets to only include objects with a 'department' attribute
+        filtered_timesheets = [ts for ts in timesheets if hasattr(ts, 'department')]
+        final_dict = compute_department_summary(filtered_timesheets, billing_data, salary_data, all_departments)
 
         sql_check_management = f"""
             SELECT * 
@@ -2717,6 +2728,117 @@ def get_opportunity_trend(start_date, end_date):
 
     return data
 
+
+@frappe.whitelist(allow_guest=True)
+def get_timesheet_data(start_date, end_date, type_returned="hours"):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    if type_returned == "hours":
+        title = "Timesheet Data for Project 'Kartoza Sales' (Hours)"
+    else:
+        title = "Timesheet Data for Project 'Kartoza Sales' (Cost vs Lost)"
+
+    for start, end in ranges:
+        timesheet_data = frappe.db.sql(f"""
+            SELECT 
+                ttd.task as `task`,
+                ttd.activity_type as `activity`,
+                SUM(ttd.hours) as `hours`,
+                SUM(ttd.costing_amount) as `costing_amount`,
+                SUM(ttd.billing_amount) as `billing_amount`
+            FROM `tabTimesheet Detail` ttd
+            WHERE project = 'Kartoza Sales'
+            AND ttd.creation BETWEEN '{start}' AND '{end}'
+            GROUP BY ttd.activity_type, ttd.task 
+        """, as_dict=1, debug=0)
+
+        print(f"SQL: {start} to {end} returned {len(timesheet_data)} rows")
+
+        timesheet_array = []
+
+        for dict in timesheet_data:
+            
+            task = dict['task']
+            activity = dict['activity']
+            hours = dict['hours']
+            costing_amount = dict['costing_amount']
+            billing_amount = dict['billing_amount']
+            cost_vs_lost = costing_amount - billing_amount
+
+            timesheet_array.append({
+                'task': task,
+                'activity': activity,
+                'hours': f"{hours:.2f}",
+                'cost_vs_lost': f"{cost_vs_lost:.0f}",
+            })
+
+        month_label = get_month_label(start)
+
+        chart_data.append({
+            "month": month_label,
+            "timesheet_data": timesheet_array,
+        })
+
+
+    # Transform chart_data for stacked chart
+    labels = [row["month"] for row in chart_data]
+
+    # Collect all unique (task, activity) combinations across all months
+    all_names = set()
+    month_timesheet_data = []
+    for row in chart_data:
+        month_data = row["timesheet_data"]
+        name_to_item = {}
+        for item in month_data:
+            name = item["task"] + " - " + item["activity"]
+            all_names.add(name)
+            if type_returned == "cost_vs_lost":
+                name_to_item[name] = item["cost_vs_lost"]
+            else:
+                name_to_item[name] = item["hours"]
+        month_timesheet_data.append(name_to_item)
+
+    # For each name, build a list of hours per month, filling 0 if missing
+    timesheet_map = {name: [] for name in all_names}
+    for name in all_names:
+        for month_data in month_timesheet_data:
+            value = month_data.get(name, "0")
+            timesheet_map[name].append(value)
+
+    data = {
+        "title": title,
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "element_id": f"timesheet_data",
+        "help": f"""
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows monthly timesheet variance for the 'Kartoza Sales' project grouped by task and activity:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Scope:</b> Includes timesheet entries where project = 'Kartoza Sales' within the selected date range.</li>
+                <li><b>Series:</b> Each series is a combination of the timesheet <i>task</i> and <i>activity type</i>.</li>
+                <li><b>Hours:</b> Total hours per series are included in the table for context (to two decimals).</li>
+                <li><b>Interpretation:</b> Positive values indicate unrecovered cost; negative values indicate net billing above cost.</li>
+            </ul>
+            <span style='color: #888;'>Data is grouped by month across the selected period.</span>
+        </div>
+        """,
+        "total_cards": [],
+        "type": "single",
+        "datasets": []
+    }
+
+    for name, values in timesheet_map.items():
+        data["datasets"].append({
+            "type": "bar",
+            "name": name,
+            "values": values
+        })
+
+    return data
 
 
 @frappe.whitelist(allow_guest=True)
