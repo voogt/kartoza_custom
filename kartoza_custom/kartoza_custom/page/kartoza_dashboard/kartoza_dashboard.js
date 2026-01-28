@@ -540,7 +540,7 @@ function updateComment(element_id, comment_id) {
         args: { comment_id, comment: newComment, element_id, start_date, end_date },
         callback: function(r) {
             if (r.message && r.message.success) {
-                frappe.msgprint("Comment updated successfully.");
+                // frappe.msgprint("Comment updated successfully.");
                 // Refresh comments list
                 refreshComments(element_id, start_date, end_date);
             } else {
@@ -560,7 +560,7 @@ function deleteComment(element_id, comment_id) {
         args: { comment_id, element_id, start_date, end_date },
         callback: function(r) {
             if (r.message && r.message.success) {
-                frappe.msgprint("Comment deleted successfully.");
+                // frappe.msgprint("Comment deleted successfully.");
                 // Refresh comments list
                 refreshComments(element_id, start_date, end_date);
             } else {
@@ -649,22 +649,11 @@ function submitComment(element_id) {
             args: { element_id, comment, start_date, end_date },
             callback: function(r) {
                 if (r.message && r.message.success) {
-                    frappe.msgprint("Comment submitted successfully.");
+                    // frappe.msgprint("Comment submitted successfully.");
                     textarea.value = '';
-                    var comments = r.message["comments"];
-                    var comment_html = ""
-
-                    comment_html += `<div style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;">
-                        <div style="font-size:12px; color:#555; margin-bottom:6px;">
-                            <strong>${r.message.commented_by}</strong>
-                        </div>
-                        <div style="font-size:14px; color:#222;">${r.message.comment}</div>
-                    </div>`;
-
-                    const commentsContainer = document.getElementById(`${element_id}-comments-list`);
-                    if(commentsContainer){
-                        commentsContainer.innerHTML += comment_html;
-                    }
+                    const start_date = document.getElementById("start_date").value;
+                    const end_date = document.getElementById("end_date").value;
+                    refreshComments(element_id, start_date, end_date);
                 } else {
                     frappe.msgprint("Failed to submit comment. Please try again.");
                 }
