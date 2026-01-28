@@ -266,6 +266,14 @@ website_route_rules = [
 			"parents": [{"label": "Quotations", "route": "quotations"}],
 		},
 	},
+    {
+        "from_route": "/contract-sign/<path:name>",
+        "to_route": "contract_sign",
+        "defaults": {
+            "doctype": "Contract",
+            "parents": [{"label": "Contracts", "route": "contracts"}],
+        },
+    },
 	
 ]
 
