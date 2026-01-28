@@ -483,19 +483,120 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
 
                 for(var i = 0; i < comments.length; i++){
                     var c = comments[i];
-                    comment_html += `<div style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;">
-                        <div style="font-size:12px; color:#555; margin-bottom:6px;">
-                            <strong>${c.commented_by}</strong>
+                    comment_html += `<div style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;" id="comment-block-${c.name}">
+                        <div style="font-size:12px; color:#555; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                            <span><strong>${c.commented_by}</strong></span>
+                            <span>
+                                <button class="btn btn-xs btn-secondary" onclick="editComment('${element_id}', '${c.name}', '${encodeURIComponent(c.comment)}')">Edit</button>
+                                <button class="btn btn-xs btn-danger" onclick="deleteComment('${element_id}', '${c.name}')">Delete</button>
+                            </span>
                         </div>
-                        <div style="font-size:14px; color:#222;">${c.comment}</div>
+                        <div style="font-size:14px; color:#222;" id="comment-content-${c.name}">${c.comment}</div>
                     </div>`;
                 }
-
                 const commentsContainer = document.getElementById(`${element_id}-comments-list`);
                 if(commentsContainer){
                     commentsContainer.innerHTML = comment_html;
                 }
             } 
+        }
+    });
+
+// --- Global functions for comment editing ---
+}
+
+// Edit a comment (show textarea for editing)
+function editComment(element_id, comment_id, encodedComment) {
+    var commentBlock = document.getElementById(`comment-block-${comment_id}`);
+    var commentContent = document.getElementById(`comment-content-${comment_id}`);
+    if (!commentBlock || !commentContent) return;
+    var comment = decodeURIComponent(encodedComment);
+    commentContent.innerHTML = `<textarea id="edit-textarea-${comment_id}" class="form-control" style="width:100%; margin-bottom:6px;">${comment}</textarea>
+        <button class='btn btn-primary btn-xs' onclick="updateComment('${element_id}', '${comment_id}')">Save</button>
+        <button class='btn btn-secondary btn-xs' onclick="cancelEditComment('${comment_id}', '${encodeURIComponent(comment)}')">Cancel</button>`;
+}
+
+// Cancel editing a comment
+function cancelEditComment(comment_id, encodedComment) {
+    var commentContent = document.getElementById(`comment-content-${comment_id}`);
+    if (!commentContent) return;
+    var comment = decodeURIComponent(encodedComment);
+    commentContent.innerHTML = comment;
+}
+
+// Update a comment (send to backend)
+function updateComment(element_id, comment_id) {
+    var textarea = document.getElementById(`edit-textarea-${comment_id}`);
+    if (!textarea) return;
+    var newComment = textarea.value.trim();
+    if (!newComment) {
+        frappe.msgprint("Comment cannot be empty.");
+        return;
+    }
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.update_comment',
+        args: { comment_id, comment: newComment, element_id, start_date, end_date },
+        callback: function(r) {
+            if (r.message && r.message.success) {
+                frappe.msgprint("Comment updated successfully.");
+                // Refresh comments list
+                refreshComments(element_id, start_date, end_date);
+            } else {
+                frappe.msgprint("Failed to update comment.");
+            }
+        }
+    });
+}
+
+// Delete a comment (send to backend)
+function deleteComment(element_id, comment_id) {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.delete_comment',
+        args: { comment_id, element_id, start_date, end_date },
+        callback: function(r) {
+            if (r.message && r.message.success) {
+                frappe.msgprint("Comment deleted successfully.");
+                // Refresh comments list
+                refreshComments(element_id, start_date, end_date);
+            } else {
+                frappe.msgprint("Failed to delete comment.");
+            }
+        }
+    });
+}
+
+// Refresh comments list for a chart
+function refreshComments(element_id, start_date, end_date) {
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_comments_for_period',
+        args: { element_id, start_date, end_date },
+        type: 'GET',
+        callback: function(r) {
+            if (r.message) {
+                var comments = r.message["comments"];
+                var comment_html = "";
+                for(var i = 0; i < comments.length; i++){
+                    var c = comments[i];
+                    comment_html += `<div style=\"border:1px solid #ccc; border-radius:6px; padding:10px; margin-top:8px;\" id=\"comment-block-${c.name}\">`
+                        + `<div style=\"font-size:12px; color:#555; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;\">`
+                        + `<span><strong>${c.commented_by}</strong></span>`
+                        + `<span>`
+                        + `<button class=\"btn btn-xs btn-secondary\" onclick=\"editComment('${element_id}', '${c.name}', '${encodeURIComponent(c.comment)}')\">Edit</button> `
+                        + `<button class=\"btn btn-xs btn-danger\" onclick=\"deleteComment('${element_id}', '${c.name}')\">Delete</button>`
+                        + `</span></div>`
+                        + `<div style=\"font-size:14px; color:#222;\" id=\"comment-content-${c.name}\">${c.comment}</div>`
+                        + `</div>`;
+                }
+                const commentsContainer = document.getElementById(`${element_id}-comments-list`);
+                if(commentsContainer){
+                    commentsContainer.innerHTML = comment_html;
+                }
+            }
         }
     });
 }

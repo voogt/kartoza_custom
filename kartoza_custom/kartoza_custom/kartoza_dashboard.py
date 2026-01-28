@@ -1575,8 +1575,8 @@ def get_open_sla():
         tp.expected_start_date AS start_date,
         tp.expected_end_date AS end_date,
         CASE 
-            WHEN LOWER(tp.project_name) LIKE '%sla%' THEN 'SLA'
-            WHEN LOWER(tp.project_name) LIKE '%hosting%' THEN 'HOSTING'
+            WHEN LOWER(tp.project_name) REGEXP '(^|[[:space:]])sla([[:space:]]|$)' THEN 'SLA'
+            WHEN LOWER(tp.project_name) REGEXP '(^|[[:space:]])hosting([[:space:]]|$)' THEN 'HOSTING'
             ELSE NULL
         END AS sla_type
     FROM `tabProject` tp
@@ -1613,8 +1613,8 @@ def get_open_sla():
 
     WHERE tp.status = 'Open'
     AND (
-        LOWER(tp.project_name) LIKE '%sla%' 
-        OR LOWER(tp.project_name) LIKE '%hosting%'
+        LOWER(tp.project_name) REGEXP '(^|[[:space:]])sla([[:space:]]|$)'
+        OR LOWER(tp.project_name) REGEXP '(^|[[:space:]])hosting([[:space:]]|$)'
     )
     ORDER BY tp.expected_start_date ASC;
 
@@ -1868,7 +1868,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
             "values": values
         })
 
-    return data
+    return data 
 
 @frappe.whitelist(allow_guest=True)
 def get_item_wise_annual_sales_lda(start_date, end_date):
@@ -2742,13 +2742,13 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
     for start, end in ranges:
         timesheet_data = frappe.db.sql(f"""
             SELECT 
-                ttd.task as `task`,
-                ttd.activity_type as `activity`,
+                tt.subject as `task`,
                 SUM(ttd.hours) as `hours`,
                 SUM(ttd.costing_amount) as `costing_amount`,
                 SUM(ttd.billing_amount) as `billing_amount`
             FROM `tabTimesheet Detail` ttd
-            WHERE project = 'Kartoza Sales'
+            LEFT JOIN `tabTask` tt on tt.name = ttd.task
+            WHERE ttd.project = 'Kartoza Sales'
             AND ttd.creation BETWEEN '{start}' AND '{end}'
             GROUP BY ttd.activity_type, ttd.task 
         """, as_dict=1, debug=0)
@@ -2760,15 +2760,13 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
         for dict in timesheet_data:
             
             task = dict['task']
-            activity = dict['activity']
             hours = dict['hours']
             costing_amount = dict['costing_amount']
             billing_amount = dict['billing_amount']
-            cost_vs_lost = costing_amount - billing_amount
+            cost_vs_lost = costing_amount
 
             timesheet_array.append({
                 'task': task,
-                'activity': activity,
                 'hours': f"{hours:.2f}",
                 'cost_vs_lost': f"{cost_vs_lost:.0f}",
             })
@@ -2791,7 +2789,7 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
         month_data = row["timesheet_data"]
         name_to_item = {}
         for item in month_data:
-            name = item["task"] + " - " + item["activity"]
+            name = item["task"]
             all_names.add(name)
             if type_returned == "cost_vs_lost":
                 name_to_item[name] = item["cost_vs_lost"]
@@ -2819,9 +2817,8 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
             <b>Shows monthly timesheet variance for the 'Kartoza Sales' project grouped by task and activity:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Scope:</b> Includes timesheet entries where project = 'Kartoza Sales' within the selected date range.</li>
-                <li><b>Series:</b> Each series is a combination of the timesheet <i>task</i> and <i>activity type</i>.</li>
+                <li><b>Series:</b> Each series the description of the task</li>
                 <li><b>Hours:</b> Total hours per series are included in the table for context (to two decimals).</li>
-                <li><b>Interpretation:</b> Positive values indicate unrecovered cost; negative values indicate net billing above cost.</li>
             </ul>
             <span style='color: #888;'>Data is grouped by month across the selected period.</span>
         </div>
@@ -2888,8 +2885,38 @@ def get_comments_for_period(element_id, start_date, end_date):
     }
     comments = frappe.get_all(
         "Dashboard Table Comments",
-        fields=["comment", "commented_by", "start_date", "end_date"],
+        fields=["name","comment", "commented_by", "start_date", "end_date"],
         filters=filters,
         order_by="creation desc"
     )
     return {"comments": comments}
+
+@frappe.whitelist(allow_guest=True)
+def update_comment(comment_id, comment, element_id=None, start_date=None, end_date=None):
+    """
+    Update the comment text for a given comment ID in Dashboard Table Comments.
+    """
+    if not comment_id or not comment:
+        return {"success": False, "error": "Missing required fields: comment_id, comment."}
+    try:
+        doc = frappe.get_doc("Dashboard Table Comments", comment_id)
+        doc.comment = comment
+        doc.save(ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "message": "Comment updated successfully."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@frappe.whitelist(allow_guest=True)
+def delete_comment(comment_id, element_id=None, start_date=None, end_date=None):
+    """
+    Delete a comment by its ID from Dashboard Table Comments.
+    """
+    if not comment_id:
+        return {"success": False, "error": "Missing required field: comment_id."}
+    try:
+        frappe.delete_doc("Dashboard Table Comments", comment_id, ignore_permissions=True)
+        frappe.db.commit()
+        return {"success": True, "message": "Comment deleted successfully."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
