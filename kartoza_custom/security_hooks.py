@@ -74,13 +74,36 @@ def check_sql_injection():
 
     # Only scan form_dict for POST
     data_dict = local.form_dict or {}
-    values = " ".join(str(v) for v in data_dict.values())
+
+
+    # Define keys to skip (fields likely to contain image/file data)
+    SKIP_KEYS = {"image", "file", "attachment", "filedata", "image_data", "img", "avatar", "photo", "picture", "signature"}
+
+    # Helper to detect large base64-like strings or embedded image data
+    def is_image_or_base64(val):
+        if not isinstance(val, str):
+            return False
+        # Skip if contains data URI for image
+        if "data:image/" in val:
+            return True
+        # Skip if contains a long base64-like substring (500+ chars)
+        base64_match = re.search(r'([A-Za-z0-9+/=\r\n]{500,})', val)
+        if base64_match:
+            return True
+        return False
+
+    # Concatenate only non-skipped and non-image/base64 fields for SQLi scan
+    values = " ".join(
+        str(v)
+        for k, v in data_dict.items()
+        if k.lower() not in SKIP_KEYS and not is_image_or_base64(v)
+    )
 
     # Scan for patterns
     for pattern in SQLI_PATTERNS:
         if re.search(pattern, values, re.IGNORECASE):
             # Log attempt
-            frappe.logger("security_hooks").warn(
+            frappe.logger("security_hooks").warning(
                 f"SQL Injection attempt from {ip}: {values}"
             )
 
