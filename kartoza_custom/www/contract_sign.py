@@ -31,7 +31,7 @@ def get_context(context):
 
 
 @frappe.whitelist(allow_guest=True)
-def sign_contract(name: str, signee: str, signature: str):
+def sign_contract(name: str, signee: str, signature: str, location_signed: str = None, date_signed: str = None) -> dict:
     """
     Accept signature data (base64 PNG) and mark Contract signed.
     """
@@ -53,6 +53,8 @@ def sign_contract(name: str, signee: str, signature: str):
     # store the drawn signature in the standard Signature field
     doc.set("custom_signee_party", signature)
     doc.signed_on = now_datetime()
+    doc.custom_location_signed_customer = location_signed
+    doc.custom_date_signed_customer = date_signed
     doc.ip_address = (
         frappe.local.request_ip or getattr(getattr(frappe.local, "request", None), "remote_addr", None)
         if hasattr(frappe.local, "request")
@@ -71,86 +73,43 @@ def sign_contract(name: str, signee: str, signature: str):
         # If submit fails due to permissions, keep as saved (signed)
         pass
 
-    # Generate signed PDF with signature block and attach to Contract
+    # Send notification email to signee and company signer (if any)
     try:
+        recipients = []
+        recipients.append('juanique@kartoza.com')
+
         signed_on_str = format_datetime(doc.signed_on)
         contract_terms_html = doc.contract_terms or ""
         signee_safe = escape_html(signee)
         signature_img = signature  # data URL
+        location_signed_safe = escape_html(location_signed or "")
+        date_signed_safe = escape_html(date_signed or "")
+                
 
-        html = f"""
-        <html>
-        <head>
-            <meta charset='utf-8'>
-            <style>
-                body {{ font-family: Inter, Arial, Helvetica, sans-serif; font-size: 12px; color: #111; }}
-                h1,h2,h3 {{ margin: 0 0 12px 0; }}
-                .section {{ margin-bottom: 18px; }}
-                .terms {{ margin-top: 12px; }}
-                .sig-block {{ margin-top: 28px; border-top: 1px solid #ccc; padding-top: 12px; }}
-                .sig-row {{ display: flex; gap: 24px; align-items: flex-end; }}
-                .sig-box {{ border: 1px solid #ddd; border-radius: 4px; padding: 8px; min-height: 100px; min-width: 300px; }}
-                .sig-meta {{ margin-top: 8px; font-size: 11px; color: #555; }}
-                img.signature {{ max-height: 120px; max-width: 100%; }}
-            </style>
-        </head>
-        <body>
-            <div class='section'>
-                <h2>Contract {escape_html(doc.name)}</h2>
-                <div>Party: {escape_html(frappe.utils.cstr(doc.party_name))}</div>
-            </div>
-            <div class='terms section'>
-                {contract_terms_html}
-            </div>
-            <div class='sig-block section'>
-                <div class='sig-row'>
-                    <div class='sig-box'>
-                        <img class='signature' src='{signature_img}' alt='Signature'>
-                    </div>
-                </div>
-                <div class='sig-meta'>
-                    Signed by: {signee_safe} on {escape_html(signed_on_str)}
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
-        pdf_bytes = get_pdf(html)
-        file_name = f"Contract-{doc.name}-Signed.pdf"
-        file_doc = save_file(file_name, pdf_bytes, "Contract", doc.name, is_private=1)
-        attachment_url = file_doc.file_url
-
-        # Send notification email to signee and company signer (if any)
-        try:
-            recipients = []
-            recipients.append('juanique@kartoza.com')
-                    
-
-            if recipients:
-                subject = f"Contract {doc.name} signed"
-                message = (
-                    f"<p>The contract <b>{escape_html(doc.name)}</b> has been signed by <b>{signee_safe}</b> on {escape_html(signed_on_str)}.</p>"
-                    f"<p>You can view it in ERPNext or download the attached PDF.</p>"
-                )
-                frappe.sendmail(
-                    recipients=recipients,
-                    subject=subject,
-                    message=message,
-                    attachments=[{"fname": file_name, "fcontent": pdf_bytes}],
-                    reference_doctype="Contract",
-                    reference_name=doc.name,
-                )
-        except Exception:
-            # Ignore email failures
-            pass
-    except Exception as e:
-        attachment_url = None
+        if recipients:
+            subject = f"Contract {doc.name} signed"
+            message = (
+                f"<p>The contract <b>{escape_html(doc.name)}</b> has been signed by <b>{signee_safe}</b> on {escape_html(signed_on_str)}.</p>"
+                f"<p>You can view it in ERPNext</p>"
+            )
+            frappe.sendmail(
+                recipients=recipients,
+                subject=subject,
+                message=message,
+                attachments=[],
+                reference_doctype="Contract",
+                reference_name=doc.name,
+            )
+    except Exception:
+        # Ignore email failures
+        pass
 
     frappe.db.commit()
+
+    request = frappe.local.request
     return {
         "status": "ok",
         "message": "Contract signed",
         "signed_on": format_datetime(doc.signed_on),
-        "attachment_url": attachment_url,
+        "attachment_url": f"/api/method/frappe.utils.print_format.download_pdf?doctype=Contract&name={doc.name}&format=Contract%20PDF&no_letterhead=0&letterhead=Kartoza&settings=%7B%7D&_lang=en",
     }

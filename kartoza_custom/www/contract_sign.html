@@ -25,6 +25,16 @@
         <input id="signee" type="text" class="form-control" placeholder="Your full name" value="{{ party_user or '' }}" />
       </div>
 
+      <div class="mb-3">
+        <label class="form-label">Location Signed</label>
+        <input id="location_signed" type="text" class="form-control" placeholder="Location where you signed" value="{{ location_signed or '' }}" />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Date Signed</label>
+        <input id="date_signed" type="date" class="form-control" placeholder="Date when you signed" value="{{ date_signed or '' }}" />
+      </div>
+
       <div class="mb-2">Signature (draw below)</div>
       <div id="sig-pad" style="border: 1px solid #ddd; border-radius: 6px; height: 200px; position: relative; touch-action: none; background: #fff">
         <canvas id="sig-canvas" style="width: 100%; height: 100%"></canvas>

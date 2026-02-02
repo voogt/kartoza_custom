@@ -70,6 +70,8 @@
     const statusEl = document.getElementById('sign-status');
     const signeeInput = document.getElementById('signee');
     const agree = document.getElementById('agree');
+    const locationSignedInput = document.getElementById('location_signed');
+    const dateSignedInput = document.getElementById('date_signed');
 
     clearBtn.addEventListener('click', function() { pad.clear(); });
 
@@ -88,7 +90,7 @@
 
       frappe.call({
         method: 'kartoza_custom.www.contract_sign.sign_contract',
-        args: { name: name, signee: signee, signature: signature },
+        args: { name: name, signee: signee, signature: signature, location_signed: locationSignedInput.value, date_signed: dateSignedInput.value },
       }).then(r => {
         const msg = (r && r.message) || {};
         if (msg.status === 'ok' || msg.status === 'already_signed') {
