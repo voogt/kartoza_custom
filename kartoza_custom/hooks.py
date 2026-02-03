@@ -129,7 +129,10 @@ web_include_js = [
 doc_events = {
     "Customer": {
         "before_insert": "kartoza_custom.api.before_insert_customer"
-    }
+    },
+    # "Consultant Service": {
+    #     "before_insert": "kartoza_custom.security_hooks.check_form_spam"
+    # }
 }
 
 # Scheduled Tasks
@@ -196,7 +199,13 @@ override_whitelisted_methods = {
 
 # Request Events
 # ----------------
-before_request = ["kartoza_custom.security_hooks.check_sql_injection"]
+# Only check for SQL injection on every request, but check for form spam only on write (data-modifying) requests
+before_request = [
+    "kartoza_custom.security_hooks.check_sql_injection",
+    "kartoza_custom.security_hooks.check_form_spam"
+]
+
+
 # after_request = ["kartoza_custom.utils.after_request"]
 
 # Job Events
