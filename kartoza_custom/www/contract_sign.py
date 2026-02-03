@@ -75,8 +75,13 @@ def sign_contract(name: str, signee: str, signature: str, location_signed: str =
 
     # Send notification email to signee and company signer (if any)
     try:
-        recipients = []
-        recipients.append('juanique@kartoza.com')
+
+        # Get all users with the 'HR Manager' role
+        recipients = [d[0] for d in frappe.db.get_values(
+            "Has Role", {"role": "HR Manager"}, "parent"
+        )]
+        # Optionally, filter out disabled users
+        recipients = [user for user in recipients if frappe.db.get_value("User", user, "enabled")]
 
         signed_on_str = format_datetime(doc.signed_on)
         contract_terms_html = doc.contract_terms or ""
