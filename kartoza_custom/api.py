@@ -39,13 +39,15 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_i
     new_customer = frappe.get_doc({
         'doctype': 'Customer',
         'customer_name': recipient_name,
+        'name': recipient_name,
         'customer_type': 'Individual',  # Adjust as needed
         'customer_group': 'Individual', # Adjust as needed
         'territory': 'All Territories', # Adjust as needed
         'email_id': recipient_email,
         'mobile_no': contact_phone,
         'tax_id': tax_id,
-        'tax_category': "VAT"
+        'tax_category': "VAT",
+        "portal_users": [{"user": frappe.session.user}]
     })
     new_customer.flags.ignore_permissions = True
     new_customer.insert()
@@ -106,7 +108,6 @@ def send_course_details_email(email, doc_details):
 
 @frappe.whitelist()
 def get_next_employee_number(company):
-    print("COMPANY", company)
     company_abbr = "GEN"
     
     if company == "Kartoza Lda":
@@ -126,7 +127,6 @@ def get_next_employee_number(company):
         latest_number = 1  # Start numbering from 1 if no previous record exists
 
     new_series = f'HR-EMP-{str(latest_number).zfill(5)}'
-    print("NEW SERIES", new_series)
     
     # Double-check to prevent duplication
     if frappe.db.exists("Employee", new_series):
@@ -175,8 +175,6 @@ def get_unacknowledged_procedure():
 def acknowledge_procedure(procedure):
     user = frappe.session.user
 
-    print("PROCEDURE", procedure)
-
     if not procedure:
         frappe.throw(_("No procedure specified."))
 
@@ -214,21 +212,22 @@ def before_insert_customer(doc, method):
     if user.user_type == "System User":
         return
 
-    # Set customer_name to username
-    doc.customer_name = user.full_name
+    # Only override if customer_name matches session user's full name
+    if doc.customer_name == user.full_name:
+        doc.customer_name = user.full_name
 
-    # Slugify full name
-    base_name = user.full_name
+        # Slugify full name
+        base_name = user.full_name
 
-    # Ensure unique name
-    new_name = base_name
-    i = 1
-    while frappe.db.exists("Customer", new_name):
-        new_name = f"{base_name}-{i}"
-        i += 1
+        # Ensure unique name
+        new_name = base_name
+        i = 1
+        while frappe.db.exists("Customer", new_name):
+            new_name = f"{base_name}-{i}"
+            i += 1
 
-    # Change docname before saving
-    doc.name = new_name
+        # Change docname before saving
+        doc.name = new_name
 
 @frappe.whitelist()
 def send_expense_email(docname):
@@ -245,7 +244,6 @@ def send_expense_email(docname):
         distinct=True
     )
 
-    print("USERS", users)
     recipients = []
     for user in users:
         username = user.parent
@@ -267,7 +265,6 @@ def send_expense_email(docname):
     if not recipients:
         return 'No valid recipients found with Expense Approver or Expense Manager role.'
     
-    print("RECIPIENTS", recipients)
 
     subject = f"{doc.employee_name} has submitted a new Expense Claim"
     message = f"""

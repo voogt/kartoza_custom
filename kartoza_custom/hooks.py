@@ -129,10 +129,7 @@ web_include_js = [
 doc_events = {
     "Customer": {
         "before_insert": "kartoza_custom.api.before_insert_customer"
-    },
-    # "Consultant Service": {
-    #     "before_insert": "kartoza_custom.security_hooks.check_form_spam"
-    # }
+    }
 }
 
 # Scheduled Tasks
