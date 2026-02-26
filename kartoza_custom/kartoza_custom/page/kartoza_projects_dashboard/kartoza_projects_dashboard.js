@@ -1,3 +1,10 @@
+// Pagination state for Project Performance chart
+let performanceChartState = {
+    page: 1,
+    page_size: 10,
+    total_pages: 1
+};
+
 frappe.pages['kartoza-projects-dashboard'].on_page_load = function(wrapper) {
 	var page = frappe.ui.make_app_page({
 		parent: wrapper,
@@ -19,9 +26,11 @@ frappe.pages['kartoza-projects-dashboard'].on_page_load = function(wrapper) {
 
     loadCSS();
     loadScript();
-    fetchDataAndPlot();
+    fetchDataAndPlot();             // Load all normal charts
+    fetchPerformanceChart();        // Load performance chart
 }
 
+// Load external resources
 function loadCSS() {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -47,14 +56,13 @@ function setLoader(visible, text) {
     if (typeof text === 'string' && textEl) textEl.textContent = text;
 }
 
-
+// Fetch generic charts
 function fetchDataAndPlot() {
     document.getElementById('parent-chart').innerHTML = ''; // Clear previous charts
     // Show loader and keep it visible until all requests complete
 
     var methods = [
 		'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.project_time_overview_chart',
-		'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.project_performance_overview_chart',
         'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.get_project_sla_overview_table',
 		'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.get_task_drill_down_table'
     ]
@@ -106,6 +114,130 @@ function fetchDataAndPlot() {
 	}
 }
 
+// Fetch performance chart (paginated)
+function fetchPerformanceChart() {
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.project_performance_overview_chart',
+        args: {
+            page: performanceChartState.page,
+            page_size: performanceChartState.page_size,
+            project_name: document.getElementById("filter-project-name")?.value || "",
+            project_manager: document.getElementById("filter-project-manager")?.value || "",
+            start_date: document.getElementById("filter-start-date")?.value || "",
+            end_date: document.getElementById("filter-end-date")?.value || ""
+        },
+        callback: function(r) {
+
+            if (!r.message) {
+                frappe.msgprint("No performance data returned.");
+                return;
+            }
+
+            const data = r.message;
+
+            if (data.pagination) {
+                performanceChartState.total_pages = data.pagination.total_pages;
+            }
+
+            drawPerformanceChart(
+                data.labels,
+                data.datasets,
+                data.title
+            );
+        }
+    });
+}
+
+// Draw performance chart
+function drawPerformanceChart(labels, datasets, title) {
+
+    const existing = document.getElementById("performance-chart-container");
+    if (existing) existing.remove();
+
+    const parentElement = document.getElementById('parent-chart');
+
+    parentElement.insertAdjacentHTML('beforeend', `
+        <div id="performance-chart-container" style="margin-bottom: 80px;">
+            <h3 style='text-align: center;'>${title}</h3>
+
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
+                <input type="text" id="filter-project-name" placeholder="Project Name" class="form-control" style="width:200px;">
+                <input type="text" id="filter-project-manager" placeholder="Project Manager" class="form-control" style="width:200px;">
+                <input type="date" id="filter-start-date" class="form-control" style="width:180px;">
+                <input type="date" id="filter-end-date" class="form-control" style="width:180px;">
+                <button id="apply-filters-btn" class="btn btn-primary btn-sm">Apply</button>
+            </div>
+
+            <div style="text-align:center; margin-bottom:15px;">
+                <button id="prev-page-btn" class="btn btn-sm btn-secondary"
+                    ${performanceChartState.page <= 1 ? 'disabled' : ''}>
+                    Previous
+                </button>
+
+                <span style="margin:0 15px;">
+                    Page ${performanceChartState.page} of ${performanceChartState.total_pages}
+                </span>
+
+                <button id="next-page-btn" class="btn btn-sm btn-secondary"
+                    ${performanceChartState.page >= performanceChartState.total_pages ? 'disabled' : ''}>
+                    Next
+                </button>
+            </div>
+
+            <div id="performance-chart"></div>
+            <hr>
+        </div>
+    `);
+    
+    // Labels
+    const traces = datasets.map(set => ({
+        x: labels,
+        y: set.values,
+        name: set.name,
+        type: 'bar',
+        hovertemplate: "%{fullData.name}: %{y:.1f}%<extra></extra>"
+    }));
+
+    // Labels Layout
+    const layout = {
+        barmode: 'group',
+        hovermode: 'x unified',
+        margin: { b: 150, t: 60, l: 80, r: 40 },
+        xaxis: {
+            tickangle: -30,
+            automargin: true
+        },
+        yaxis: {
+            ticksuffix: "%",
+            tickformat: ".0f",
+            range: [0, 110]
+        }
+    };
+
+    Plotly.newPlot("performance-chart", traces, layout, {displayModeBar: false});
+
+    document.getElementById("apply-filters-btn").onclick = function() {
+        performanceChartState.page = 1;
+        fetchPerformanceChart();
+    };
+
+    document.getElementById("prev-page-btn").onclick = function() {
+        if (performanceChartState.page > 1) {
+            performanceChartState.page--;
+            fetchPerformanceChart();
+        }
+    };
+
+    document.getElementById("next-page-btn").onclick = function() {
+        if (performanceChartState.page < performanceChartState.total_pages) {
+            performanceChartState.page++;
+            fetchPerformanceChart();
+        }
+    };
+}
+
+// Draw generic charts
 function drawChart(labels, datasets, title, element_id, barmode, shouldSplitLongLabels) {
     // Ensure unique element_id for each chart
     const unique_element_id = `${element_id}-${generateRandomId()}`;
@@ -203,6 +335,7 @@ function generateRandomId(prefix = 'id') {
     return `${prefix}-${randomStr}`;
 }
 
+// Table renderer
 function renderChartTable(labels, datasets, showTotal, element_id, title) {
 
 	const unique_element_id = `${element_id}-${generateRandomId()}`;
