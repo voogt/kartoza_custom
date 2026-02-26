@@ -151,44 +151,54 @@ function fetchPerformanceChart() {
 
 // Draw performance chart
 function drawPerformanceChart(labels, datasets, title) {
-
-    const existing = document.getElementById("performance-chart-container");
-    if (existing) existing.remove();
-
     const parentElement = document.getElementById('parent-chart');
+    let container = document.getElementById("performance-chart-container");
 
-    parentElement.insertAdjacentHTML('beforeend', `
-        <div id="performance-chart-container" style="margin-bottom: 80px;">
-            <h3 style='text-align: center;'>${title}</h3>
+    if (!container) {
+        parentElement.insertAdjacentHTML('beforeend', `
+            <div id="performance-chart-container" style="margin-bottom: 80px;">
+                <h3 id="performance-chart-title" style='text-align: center;'></h3>
 
-            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
-                <input type="text" id="filter-project-name" placeholder="Project Name" class="form-control" style="width:200px;">
-                <input type="text" id="filter-project-manager" placeholder="Project Manager" class="form-control" style="width:200px;">
-                <input type="date" id="filter-start-date" class="form-control" style="width:180px;">
-                <input type="date" id="filter-end-date" class="form-control" style="width:180px;">
-                <button id="apply-filters-btn" class="btn btn-primary btn-sm">Apply</button>
+                <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
+                    <input type="text" id="filter-project-name" placeholder="Project Name" class="form-control" style="width:200px;">
+                    <input type="text" id="filter-project-manager" placeholder="Project Manager" class="form-control" style="width:200px;">
+                    <input type="date" id="filter-start-date" class="form-control" style="width:180px;">
+                    <input type="date" id="filter-end-date" class="form-control" style="width:180px;">
+                    <button id="apply-filters-btn" class="btn btn-primary btn-sm">Apply</button>
+                </div>
+
+                <div style="text-align:center; margin-bottom:15px;">
+                    <button id="prev-page-btn" class="btn btn-sm btn-secondary">Previous</button>
+                    <span id="performance-page-indicator" style="margin:0 15px;"></span>
+                    <button id="next-page-btn" class="btn btn-sm btn-secondary">Next</button>
+                </div>
+
+                <div id="performance-chart"></div>
+                <hr>
             </div>
+        `);
 
-            <div style="text-align:center; margin-bottom:15px;">
-                <button id="prev-page-btn" class="btn btn-sm btn-secondary"
-                    ${performanceChartState.page <= 1 ? 'disabled' : ''}>
-                    Previous
-                </button>
+        container = document.getElementById("performance-chart-container");
+    }
 
-                <span style="margin:0 15px;">
-                    Page ${performanceChartState.page} of ${performanceChartState.total_pages}
-                </span>
+    const titleEl = document.getElementById("performance-chart-title");
+    if (titleEl) {
+        titleEl.textContent = title;
+    }
 
-                <button id="next-page-btn" class="btn btn-sm btn-secondary"
-                    ${performanceChartState.page >= performanceChartState.total_pages ? 'disabled' : ''}>
-                    Next
-                </button>
-            </div>
+    const prevBtn = document.getElementById("prev-page-btn");
+    const nextBtn = document.getElementById("next-page-btn");
+    const pageIndicator = document.getElementById("performance-page-indicator");
 
-            <div id="performance-chart"></div>
-            <hr>
-        </div>
-    `);
+    if (prevBtn) {
+        prevBtn.disabled = performanceChartState.page <= 1;
+    }
+    if (nextBtn) {
+        nextBtn.disabled = performanceChartState.page >= performanceChartState.total_pages;
+    }
+    if (pageIndicator) {
+        pageIndicator.textContent = `Page ${performanceChartState.page} of ${performanceChartState.total_pages}`;
+    }
     
     // Labels
     const traces = datasets.map(set => ({
