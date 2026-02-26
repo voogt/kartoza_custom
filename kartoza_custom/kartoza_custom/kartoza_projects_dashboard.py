@@ -293,20 +293,93 @@ def project_time_overview_chart():
 
 
 @frappe.whitelist(allow_guest=True)
-def project_performance_overview_chart():
+def project_performance_overview_chart(
+    page=1,
+    page_size=10,
+    project_name=None,
+    project_manager=None,
+    start_date=None,
+    end_date=None
+):
 
-    # Step 1: Get all open projects in one query
-    sql = f"""
-    SELECT 
-        tp.name as `project`,
-        tp.expected_time as `expected_time`,
-        tp.actual_time as `consumed_time`,
-        tp.percent_complete as `project_progress`
-    FROM tabProject AS tp
-    WHERE tp.status = 'Open'
-    GROUP BY tp.project_name
+    page = int(page)
+    page_size = int(page_size)
+    offset = (page - 1) * page_size
+
+    filters = ["tp.status = 'Open'"]
+    params = {}
+
+    # Apply Filters
+
+    if project_name:
+        filters.append("tp.name LIKE %(project_name)s")
+        params["project_name"] = f"%{project_name}%"
+
+    if project_manager:
+        filters.append("tp.project_lead = %(project_manager)s")
+        params["project_manager"] = project_manager
+
+    if start_date:
+        filters.append("tp.expected_start_date >= %(start_date)s")
+        params["start_date"] = start_date
+
+    if end_date:
+        filters.append("tp.expected_end_date <= %(end_date)s")
+        params["end_date"] = end_date
+
+    where_clause = " AND ".join(filters)    
+
+    # Totol Count (With Filters)
+    
+    count_sql = f"""
+        SELECT COUNT(*) as total
+        FROM tabProject tp
+        WHERE {where_clause}
     """
-    projects = frappe.db.sql(sql, as_dict=1, debug=0)
+
+    total_projects = frappe.db.sql(count_sql, params, as_dict=1)[0]["total"]
+
+    # Get Paginated Projects
+
+    sql = f"""
+        SELECT 
+            tp.name as project,
+            tp.expected_time,
+            tp.actual_time as consumed_time,
+            tp.percent_complete as project_progress
+        FROM tabProject tp
+        WHERE {where_clause}
+        ORDER BY tp.name
+        LIMIT %(page_size)s OFFSET %(offset)s
+    """
+
+    params.update({
+        "page_size": page_size,
+        "offset": offset
+    })
+
+    projects = frappe.db.sql(sql, params, as_dict=1)
+
+    # # Step 1: Get paginated open projects
+    # sql = """
+    #     SELECT 
+    #         tp.name as `project`,
+    #         tp.expected_time as `expected_time`,
+    #         tp.actual_time as `consumed_time`,
+    #         tp.percent_complete as `project_progress`
+    #     FROM tabProject AS tp
+    #     WHERE tp.status = 'Open'
+    #     GROUP BY tp.project_name
+    #     ORDER BY tp.name
+    #     LIMIT %(page_size)s OFFSET %(offset)s
+    # """
+
+    # projects = frappe.db.sql(
+    #     sql,
+    #     {"page_size": page_size, "offset": offset},
+    #     as_dict=1,
+    #     debug=0
+    # )
 
     # Step 2: Get all billable hours for these projects in one query
     project_names = [row['project'] for row in projects if row['project']]
@@ -344,7 +417,7 @@ def project_performance_overview_chart():
             "project_progress": project['project_progress'],
         })
 
-    # Transform chart_data for stacked chart
+    # Transform for chart
     labels = [row["project"] for row in chart_data]
     consumed_time_values = [row["consumed_time"] for row in chart_data]
     billable_hours_values = [row["billable_hours"] for row in chart_data]
@@ -359,25 +432,30 @@ def project_performance_overview_chart():
         "showTotal": False,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
-        "help": """
-        """,
+        "help": "",
         "datasets": [
             {
                 "type": "bar",
-                "name": "Consumed Time (%)",
+                "name": "Consumed Time",
                 "values": consumed_time_values
             },
             {
                 "type": "bar",
-                "name": "Hours used (%)",
+                "name": "Hours used",
                 "values": billable_hours_values
             },
             {
                 "type": "bar",
-                "name": "Project Progress (%)",
+                "name": "Project Progress",
                 "values": project_progress_values
             }
-        ]
+        ],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_projects": total_projects,
+            "total_pages": (total_projects + page_size - 1) // page_size
+        }
     }
 
     return data
