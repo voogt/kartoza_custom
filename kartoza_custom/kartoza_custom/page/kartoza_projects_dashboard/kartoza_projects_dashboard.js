@@ -26,8 +26,9 @@ frappe.pages['kartoza-projects-dashboard'].on_page_load = function(wrapper) {
 
     loadCSS();
     loadScript();
-    fetchDataAndPlot();             // Load all normal charts
-    fetchPerformanceChart();        // Load performance chart
+    fetchDataAndPlot();
+    fetchPerformanceChart();
+    fetchTimeOverviewChart();
 }
 
 // Load external resources
@@ -62,7 +63,6 @@ function fetchDataAndPlot() {
     // Show loader and keep it visible until all requests complete
 
     var methods = [
-		'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.project_time_overview_chart',
         'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.get_project_sla_overview_table',
 		'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.get_task_drill_down_table'
     ]
@@ -155,13 +155,17 @@ function drawPerformanceChart(labels, datasets, title) {
     let container = document.getElementById("performance-chart-container");
 
     if (!container) {
-        parentElement.insertAdjacentHTML('beforeend', `
+        parentElement.insertAdjacentHTML('afterbegin', `
             <div id="performance-chart-container" style="margin-bottom: 80px;">
                 <h3 id="performance-chart-title" style='text-align: center;'></h3>
 
                 <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
                     <input type="text" id="filter-project-name" placeholder="Project Name" class="form-control" style="width:200px;">
-                    <input type="text" id="filter-project-manager" placeholder="Project Manager" class="form-control" style="width:200px;">
+                    
+                    <select id="filter-project-manager" class="form-control" style="width:200px;">
+                        <option value="">All Project Managers</option>
+                    </select>
+
                     <input type="date" id="filter-start-date" class="form-control" style="width:180px;">
                     <input type="date" id="filter-end-date" class="form-control" style="width:180px;">
                     <button id="apply-filters-btn" class="btn btn-primary btn-sm">Apply</button>
@@ -179,6 +183,8 @@ function drawPerformanceChart(labels, datasets, title) {
         `);
 
         container = document.getElementById("performance-chart-container");
+
+        loadProjectManagers();
     }
 
     const titleEl = document.getElementById("performance-chart-title");
@@ -245,6 +251,167 @@ function drawPerformanceChart(labels, datasets, title) {
             fetchPerformanceChart();
         }
     };
+}
+
+// State for size grouping
+let timeOverviewState = {
+    size_group: "small"
+};
+
+function fetchTimeOverviewChart() {
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.project_time_overview_chart',
+        args: {
+            size_group: timeOverviewState.size_group,
+            project_name: document.getElementById("filter-to-project-name")?.value || "",
+            project_manager: document.getElementById("filter-to-project-manager")?.value || "",
+            start_date: document.getElementById("filter-to-start-date")?.value || "",
+            end_date: document.getElementById("filter-to-end-date")?.value || ""
+        },
+        callback: function(r) {
+
+            if (!r.message) {
+                frappe.msgprint("No time overview data returned.");
+                return;
+            }
+
+            drawTimeOverviewChart(
+                r.message.labels,
+                r.message.datasets,
+                r.message.title
+            );
+        }
+    });
+}
+
+function drawTimeOverviewChart(labels, datasets, title) {
+
+    const parentElement = document.getElementById('parent-chart');
+    let container = document.getElementById("time-overview-container");
+
+    if (!container) {
+
+        const performanceContainer = document.getElementById("performance-chart-container");
+
+        const html = `
+            <div id="time-overview-container" style="margin-bottom:80px;">
+                <h3 style="text-align:center;" id="time-overview-title"></h3>
+
+                <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
+                    <select id="size-group-select" class="form-control" style="width:180px;">
+                        <option value="small">Small (≤100h)</option>
+                        <option value="medium">Medium (101–200h)</option>
+                        <option value="large">Large (201–500h)</option>
+                        <option value="very_large">Very Large (>500h)</option>
+                    </select>
+
+                    <input type="text" id="filter-to-project-name" 
+                        placeholder="Project Name" 
+                        class="form-control" style="width:200px;">
+                    
+                    <select id="filter-to-project-manager" 
+                            class="form-control" style="width:200px;">
+                        <option value="">All Project Managers</option>
+                    </select>
+
+                    <input type="date" id="filter-to-start-date" 
+                        class="form-control" style="width:180px;">
+                    <input type="date" id="filter-to-end-date" 
+                        class="form-control" style="width:180px;">
+                    
+                    <button id="apply-time-overview-btn" 
+                            class="btn btn-primary btn-sm">
+                            Apply
+                    </button>
+                </div>
+
+                <div id="time-overview-chart"></div>
+                <hr>
+            </div>
+        `;
+
+        if (performanceContainer) {
+            performanceContainer.insertAdjacentHTML('afterend', html);
+        } else {
+            parentElement.insertAdjacentHTML('beforeend', html);
+        }
+
+        container = document.getElementById("time-overview-container");
+
+        loadProjectManagers();
+    }
+
+    document.getElementById("time-overview-title").textContent = title;
+
+    document.getElementById("size-group-select").value = timeOverviewState.size_group;
+
+    document.getElementById("size-group-select").onchange = function() {
+        timeOverviewState.size_group = this.value;
+        fetchTimeOverviewChart();
+    };
+
+    document.getElementById("apply-time-overview-btn").onclick = function() {
+        fetchTimeOverviewChart();
+    };
+
+    const traces = datasets.map(set => ({
+        x: labels,
+        y: set.values,
+        name: set.name,
+        type: 'bar',
+        hovertemplate: "%{fullData.name}: %{y:,.2f} hrs<extra></extra>"
+    }));
+
+    const layout = {
+        barmode: 'group',
+        hovermode: 'x unified',
+        margin: { b: 150, t: 60, l: 80, r: 40 },
+        xaxis: { tickangle: -30, automargin: true },
+        yaxis: { title: { text: "Hours" } }
+    };
+
+    Plotly.newPlot("time-overview-chart", traces, layout, {displayModeBar:false});
+}
+
+// Get Project Managers
+function loadProjectManagers() {
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_projects_dashboard.get_project_managers',
+        callback: function(r) {
+
+            if (!r.message) return;
+
+            const performanceSelect = document.getElementById("filter-project-manager");
+            const timeSelect = document.getElementById("filter-to-project-manager");
+
+            if (performanceSelect) {
+                performanceSelect.innerHTML = '<option value="">All Project Managers</option>';
+            }
+
+            if (timeSelect) {
+                timeSelect.innerHTML = '<option value="">All Project Managers</option>';
+            }
+
+            r.message.forEach(pm => {
+
+                if (performanceSelect) {
+                    const opt = document.createElement("option");
+                    opt.value = pm.value;
+                    opt.textContent = pm.label;
+                    performanceSelect.appendChild(opt);
+                }
+
+                if (timeSelect) {
+                    const opt2 = document.createElement("option");
+                    opt2.value = pm.value;
+                    opt2.textContent = pm.label;
+                    timeSelect.appendChild(opt2);
+                }
+            });
+        }
+    });
 }
 
 // Draw generic charts
