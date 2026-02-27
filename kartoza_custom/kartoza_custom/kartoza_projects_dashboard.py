@@ -205,93 +205,147 @@ def get_task_drill_down_table():
 
     return data
 
-@frappe.whitelist(allow_guest=True)
-def project_time_overview_chart():
+# Get distinct project managers
+@frappe.whitelist()
+def get_project_managers():
 
-    # Step 1: Get all open projects in one query
-    sql = f"""
-    SELECT 
-        tp.name as `project`,
-        tp.expected_time as `expected_time`,
-        tp.actual_time as `consumed_time`
-    FROM tabProject AS tp
-    WHERE tp.status = 'Open'
-    GROUP BY tp.project_name
+    sql = """
+        SELECT DISTINCT
+            tp.project_lead AS user_id,
+            u.full_name
+        FROM tabProject tp
+        LEFT JOIN tabUser u ON u.name = tp.project_lead
+        WHERE tp.status = 'Open'
+        AND tp.project_lead IS NOT NULL
+        AND tp.project_lead != ''
+        AND tp.project_lead LIKE '%@kartoza.com'
+        ORDER BY u.full_name
     """
-    projects = frappe.db.sql(sql, as_dict=1, debug=0)
 
-    # Step 2: Get all billable hours for these projects in one query
-    project_names = [row['project'] for row in projects if row['project']]
+    data = frappe.db.sql(sql, as_dict=True)
+
+    return [
+        {
+            "label": row["full_name"] or row["user_id"],
+            "value": row["user_id"]
+        }
+        for row in data
+    ]
+
+# Time Overview Chart
+@frappe.whitelist(allow_guest=True)
+def project_time_overview_chart(
+    size_group="small",
+    project_name=None,
+    project_manager=None,
+    start_date=None,
+    end_date=None
+):
+
+    filters = ["tp.status = 'Open'"]
+    params = {}
+
+    # Filters
+
+    if project_name:
+        filters.append("tp.name LIKE %(project_name)s")
+        params["project_name"] = f"%{project_name}%"
+
+    if project_manager:
+        filters.append("tp.project_lead = %(project_manager)s")
+        params["project_manager"] = project_manager
+
+    if start_date:
+        filters.append("tp.expected_start_date >= %(start_date)s")
+        params["start_date"] = start_date
+
+    if end_date:
+        filters.append("tp.expected_end_date <= %(end_date)s")
+        params["end_date"] = end_date
+
+    # Size Group Logic
+
+    if size_group == "small":
+        filters.append("COALESCE(tp.expected_time,0) <= 100")
+
+    elif size_group == "medium":
+        filters.append("COALESCE(tp.expected_time,0) > 100 AND COALESCE(tp.expected_time,0) <= 200")
+
+    elif size_group == "large":
+        filters.append("COALESCE(tp.expected_time,0) > 200 AND COALESCE(tp.expected_time,0) <= 500")
+
+    elif size_group == "very_large":
+        filters.append("COALESCE(tp.expected_time,0) > 500")
+
+    where_clause = " AND ".join(filters)
+
+    # Project Query
+
+    sql = f"""
+        SELECT 
+            tp.name as project,
+            COALESCE(tp.expected_time,0) as expected_time,
+            COALESCE(tp.actual_time,0) as consumed_time
+        FROM tabProject tp
+        WHERE {where_clause}
+        ORDER BY tp.expected_time ASC
+    """
+
+    projects = frappe.db.sql(sql, params, as_dict=1)
+
+    project_names = [row['project'] for row in projects]
+
+    # Timesheet Query
+
     if project_names:
         placeholders = ','.join([f"%({i})s" for i in range(len(project_names))])
+
         timesheet_sql = f"""
             SELECT 
-                ttd.project as project,
-                ROUND(COALESCE(SUM(CASE WHEN ttd.is_billable = 1 THEN ttd.hours ELSE 0 END), 0), 2) as billable_hours
+                ttd.project,
+                ROUND(COALESCE(SUM(
+                    CASE WHEN ttd.is_billable = 1 THEN ttd.hours ELSE 0 END
+                ),0),2) as billable_hours
             FROM `tabTimesheet` tt
             LEFT JOIN `tabTimesheet Detail` ttd ON ttd.parent = tt.name
             WHERE ttd.project IN ({placeholders})
             AND ttd.docstatus = 1
-            AND ttd.task != ''
             AND tt.status = 'Submitted'
             GROUP BY ttd.project
         """
-        params = {str(i): name for i, name in enumerate(project_names)}
-        timesheet_data = frappe.db.sql(timesheet_sql, params, as_dict=1, debug=0)
+
+        ts_params = {str(i): name for i, name in enumerate(project_names)}
+        timesheet_data = frappe.db.sql(timesheet_sql, ts_params, as_dict=1)
         timesheet_map = {row['project']: row['billable_hours'] for row in timesheet_data}
     else:
         timesheet_map = {}
 
-    # Step 3: Build chart data
-    chart_data = []
+    # Build Data
+
+    labels = []
+    consumed_values = []
+    billable_values = []
+    expected_values = []
+
     for project in projects:
-        billable_hours = timesheet_map.get(project['project'], 0)
-        chart_data.append({
-            "project": project['project'],
-            "consumed_time": project['consumed_time'],
-            "billable_hours": billable_hours,
-            "expected_time": project['expected_time'],
-        })
+        labels.append(project["project"])
+        consumed_values.append(project["consumed_time"])
+        billable_values.append(timesheet_map.get(project["project"], 0))
+        expected_values.append(project["expected_time"])
 
-    # Transform chart_data for stacked chart
-    labels = [row["project"] for row in chart_data]
-    consumed_time_values = [row["consumed_time"] for row in chart_data]
-    billable_hours_values = [row["billable_hours"] for row in chart_data]
-    expected_time_values = [row["expected_time"] for row in chart_data]
-
-    data = {
+    return {
         "element_id": "project_time_overview",
         "type": "chart",
-        "title": "Project Graph: Time Overview",
+        "title": f"Project Time Overview ({size_group.replace('_',' ').title()})",
         "labels": labels,
-        "isReverse": False,
-        "showTotal": False,
-        "shouldSplitLongLabels": False,
-        "isLegendReverse": False,
-        "help": """
-        """,
         "datasets": [
-            {
-                "type": "bar",
-                "name": "Consumed Time",
-                "values": consumed_time_values
-            },
-            {
-                "type": "bar",
-                "name": "Billable Hours",
-                "values": billable_hours_values
-            },
-            {
-                "type": "bar",
-                "name": "Expected Time",
-                "values": expected_time_values
-            }
+            {"type": "bar", "name": "Consumed Time", "values": consumed_values},
+            {"type": "bar", "name": "Billable Hours", "values": billable_values},
+            {"type": "bar", "name": "Expected Time", "values": expected_values}
         ]
     }
 
-    return data
-
-
+# Performance Overview Chart
 @frappe.whitelist(allow_guest=True)
 def project_performance_overview_chart(
     page=1,
@@ -329,7 +383,7 @@ def project_performance_overview_chart(
 
     where_clause = " AND ".join(filters)    
 
-    # Totol Count (With Filters)
+    # Total Count (With Filters)
     
     count_sql = f"""
         SELECT COUNT(*) as total
@@ -339,7 +393,7 @@ def project_performance_overview_chart(
 
     total_projects = frappe.db.sql(count_sql, params, as_dict=1)[0]["total"]
 
-    # Get Paginated Projects
+    # Step 1: Get Paginated Projects
 
     sql = f"""
         SELECT 
@@ -359,27 +413,6 @@ def project_performance_overview_chart(
     })
 
     projects = frappe.db.sql(sql, params, as_dict=1)
-
-    # # Step 1: Get paginated open projects
-    # sql = """
-    #     SELECT 
-    #         tp.name as `project`,
-    #         tp.expected_time as `expected_time`,
-    #         tp.actual_time as `consumed_time`,
-    #         tp.percent_complete as `project_progress`
-    #     FROM tabProject AS tp
-    #     WHERE tp.status = 'Open'
-    #     GROUP BY tp.project_name
-    #     ORDER BY tp.name
-    #     LIMIT %(page_size)s OFFSET %(offset)s
-    # """
-
-    # projects = frappe.db.sql(
-    #     sql,
-    #     {"page_size": page_size, "offset": offset},
-    #     as_dict=1,
-    #     debug=0
-    # )
 
     # Step 2: Get all billable hours for these projects in one query
     project_names = [row['project'] for row in projects if row['project']]
