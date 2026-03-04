@@ -10,6 +10,9 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
         <div class="flex items-center gap-8">
             <input type="date" id="start_date" value=""  style="margin-right:5px; border-radius:5px"/>
             <input type="date" id="end_date" value=""  style="margin-right:5px; border-radius:5px"/>
+            <select id="filter-select" style="margin-right:5px; border-radius:5px; min-width:220px; height:31px;">
+                <option value="__show_all__">Show All</option>
+            </select>
             <button id="load-data" class="btn btn-primary btn-sm">Load Chart</button>
         </div>
         <div id="loader-container" style="text-align:center; margin-top:30px;">
@@ -25,10 +28,13 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
 
     loadCSS();
     loadScript();
+    fecthFilters();
 
     // Button event
     document.getElementById("load-data").addEventListener("click", fetchDataAndPlot);
 };
+
+let availableFilters = [];
 
 
 function loadCSS() {
@@ -48,11 +54,37 @@ function loadScript() {
     document.body.appendChild(script);
 }
 
+function fecthFilters(){
+    frappe.call({
+        method: "kartoza_custom.kartoza_custom.kartoza_dashboard.get_all_filters",
+        type: 'GET',
+        callback: function(r) {
+            const select = document.getElementById("filter-select");
+            if (!select) return;
+
+            availableFilters = (r && r.message && Array.isArray(r.message.charts)) ? r.message.charts : [];
+
+            select.innerHTML = '<option value="__show_all__">Show All</option>';
+
+            availableFilters.forEach((filterObj) => {
+                if (!filterObj || !filterObj.filter_title) return;
+                const option = document.createElement('option');
+                option.value = filterObj.filter_title;
+                option.textContent = filterObj.filter_title;
+                select.appendChild(option);
+            });
+        },
+        error: function(err) {
+            frappe.msgprint("Error occurred while fetching filters.");
+        }
+    });
+}
 
 
 function fetchDataAndPlot() {
     const start_date = document.getElementById("start_date").value;
     const end_date = document.getElementById("end_date").value;
+    const selectedFilter = document.getElementById("filter-select")?.value || "__show_all__";
 
     document.getElementById('parent-chart').innerHTML = ''; // Clear previous charts
     document.getElementById('parent-cards').innerHTML = ''; // Clear previous cards
@@ -67,118 +99,159 @@ function fetchDataAndPlot() {
     var methods = [
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_staff_count',
+            "title": "Staff Count",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
+            "title": "Billable Hours",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
+            "title": "Utilisation",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
+            "title": "Projects",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_project_closed_summary',
+            "title": "Project Closed Summary",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_activity_cost_data',
+            "title": "Activity Cost",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_pty',
+            "title": "Total Department Cost Pty",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_salary_lda',
+            "title": "Total Department Cost Lda",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_timesheet_data',
+            "title": "Timesheet Data for Project 'Kartoza Sales' (Hours)",
             "args": { start_date, end_date, 'type_returned': "hours" },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_timesheet_data',
+            "title": "Timesheet Data for Project 'Kartoza Sales' (Cost vs Lost)",
             "args": { start_date, end_date, 'type_returned': "cost_vs_lost" },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_pty',
+            "title": "Pipeline Quotation Kartoza Pty (Draft/Open)",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_pty',
+            "title": "Pipeline Opportunity Kartoza Pty (Draft/Open)",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_lda',
+            "title": "Pipeline Opportunity Kartoza Lda (Draft/Open)",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
+            "title": "Pipeline Quotation Kartoza Lda (Draft/Open)",
             "args": { start_date, end_date },
         },
         
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sales_orders',
+            "title": "Current Open Sales Orders",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
+            "title": "Current open SLA's",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_pty',
+            "title": "Per Item Annual Sales Pty",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_item_wise_annual_sales_lda',
+            "title": "Per Item Annual Sales Lda",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_pty',
+            "title": "Sales Analytics Customers Pty",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_analytics_customers_lda',
+            "title": "Sales Analytics Customers Lda",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_pty',
+            "title": "Overhead Cost Pty",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_overhead_cost_lda',
+            "title": "Overhead Cost Lda",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
+            "title": "Tender Summary",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_opportunity_trend',
+            "title": "Opportunity Trend",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+            "title": "Cost Center True Cost (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Cost' },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+            "title": "Cost Center Lost Opportunity (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Cost' },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
+            "title": "Profit Center True Cost (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Profit' },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
+            "title": "Profit Center Lost Opportunity (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Profit' },
         }
     ]
+
+    if (selectedFilter !== "__show_all__") {
+        const filterConfig = availableFilters.find((item) => item.filter_title === selectedFilter);
+        const selectedTitles = (filterConfig && Array.isArray(filterConfig.chart_selection)) ? filterConfig.chart_selection : [];
+
+        methods = methods.filter((item) => selectedTitles.includes(item.title));
+
+        if (methods.length === 0) {
+            document.getElementById('loader').style.display = 'none';
+            frappe.msgprint("No charts configured for the selected filter.");
+            return;
+        }
+    }
 
     // Helper to wrap frappe.call in a Promise for sequential execution
     function callMethodAsync(index) {

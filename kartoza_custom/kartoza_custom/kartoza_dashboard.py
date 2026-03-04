@@ -2920,3 +2920,36 @@ def delete_comment(comment_id, element_id=None, start_date=None, end_date=None):
         return {"success": True, "message": "Comment deleted successfully."}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_all_filters():
+    """
+    Fetch filters.
+    """
+    filters = frappe.get_all(
+        "Kartoza Dashboard Settings",
+        fields=["name", "filter_title"],
+        order_by="creation desc"
+    )
+
+    charts = []
+    for row in filters:
+        selected_rows = frappe.get_all(
+            "Kartoza Dashboard Settings Chart Selection",
+            fields=["chart_type"],
+            filters={
+                "parent": row["name"],
+                "parenttype": "Kartoza Dashboard Settings",
+                "parentfield": "chart_selection",
+            },
+            order_by="idx asc"
+        )
+
+        charts.append({
+            "name": row["name"],
+            "filter_title": row["filter_title"],
+            "chart_selection": [d.get("chart_type") for d in selected_rows if d.get("chart_type")],
+        })
+
+    return {"charts": charts}
