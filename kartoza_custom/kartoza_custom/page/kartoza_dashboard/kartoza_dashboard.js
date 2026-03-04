@@ -367,6 +367,8 @@ function generateRandomId(prefix = 'id') {
 
 function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id, showTotal) {
 
+    const isPercentDataset = (set) => String(set?.name ?? '').includes('%');
+
     let id = generateRandomId('elem');
     let tableHTML = `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
 
@@ -393,7 +395,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
                 let colTotal = 0;
 
                 datasets.forEach(set => {
-                    if (!set.name.includes('%')) {
+                    if (!isPercentDataset(set)) {
                         colTotal += Number(set.values[i]) || 0;
                     }
                 });
@@ -435,11 +437,11 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
         });
         // Add totals row (sum for each dataset, exclude if name has '%')
         if (showTotal) {
-            let hasNonPercent = datasets.some(set => !set.name.includes('%'));
+            let hasNonPercent = datasets.some(set => !isPercentDataset(set));
             if (hasNonPercent) {
                 tableHTML += `<tr style="font-weight:bold;background:#f7f7f7;"><td>Total</td>`;
                 datasets.forEach(set => {
-                    if (!set.name.includes('%')) {
+                    if (!isPercentDataset(set)) {
                         // Sum all values for this dataset
                         let total = set.values.reduce((acc, v) => acc + (Number(v) || 0), 0);
                         tableHTML += `<td>${formatNumber(total)}</td>`;
