@@ -540,7 +540,7 @@ def get_billable_hours(start_date, end_date):
     data = {
         "element_id": "billable_hours",
         "isReverse": False,
-        "showTotal": True,
+        "showTotal": False,
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "type": "single",
