@@ -138,6 +138,11 @@ function fetchDataAndPlot() {
             "args": { start_date, end_date },
         },
         {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_salary_percent_of_sales',
+            "title": "Salaries as % of Sales",
+            "args": { start_date, end_date },
+        },
+        {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_timesheet_data',
             "title": "Timesheet Data for Project 'Kartoza Sales' (Hours)",
             "args": { start_date, end_date, 'type_returned': "hours" },

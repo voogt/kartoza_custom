@@ -353,31 +353,32 @@ def get_utilisation(start_date, end_date):
 
         results = frappe.db.sql(sql, as_dict=True)
 
-        booked_hours = 0
-        total_hours = 0
-        staff_total = 0
+        total_actual_hours = 0
+        total_capacity_hours = 0
 
         for result in results:
-            booked_hours += 0 if result.get("billable_hours") is None else result.get("billable_hours")
-            total_hours += 0 if result.get("total_hours") is None else result.get("total_hours")
-            staff_total += 1
+            total_actual_hours += 0 if result.get("timesheet_hours") is None else result.get("timesheet_hours")
+            total_capacity_hours += 0 if result.get("total_hours") is None else result.get("total_hours")
 
-        invoicable_hours_staff_median = total_hours / staff_total if staff_total else 0
-        utilisation_percent = (booked_hours / total_hours) * 100 if total_hours else 0
+        capacity_comparison_percent = (
+            (total_actual_hours / total_capacity_hours) * 100 if total_capacity_hours else 0
+        )
 
         month_label = get_month_label(start)
 
         chart_data.append({
             "month": month_label,
-            "invoicable_hours_staff_median": f"{invoicable_hours_staff_median:.0f}",
-            "utilisation_percent": f"{utilisation_percent:.0f}"
+            "total_actual_hours": f"{total_actual_hours:.0f}",
+            "total_capacity_hours": f"{total_capacity_hours:.0f}",
+            "capacity_comparison_percent": f"{capacity_comparison_percent:.0f}"
         })
 
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
-    invoicable_hours_staff_median_values = [row["invoicable_hours_staff_median"] for row in chart_data]
-    utilisation_percent_values = [row["utilisation_percent"] for row in chart_data]
+    total_actual_hours_values = [row["total_actual_hours"] for row in chart_data]
+    total_capacity_hours_values = [row["total_capacity_hours"] for row in chart_data]
+    capacity_comparison_percent_values = [row["capacity_comparison_percent"] for row in chart_data]
 
     data = {
         "element_id": "utilisation",
@@ -392,9 +393,9 @@ def get_utilisation(start_date, end_date):
         <div style='font-size: 14px;text-align: left'>
             <b>Shows staff utilisation per month:</b><br><br>
             <ul style='margin-left: 1em;'>
-                <li><b>Invoicable Hours Staff:</b> Median of total available hours per staff, considering working days, holidays, and approved leave.</li>
-                <li><b>Utilisation %:</b> (Total booked(billable) hours / total available hours) × 100.</li>
-                <li><b>Booked hours:</b> Includes timesheet, holiday, and leave hours.</li>
+                <li><b>Total Actual Hours:</b> Sum of all logged timesheet hours for included staff in the selected month.</li>
+                <li><b>Actual vs Capacity %:</b> (Total actual hours / total capacity hours) × 100.</li>
+                <li><b>Total Capacity Hours:</b> Available hours after excluding holidays and approved leave.</li>
                 <li>Only staff with <b>custom_utilization=1</b> are included.</li>
             </ul>
         </div>
@@ -403,13 +404,18 @@ def get_utilisation(start_date, end_date):
         "datasets": [
             {
                 "type": "bar",
-                "name": "Invoicable Hours Staff",
-                "values": invoicable_hours_staff_median_values
+                "name": "Total Actual Hours",
+                "values": total_actual_hours_values
+            },
+            {
+                "type": "bar",
+                "name": "Total Capacity Hours",
+                "values": total_capacity_hours_values
             },
             {
                 "type": "line",
-                "name": "Utilisation %",
-                "values": utilisation_percent_values
+                "name": "Actual vs Capacity %",
+                "values": capacity_comparison_percent_values
             },
         ]
     }
@@ -1277,6 +1283,101 @@ def get_company_salary_lda(start_date, end_date):
             "values": values
         })
 
+
+    return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_salary_percent_of_sales(start_date, end_date):
+    ranges = get_month_ranges(start_date, end_date)
+    chart_data = []
+
+    total_salary_period = 0
+    total_sales_period = 0
+
+    for start, end in ranges:
+        zar_rate = get_rates(end, "EUR")
+
+        salary_sql = f"""
+            SELECT
+                SUM(
+                    CASE
+                        WHEN company = 'Kartoza (Pty) Ltd' THEN gross_pay
+                        ELSE gross_pay * {zar_rate}
+                    END
+                ) AS total_salary
+            FROM `tabSalary Slip`
+            WHERE docstatus = 1
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        sales_sql = f"""
+            SELECT
+                SUM(
+                    CASE
+                        WHEN company = 'Kartoza (Pty) Ltd' THEN base_grand_total
+                        ELSE base_grand_total * {zar_rate}
+                    END
+                ) AS total_sales
+            FROM `tabSales Invoice`
+            WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+            AND posting_date BETWEEN '{start}' AND '{end}'
+        """
+
+        monthly_salary = frappe.db.sql(salary_sql, as_dict=True)[0].get("total_salary") or 0
+        monthly_sales = frappe.db.sql(sales_sql, as_dict=True)[0].get("total_sales") or 0
+
+        monthly_salary += 260000 
+
+        salary_percent_of_sales = (monthly_salary / monthly_sales) * 100 if monthly_sales else 0
+
+        total_salary_period += monthly_salary
+        total_sales_period += monthly_sales
+
+        month_label = get_month_label(start)
+        chart_data.append({
+            "month": month_label,
+            "salary_percent_of_sales": f"{salary_percent_of_sales:.2f}",
+        })
+
+    labels = [row["month"] for row in chart_data]
+    salary_percent_values = [row["salary_percent_of_sales"] for row in chart_data]
+    period_percent = (total_salary_period / total_sales_period) * 100 if total_sales_period else 0
+
+    data = {
+        "title": "Salaries as % of Sales",
+        "labels": labels,
+        "element_id": "salary_percent_sales",
+        "isReverse": False,
+        "showTotal": False,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "type": "single",
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Tracks salaries as a percentage of sales month-to-month:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Salaries % of Sales:</b> (Total salaries / total sales invoices) * 100 for each month.</li>
+                <li><b>Sales Source:</b> Sales are summed from <b>base_grand_total</b>; for non-Pty companies this value is treated as EUR and converted to ZAR using the monthly EUR rate.</li>
+                <li><b>Date Filter:</b> Monthly sales amounts only include sales invoices with <b>posting_date</b> between the selected month start and end dates.</li>
+                <li><b>Invoice Status:</b> Sales invoices with status <b>Cancelled</b>, <b>Draft</b>, <b>Return</b>, and <b>Credit Note Issued</b> are excluded from the calculation.</li>
+            </ul>
+        </div>
+        """,
+        "total_cards": [
+            {
+                "title": "Period Salaries % of Sales",
+                "value": f"{period_percent:.2f}%"
+            }
+        ],
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Salaries % of Sales",
+                "values": salary_percent_values
+            }
+        ]
+    }
 
     return data
 

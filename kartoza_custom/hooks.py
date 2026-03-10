@@ -198,6 +198,7 @@ override_whitelisted_methods = {
 # ----------------
 # Only check for SQL injection on every request, but check for form spam only on write (data-modifying) requests
 before_request = [
+    "kartoza_custom.monkey_patches.employee_reminders.apply_monkey_patches",
     "kartoza_custom.security_hooks.check_sql_injection",
     "kartoza_custom.security_hooks.check_form_spam"
 ]
@@ -207,7 +208,7 @@ before_request = [
 
 # Job Events
 # ----------
-# before_job = ["kartoza_custom.utils.before_job"]
+before_job = ["kartoza_custom.monkey_patches.employee_reminders.apply_monkey_patches"]
 # after_job = ["kartoza_custom.utils.after_job"]
 
 # User Data Protection
