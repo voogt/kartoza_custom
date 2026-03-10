@@ -12,15 +12,16 @@ app_license = "MIT"
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kartoza_custom/css/kartoza_custom.css"
 app_include_js = [
-    f"/assets/kartoza_custom/js/sales_order_override.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/procedure_modal.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/chart_filters.js?v={datetime.now()}",
+    f"/assets/kartoza_custom/js/plotly.js?v={datetime.now()}",
 ]
 
 # include js, css files in header of web template
 web_include_css = f"/assets/kartoza_custom/css/main.css?v={datetime.now()}"
 web_include_js = [
-    f"/assets/kartoza_custom/js/currency_session.js?v={datetime.now()}",
     f"/assets/kartoza_custom/js/cookie_enabler.js?v={datetime.now()}",
-    f"/assets/kartoza_custom/js/shopping_cart.js?v={datetime.now()}"
+    f"/assets/kartoza_custom/js/blog_list.js?v={datetime.now()}"
 ]
 
 # include custom scss in every website theme (without file extension ".scss")
@@ -115,25 +116,35 @@ web_include_js = [
 # ---------------
 # Override standard doctype classes
 
-override_doctype_class = {
-	# "ToDo": "custom_app.overrides.CustomToDo"
-    "E Commerce Settings": "kartoza_custom.overrides.MultiCurrency"
-}
+# override_doctype_class = {
+# 	# "ToDo": "custom_app.overrides.CustomToDo"
+#     "E Commerce Settings": "kartoza_custom.overrides.MultiCurrency"
+# }
 
 # Document Events
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+
+doc_events = {
+    "Customer": {
+        "before_insert": "kartoza_custom.api.before_insert_customer"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
+
+scheduler_events = {
+    "daily": [
+        "kartoza_custom.utils.update_exchange_rate_and_amount",
+        "kartoza_custom.schedular_events.check_passport_expiry",
+    ],
+    "weekly": [
+        "kartoza_custom.schedular_events.generate_cashflow_report_pdf"
+    ]
+}
+
 
 # scheduler_events = {
 # 	"all": [
@@ -161,9 +172,9 @@ override_doctype_class = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "kartoza_custom.event.get_events"
-# }
+override_whitelisted_methods = {
+    "frappe.website.doctype.web_form.web_form.get_list": "kartoza_custom.api.get_filtered_list",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
@@ -171,6 +182,8 @@ override_doctype_class = {
 # override_doctype_dashboards = {
 # 	"Task": "kartoza_custom.task.get_dashboard_data"
 # }
+
+
 
 # exempt linked doctypes from being automatically cancelled
 #
@@ -183,12 +196,19 @@ override_doctype_class = {
 
 # Request Events
 # ----------------
-# before_request = ["kartoza_custom.utils.before_request"]
+# Only check for SQL injection on every request, but check for form spam only on write (data-modifying) requests
+before_request = [
+    "kartoza_custom.monkey_patches.employee_reminders.apply_monkey_patches",
+    "kartoza_custom.security_hooks.check_sql_injection",
+    "kartoza_custom.security_hooks.check_form_spam"
+]
+
+
 # after_request = ["kartoza_custom.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["kartoza_custom.utils.before_job"]
+before_job = ["kartoza_custom.monkey_patches.employee_reminders.apply_monkey_patches"]
 # after_job = ["kartoza_custom.utils.after_job"]
 
 # User Data Protection
@@ -222,6 +242,8 @@ override_doctype_class = {
 # 	"kartoza_custom.auth.validate"
 # ]
 
+
+
 fixtures = [
     {"doctype": "Moodle Course Settings"},
     {"doctype": "Kartoza Cash Flow Mapping"},
@@ -231,9 +253,12 @@ fixtures = [
     {"doctype": "Kartoza Cash Flow Mapping Accounts"},
     {"doctype": "Kartoza Reports"},
     {"doctype": "EasyFile txt generator"},
+    {"doctype": "User Procedure Acknowledgment"},
+    {"doctype": "Dashboard Table Comments"},
+    {"doctype": "Cashflow Forecast Snapshots"},
 	{
 	"doctype": "Report",
-	"filters": [["name", "in", ["Kartoza Cash Flow", "Consolidated Financial Statement (All Companies)"]]]
+	"filters": [["name", "in", ["Kartoza Cash Flow", "All Companies Consolidated Financial Report"]]]
    }
 ]
 
@@ -248,5 +273,14 @@ website_route_rules = [
 			"parents": [{"label": "Quotations", "route": "quotations"}],
 		},
 	},
+    {
+        "from_route": "/contract-sign/<path:name>",
+        "to_route": "contract_sign",
+        "defaults": {
+            "doctype": "Contract",
+            "parents": [{"label": "Contracts", "route": "contracts"}],
+        },
+    },
 	
 ]
+

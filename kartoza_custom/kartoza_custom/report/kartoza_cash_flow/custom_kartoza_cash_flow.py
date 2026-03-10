@@ -97,9 +97,6 @@ def setup_mappers(mappers):
 
 		accounts = get_accounts_in_mappers(mapping_names)
 
-		for account in accounts:
-			print(f"ACCOUNT IN MAPPER {account}")
-
 		account_types = [
 			dict(
 				name=account[0],
@@ -262,7 +259,7 @@ def add_data_for_operating_activities(
 		{
 			"account_name": mapper["section_header"],
 			"parent_account": None,
-			"indent": 0.0,
+			"indent": 0,
 			"account": mapper["section_header"],
 		}
 	)
@@ -278,7 +275,7 @@ def add_data_for_operating_activities(
 			{
 				"account_name": mapper["section_leader"],
 				"parent_account": None,
-				"indent": 1.0,
+				"indent": 1,
 				"account": mapper["section_leader"],
 			}
 		)
@@ -289,9 +286,9 @@ def add_data_for_operating_activities(
 			data.append(
 				{
 					"account_name": "Movement in working capital",
+					"account": "Movement in working capital",
 					"parent_account": None,
-					"indent": 1.0,
-					"account": "",
+					"indent": 1,
 				}
 			)
 			has_added_working_capital_header = True
@@ -312,12 +309,11 @@ def add_data_for_operating_activities(
 					account_data[key] *= -1
 
 		if account_data["total"] != 0:
-			print(f"MAPPERSECTION {mapper['section_header']}")
 			account_data.update(
 				{
-					"account_name": account["label"],
-					"account": account["names"],
-					"indent": 1.0,
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
+					"account": account['label'],
+					"indent": 1,
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
 				}
@@ -351,8 +347,9 @@ def add_data_for_operating_activities(
 				{
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
-					"account_name": account["label"],
-					"indent": 1.0,
+					"account": account['label'],
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
+					"indent": 1,
 				}
 			)
 			data.append(tax_paid)
@@ -375,8 +372,9 @@ def add_data_for_operating_activities(
 				{
 					"parent_account": mapper["section_header"],
 					"currency": company_currency,
-					"account_name": account["label"],
-					"indent": 1.0,
+					"account": account['label'],
+					"account_name": f"{account['label']} ({', '.join(account['names'])})",
+					"indent": 1,
 				}
 			)
 			data.append(interest_paid)
@@ -421,7 +419,6 @@ def _calculate_adjustment(non_expense_closing, non_expense_opening, expense_data
 def add_data_for_other_activities(
 	filters, company_currency, profit_data, period_list, light_mappers, mapper_list, data
 ):
-	print(f"MAPPERLIST,{mapper_list}\n")
 	for mapper in mapper_list:
 			
 		if mapper['section_name'] == 'Investing Activities':
@@ -430,7 +427,7 @@ def add_data_for_other_activities(
 				{
 					"account_name": mapper["section_header"],
 					"parent_account": None,
-					"indent": 0.0,
+					"indent": 0,
 					"account": mapper["section_header"],
 				}
 			)
@@ -449,8 +446,8 @@ def add_data_for_other_activities(
 					if account_data["total"] != 0:
 						account_data.update(
 							{
-								"account_name": account["label"],
-								"account": account["names"],
+								"account_name": f"{account['label']} ({', '.join(account['names'])})",
+								"account": account['label'],
 								"indent": 1,
 								"parent_account": mapper["section_header"],
 								"currency": company_currency,
@@ -468,7 +465,7 @@ def add_data_for_other_activities(
 				{
 					"account_name": mapper["section_header"],
 					"parent_account": None,
-					"indent": 0.0,
+					"indent": 0,
 					"account": mapper["section_header"],
 				}
 			)
@@ -477,22 +474,17 @@ def add_data_for_other_activities(
 				account_data = _get_account_type_based_data(
 					filters, account["names"], period_list, filters.accumulated_values
 				)
-				print(f"ACCOUNTDATA {account_data}")
-				try:
-					if account_data["total"] != 0:
-						account_data.update(
-							{
-								"account_name": account["label"],
-								"account": account["names"],
-								"indent": 1,
-								"parent_account": mapper["section_header"],
-								"currency": company_currency,
-							}
-						)
-						data.append(account_data)
-						section_data.append(account_data)
-				except:
-					print(f"NO TOTAL {account}")
+				account_data.update(
+					{
+						"account_name": f"{account['label']} ({', '.join(account['names'])})",
+						"account": account['label'],
+						"indent": 1,
+						"parent_account": mapper["section_header"],
+						"currency": company_currency,
+					}
+				)
+				data.append(account_data)
+				section_data.append(account_data)
 
 			_add_total_row_account(data, section_data, mapper["section_footer"], period_list, company_currency)
 
@@ -574,13 +566,22 @@ def execute(filters=None):
 	_add_total_row_account(data, data, _("Net Change in Cash"), period_list, company_currency)
 	columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, 'Kartoza (Pty) Ltd')
 
+	data = [d for d in data if d]
+
+	for d in data:
+		print(f"DATA ROW {d} \n")
+
 	return columns, data
 
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):
 	if not account_names or not account_names[0] or not isinstance(account_names[0], str):
 		# only proceed if account_names is a list of account names
-		return {}
+		# return {}
+		account_names = account_names[0]
+		if account_names[0] == '':
+			return {}
+
 
 	from erpnext.accounts.report.cash_flow.cash_flow import get_start_date
 
@@ -642,6 +643,8 @@ def _get_account_type_based_data(filters, account_names, period_list, accumulate
 		data.setdefault(period["key"], flt(gl_sum))
 
 	data["total"] = total
+
+	print(f"DATA RETURNED {data}")
 	return data
 
 
@@ -727,21 +730,22 @@ def _get_account_tax_based_data(filters, account_names, period_list):
 
 
 
-def _add_total_row_account(out, data, label, period_list, currency, indent=0.0):
+def _add_total_row_account(out, data, label, period_list, currency, indent=0):
 	
 	total_row = {
 		"indent": indent,
-		"account_name": "'" + _("{0}").format(label) + "'",
-		"account": "'" + _("{0}").format(label) + "'",
+		"account_name": _("{0}").format(label),
+		"account": _("{0}").format(label),
 		"currency": currency,
 	}
 	for row in data:
+		print(f"ROW IN TOTAL {row}")
 		if row.get("parent_account"):
 			for period in period_list:
-				total_row.setdefault(period.key, 0.0)
-				total_row[period.key] += row.get(period.key, 0.0)
+				total_row.setdefault(period.key, 0)
+				total_row[period.key] += row.get(period.key, 0)
 
-			total_row.setdefault("total", 0.0)
+			total_row.setdefault("total", 0)
 			total_row["total"] += row["total"]
 
 	out.append(total_row)

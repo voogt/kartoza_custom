@@ -1,0 +1,32 @@
+{
+ "content": null,
+ "creation": "2025-11-06 08:43:29.162372",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2025-11-06 08:43:29.162372",
+ "modified_by": "Administrator",
+ "module": "Kartoza Custom",
+ "name": "kartoza-projects-dashboard",
+ "owner": "Administrator",
+ "page_name": "kartoza-projects-dashboard",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "Projects Manager"
+  },
+  {
+   "role": "Projects User"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Kartoza Projects Dashboard"
+}

@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-30 11:01:35.875105",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "table_id",
+  "start_date",
+  "end_date",
+  "comment",
+  "commented_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "table_id",
+   "fieldtype": "Data",
+   "label": "Table ID"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fieldname": "comment",
+   "fieldtype": "Text",
+   "label": "Comment"
+  },
+  {
+   "fieldname": "commented_by",
+   "fieldtype": "Data",
+   "label": "Comment By"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-09-30 12:25:30.795425",
+ "modified_by": "Administrator",
+ "module": "Kartoza Custom",
+ "name": "Dashboard Table Comments",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
