@@ -212,22 +212,26 @@ def before_insert_customer(doc, method):
     if user.user_type == "System User":
         return
 
-    # Only override if customer_name matches session user's full name
-    if doc.customer_name == user.full_name:
-        doc.customer_name = user.full_name
+    customer_name = (doc.customer_name or "").strip()
+    if not customer_name:
+        customer_name = (user.full_name or "").strip()
 
-        # Slugify full name
-        base_name = user.full_name
+    if not customer_name and website_user:
+        customer_name = website_user.split("@", 1)[0]
 
-        # Ensure unique name
-        new_name = base_name
-        i = 1
-        while frappe.db.exists("Customer", new_name):
-            new_name = f"{base_name}-{i}"
-            i += 1
+    if not customer_name:
+        customer_name = "Website Customer"
 
-        # Change docname before saving
-        doc.name = new_name
+    doc.customer_name = customer_name
+
+    base_name = customer_name
+    new_name = base_name
+    i = 1
+    while frappe.db.exists("Customer", new_name):
+        new_name = f"{base_name}-{i}"
+        i += 1
+
+    doc.name = new_name
 
 @frappe.whitelist()
 def send_expense_email(docname):
