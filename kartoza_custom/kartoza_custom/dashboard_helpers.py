@@ -6,24 +6,19 @@ from frappe import _
 from frappe.utils import flt
 
 def get_rates(date, cur):
-    base_url = "https://api.frankfurter.app"
-    latest = "latest"
+    base_url = "https://api.frankfurter.dev/v1/latest"
 
     # We want to convert FROM EUR TO ZAR, so base=EUR and symbols=ZAR
-    conditions = f'base=EUR&symbols=ZAR'
+    conditions = f'base={cur}'
 
-    api = f'{base_url}/{date}?{conditions}' if date else f'{base_url}/{latest}?{conditions}'
+    api =  f'{base_url}?{conditions}'
 
     try:
         response = requests.get(api)
         response.raise_for_status()  # Raise error for bad status codes
         r = response.json()["rates"]
 
-        # Now r["ZAR"] is the value of 1 EUR in ZAR
-        if cur == "EUR":
-            return r["ZAR"]
-        else:
-            return 0
+        return r["ZAR"]
     except (requests.RequestException, KeyError) as e:
         print(f"Error fetching exchange rate: {e}")
         return 0
