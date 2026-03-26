@@ -2851,6 +2851,7 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
             LEFT JOIN `tabTask` tt on tt.name = ttd.task
             WHERE ttd.project = 'Kartoza Sales'
             AND ttd.creation BETWEEN '{start}' AND '{end}'
+            AND tt.subject != ''
             GROUP BY ttd.activity_type, ttd.task 
         """, as_dict=1, debug=0)
 
