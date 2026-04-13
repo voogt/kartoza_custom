@@ -331,35 +331,178 @@ def compute_department_summary(timesheets, billing_data, salary_data, all_depart
         if dept is not None
     ]
 
-def get_all_data(projects):
+def get_sa_financial_year_label(date_value):
+    """Return South Africa financial-year label (April to March) as FYYYYY."""
+    if not date_value:
+        return None
+
+    if isinstance(date_value, datetime):
+        date_obj = date_value.date()
+    elif isinstance(date_value, str):
+        date_obj = datetime.strptime(date_value.split(" ")[0], "%Y-%m-%d").date()
+    else:
+        date_obj = date_value
+
+    fy_year = date_obj.year + 1 if date_obj.month >= 4 else date_obj.year
+    return f"FY{fy_year}"
+
+def get_all_data(projects, start_date=None, end_date=None):
+    if not projects:
+        return {
+            'sales_invoices': {},
+            'sales_orders': {},
+            'risk_percentages': {},
+            'deferred_revenues': {},
+            'deferred_revenues_by_fy': {},
+            'future_financial_years': [],
+        }
+    
+    zar_eur_rate = get_rates(None, "EUR")
+
     # Escape single quotes for all projects
     projects_str = "', '".join([project.replace("'", "''") for project in projects])
 
+    sales_invoice_date_filter = ""
+    sales_order_date_filter = ""
+    future_payment_date_filter = ""
+    sales_order_comment_filter = ""
+
+    if start_date and end_date:
+        sales_invoice_date_filter = f" AND ts.posting_date BETWEEN '{start_date}' AND '{end_date}'"
+    if end_date:
+        sales_order_date_filter = f" AND tso.transaction_date <= '{end_date}'"
+        future_payment_date_filter = f"""
+            AND (
+                (tps.name IS NOT NULL AND tps.due_date > '{end_date}')
+                OR
+                (tps.name IS NULL AND tsi.due_date > '{end_date}')
+            )
+        """
+        sales_order_comment_filter = f"""
+            AND tso.name NOT IN (
+                SELECT reference_name 
+                FROM
+                `tabComment` tc
+                WHERE
+                    reference_doctype = 'Sales Order'
+                    AND content = 'Closed'
+                    AND tc.creation <= '{end_date}'
+            )
+        """
+    else:
+        future_payment_date_filter = """
+            AND (
+                (tps.name IS NOT NULL AND tps.due_date > CURDATE())
+                OR
+                (tps.name IS NULL AND tsi.due_date > CURDATE())
+            )
+        """
+
     # Query timesheet costing for all projects
     sales_invoice_sql = f"""
-        SELECT ts.project, SUM(base_grand_total) as `total_billed_amount`
+        SELECT ts.project, 
+        SUM(CASE
+            WHEN company = 'Kartoza (Pty) Ltd' THEN ts.base_grand_total
+            ELSE ts.base_grand_total * {zar_eur_rate}
+            END
+        ) as `total_billed_amount`
         FROM `tabSales Invoice` ts
         WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
         AND project IN ('{projects_str}')
+        {sales_invoice_date_filter}
         GROUP BY ts.project
     """
     
     sales_order_sql = f"""
-        SELECT tso.project, SUM(base_grand_total) as `total_sales_order_amount`,
+        SELECT tso.project, 
+        SUM(CASE
+            WHEN company = 'Kartoza (Pty) Ltd' THEN tso.base_grand_total
+            ELSE tso.base_grand_total * {zar_eur_rate}
+            END
+        ) as `total_sales_order_amount`,
         tso.custom_risk_percentage_ as `risk_percentage`
         FROM `tabSales Order` tso
-        WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        WHERE tso.docstatus = 1
+        AND tso.status NOT IN ('Closed')
         AND project IN ('{projects_str}')
+        {sales_order_date_filter}
+        {sales_order_comment_filter}
         GROUP BY tso.project
     """
     
+    deferred_revenue_sql = f"""
+        SELECT
+        tsi.project,
+        CASE
+            WHEN tps.name IS NOT NULL THEN tps.due_date
+            ELSE tsi.due_date
+        END as due_date,
+        SUM(
+            CASE
+                WHEN company = 'Kartoza (Pty) Ltd' THEN tsi.base_grand_total
+                ELSE tsi.base_grand_total * {zar_eur_rate}
+            END
+        ) as `deferred_revenue`
+        FROM `tabSales Invoice` tsi
+        LEFT JOIN `tabPayment Schedule` tps
+            ON tps.parent = tsi.name
+            AND tps.parenttype = 'Sales Invoice'
+        WHERE tsi.status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        AND tsi.project IN ('{projects_str}')
+        {future_payment_date_filter}
+        GROUP BY tsi.project, due_date
+    """
+
     sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
     sales_order_data = frappe.db.sql(sales_order_sql, as_dict=1, debug=0)
+    deferred_revenue_data = frappe.db.sql(deferred_revenue_sql, as_dict=1, debug=0)
+
+    deferred_revenue_totals = {}
+    deferred_revenue_by_fy = {}
+    future_financial_years = set()
+
+    # Always expose a rolling future FY horizon so table columns are stable
+    # even when no schedule rows exist yet for a specific future year.
+    if end_date:
+        anchor_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+    else:
+        anchor_date = datetime.now().date()
+
+    anchor_fy_year = anchor_date.year + 1 if anchor_date.month >= 4 else anchor_date.year
+    for i in range(1, 4):
+        future_financial_years.add(f"FY{anchor_fy_year + i}")
+
+    for row in deferred_revenue_data:
+        project = row.get('project')
+        due_date = row.get('due_date')
+        amount = row.get('deferred_revenue') or 0
+
+        if not project:
+            continue
+
+        deferred_revenue_totals[project] = deferred_revenue_totals.get(project, 0) + amount
+
+        fy_label = get_sa_financial_year_label(due_date)
+        if not fy_label:
+            continue
+
+        future_financial_years.add(fy_label)
+        if project not in deferred_revenue_by_fy:
+            deferred_revenue_by_fy[project] = {}
+        deferred_revenue_by_fy[project][fy_label] = deferred_revenue_by_fy[project].get(fy_label, 0) + amount
+
+    sorted_financial_years = sorted(
+        future_financial_years,
+        key=lambda fy: int(fy.replace("FY", ""))
+    )
 
     return {
         'sales_invoices': {item['project']: item['total_billed_amount'] for item in sales_invoice_data},
         'sales_orders': {item['project']: item['total_sales_order_amount'] for item in sales_order_data},
-        'risk_percentages': {item['project']: item['risk_percentage'] for item in sales_order_data if item['risk_percentage'] is not None}
+        'risk_percentages': {item['project']: item['risk_percentage'] for item in sales_order_data if item['risk_percentage'] is not None},
+        'deferred_revenues': deferred_revenue_totals,
+        'deferred_revenues_by_fy': deferred_revenue_by_fy,
+        'future_financial_years': sorted_financial_years,
     }
 
 def get_profit(income, period_list, company, currency=None, consolidated=False):

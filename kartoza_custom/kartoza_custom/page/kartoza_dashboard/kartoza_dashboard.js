@@ -107,11 +107,11 @@ function fetchDataAndPlot() {
             "title": "Billable Hours",
             "args": { start_date, end_date },
         },
-        {
-            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
-            "title": "Utilisation",
-            "args": { start_date, end_date },
-        },
+        // {
+        //     "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
+        //     "title": "Utilisation",
+        //     "args": { start_date, end_date },
+        // },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
             "title": "Projects",
