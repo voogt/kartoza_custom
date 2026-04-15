@@ -432,25 +432,20 @@ def get_all_data(projects, start_date=None, end_date=None):
     
     deferred_revenue_sql = f"""
         SELECT
-        tsi.project,
-        CASE
-            WHEN tps.name IS NOT NULL THEN tps.due_date
-            ELSE tsi.due_date
-        END as due_date,
+        tso.project,
+        tsi.delivery_date as due_date,
         SUM(
             CASE
-                WHEN company = 'Kartoza (Pty) Ltd' THEN tsi.base_grand_total
-                ELSE tsi.base_grand_total * {zar_eur_rate}
+                WHEN company = 'Kartoza (Pty) Ltd' THEN tsi.base_net_amount
+                ELSE tsi.base_net_amount * {zar_eur_rate}
             END
         ) as `deferred_revenue`
-        FROM `tabSales Invoice` tsi
-        LEFT JOIN `tabPayment Schedule` tps
-            ON tps.parent = tsi.name
-            AND tps.parenttype = 'Sales Invoice'
-        WHERE tsi.status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
-        AND tsi.project IN ('{projects_str}')
-        {future_payment_date_filter}
-        GROUP BY tsi.project, due_date
+        FROM `tabSales Order Item` tsi
+        LEFT JOIN `tabSales Order` tso ON tsi.parent = tso.name
+        WHERE tso.status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        AND tso.project IN ('{projects_str}')
+        AND tsi.delivery_date > '{end_date}'
+        GROUP BY tso.project, due_date
     """
 
     sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
