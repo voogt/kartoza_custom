@@ -2129,36 +2129,6 @@ def get_overhead_cost_pty(start_date, end_date):
     chart_data = []
 
     for start, end in ranges:
-        overhead_cost_salaries_sql = f"""
-            SELECT 
-                SUM(tss.total_cost) as `total_cost`
-            FROM `tabSalary Slip` tss
-            LEFT JOIN `tabEmployee` te ON te.name = tss.employee
-            WHERE te.department IN ('PMO - K', 'PMO - KE', 'Admin - K', 'Admin - KE', 'Management - K', 'Management - KE')
-            AND tss.posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_insurance_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza (Pty) Ltd'
-            AND ts.supplier_group = 'Insurance'
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_supplier_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza (Pty) Ltd'
-            AND ts.supplier_group NOT IN ('Insurance')
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
 
         filters = frappe._dict({
             "company": "Kartoza (Pty) Ltd",
@@ -2199,16 +2169,33 @@ def get_overhead_cost_pty(start_date, end_date):
             ignore_closing_entries=True,
         )
 
-        total_revenue =  get_profit(
-		income, period_list, filters.company, filters.presentation_currency
+        expense = get_data(
+            "Kartoza (Pty) Ltd",
+            "Expense",
+            "Debit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
 	    )
 
-        overhead_cost_salaries = frappe.db.sql(overhead_cost_salaries_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
-        overhead_variable_cost = overhead_cost_supplier
-        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
+        overhead_fixed = 0
+        overhead_variable = 0
+
+        for expense_row in expense:
+            account = expense_row.get("account")
+            if account == '5200 - Expenses - K':
+                overhead_fixed += expense_row["total"]
+            elif account == '5100 - Cost of Sales - K':
+                overhead_variable += expense_row["total"]
+
+        total_revenue =  get_profit(
+		    income, period_list, filters.company, filters.presentation_currency
+	    )
+
+        overhead_variable_cost = overhead_variable
+        overhead_fixed_cost = overhead_fixed
+        overhead_cost = overhead_fixed_cost + overhead_variable_cost
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
         month_label = get_month_label(start)
@@ -2285,28 +2272,6 @@ def get_overhead_cost_lda(start_date, end_date):
 
     for start, end in ranges:
 
-        overhead_cost_insurance_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza Lda'
-            AND ts.supplier_group = 'Insurance'
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_supplier_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza Lda'
-            AND ts.supplier_group NOT IN ('Insurance')
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
         filters = frappe._dict({
             "company": "Kartoza Lda",
             "filter_based_on": "Date Range",
@@ -2346,6 +2311,26 @@ def get_overhead_cost_lda(start_date, end_date):
             ignore_closing_entries=True,
         )
 
+        expense = get_data(
+            "Kartoza Lda",
+            "Expense",
+            "Debit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
+	    )
+
+        overhead_fixed = 0
+        overhead_variable = 0
+
+        for expense_row in expense:
+            account = expense_row.get("account")
+            if account == '5200 - Expenses - KE':
+                overhead_fixed += expense_row["total"]
+            elif account == '5100 - Cost of Sales - KE':
+                overhead_variable += expense_row["total"]
+
         total_revenue =  get_profit(
 		income, period_list, filters.company, filters.presentation_currency
 	    )
@@ -2354,12 +2339,9 @@ def get_overhead_cost_lda(start_date, end_date):
             total_revenue = 0.0
         total_revenue = total_revenue * zar_eur_rate
 
-        overhead_cost_salaries = 260000
-        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
-        overhead_variable_cost = overhead_cost_supplier
-        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
+        overhead_variable_cost = overhead_variable * zar_eur_rate
+        overhead_fixed_cost = (overhead_fixed * zar_eur_rate) + 260000
+        overhead_cost = overhead_fixed_cost + overhead_variable_cost
         overhead_percantage = (overhead_cost / total_revenue) * 100 if total_revenue else 0.0
 
         month_label = get_month_label(start)

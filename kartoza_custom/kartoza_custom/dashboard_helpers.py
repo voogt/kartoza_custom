@@ -364,23 +364,17 @@ def get_all_data(projects, start_date=None, end_date=None):
 
     sales_invoice_date_filter = ""
     sales_order_date_filter = ""
-    future_payment_date_filter = ""
     sales_order_comment_filter = ""
 
     if start_date and end_date:
         sales_invoice_date_filter = f" AND ts.posting_date BETWEEN '{start_date}' AND '{end_date}'"
+    next_fy_start = None
     if end_date:
         sales_order_date_filter = f" AND tso.transaction_date <= '{end_date}'"
-        future_payment_date_filter = f"""
-            AND (
-                (tps.name IS NOT NULL AND tps.due_date > '{end_date}')
-                OR
-                (tps.name IS NULL AND tsi.due_date > '{end_date}')
-            )
-        """
+
         sales_order_comment_filter = f"""
             AND tso.name NOT IN (
-                SELECT reference_name 
+                SELECT reference_name
                 FROM
                 `tabComment` tc
                 WHERE
@@ -389,21 +383,17 @@ def get_all_data(projects, start_date=None, end_date=None):
                     AND tc.creation <= '{end_date}'
             )
         """
-    else:
-        future_payment_date_filter = """
-            AND (
-                (tps.name IS NOT NULL AND tps.due_date > CURDATE())
-                OR
-                (tps.name IS NULL AND tsi.due_date > CURDATE())
-            )
-        """
+
+        _anchor = datetime.strptime(end_date, "%Y-%m-%d").date()
+        _anchor_fy_year = _anchor.year + 1 if _anchor.month >= 4 else _anchor.year
+        next_fy_start = f"{_anchor_fy_year}-04-01"
 
     # Query timesheet costing for all projects
     sales_invoice_sql = f"""
         SELECT ts.project, 
         SUM(CASE
-            WHEN company = 'Kartoza (Pty) Ltd' THEN ts.base_grand_total
-            ELSE ts.base_grand_total * {zar_eur_rate}
+            WHEN company = 'Kartoza (Pty) Ltd' THEN ts.base_net_total
+            ELSE ts.base_net_total * {zar_eur_rate}
             END
         ) as `total_billed_amount`
         FROM `tabSales Invoice` ts
@@ -416,8 +406,8 @@ def get_all_data(projects, start_date=None, end_date=None):
     sales_order_sql = f"""
         SELECT tso.project, 
         SUM(CASE
-            WHEN company = 'Kartoza (Pty) Ltd' THEN tso.base_grand_total
-            ELSE tso.base_grand_total * {zar_eur_rate}
+            WHEN company = 'Kartoza (Pty) Ltd' THEN tso.base_net_total
+            ELSE tso.base_net_total * {zar_eur_rate}
             END
         ) as `total_sales_order_amount`,
         tso.custom_risk_percentage_ as `risk_percentage`
@@ -433,24 +423,29 @@ def get_all_data(projects, start_date=None, end_date=None):
     deferred_revenue_sql = f"""
         SELECT
         tso.project,
-        tsi.delivery_date as due_date,
+        CASE
+            WHEN tsi.delivery_date > '{end_date}' THEN tsi.delivery_date
+            ELSE '{next_fy_start}'
+        END as due_date,
         SUM(
             CASE
-                WHEN company = 'Kartoza (Pty) Ltd' THEN tsi.base_net_amount
+                WHEN tso.company = 'Kartoza (Pty) Ltd' THEN tsi.base_net_amount
                 ELSE tsi.base_net_amount * {zar_eur_rate}
             END
         ) as `deferred_revenue`
         FROM `tabSales Order Item` tsi
         LEFT JOIN `tabSales Order` tso ON tsi.parent = tso.name
-        WHERE tso.status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+        WHERE tso.docstatus = 1
+        AND tso.status NOT IN ('Cancelled', 'Return', 'Credit Note Issued', 'Closed')
         AND tso.project IN ('{projects_str}')
-        AND tsi.delivery_date > '{end_date}'
+        {sales_order_comment_filter}
+        AND tsi.base_net_amount > 0
         GROUP BY tso.project, due_date
-    """
+    """ if next_fy_start else ""
 
     sales_invoice_data = frappe.db.sql(sales_invoice_sql, as_dict=1, debug=0)
     sales_order_data = frappe.db.sql(sales_order_sql, as_dict=1, debug=0)
-    deferred_revenue_data = frappe.db.sql(deferred_revenue_sql, as_dict=1, debug=0)
+    deferred_revenue_data = frappe.db.sql(deferred_revenue_sql, as_dict=1, debug=0) if deferred_revenue_sql else []
 
     deferred_revenue_totals = {}
     deferred_revenue_by_fy = {}
@@ -485,6 +480,25 @@ def get_all_data(projects, start_date=None, end_date=None):
         if project not in deferred_revenue_by_fy:
             deferred_revenue_by_fy[project] = {}
         deferred_revenue_by_fy[project][fy_label] = deferred_revenue_by_fy[project].get(fy_label, 0) + amount
+
+    # Scale raw SO-item amounts down to what is actually still to be billed.
+    # billed_amt on SO items is in transaction currency while base_net_amount is
+    # in base currency, so we cannot subtract them in SQL.  Instead we use the
+    # project-level totals (already correctly calculated) to derive a scale factor
+    # and apply it to every FY bucket so the FY values always sum to to_be_billed.
+    sales_invoices_map = {item['project']: item['total_billed_amount'] or 0 for item in sales_invoice_data}
+    sales_orders_map = {item['project']: item['total_sales_order_amount'] or 0 for item in sales_order_data}
+
+    for project in list(deferred_revenue_by_fy.keys()):
+        total_raw = deferred_revenue_totals.get(project, 0) or 0
+        to_be_billed = max(0, (sales_orders_map.get(project, 0) or 0) - (sales_invoices_map.get(project, 0) or 0))
+        if total_raw > 0:
+            scale = to_be_billed / total_raw
+            for fy in deferred_revenue_by_fy[project]:
+                deferred_revenue_by_fy[project][fy] = deferred_revenue_by_fy[project][fy] * scale
+            deferred_revenue_totals[project] = to_be_billed
+        else:
+            deferred_revenue_totals[project] = 0
 
     sorted_financial_years = sorted(
         future_financial_years,
