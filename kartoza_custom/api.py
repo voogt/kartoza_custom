@@ -289,6 +289,118 @@ def send_expense_email(docname):
 
     return 'sent'
 
+def _get_or_create_customer_for_user(email: str) -> str:
+    """Return the Customer name linked to this email, creating one if none exists."""
+    if not email:
+        return ""
+
+    # 1. Portal User child table — most direct User → Customer link
+    customer = frappe.db.get_value(
+        "Portal User",
+        {"user": email, "parenttype": "Customer"},
+        "parent",
+    )
+    if customer and frappe.db.exists("Customer", customer):
+        return customer
+
+    # 2. Contact Email → Dynamic Link → Customer
+    contact = frappe.db.get_value(
+        "Contact Email",
+        {"email_id": email, "parenttype": "Contact"},
+        "parent",
+    )
+    if contact:
+        customer = frappe.db.get_value(
+            "Dynamic Link",
+            {"parent": contact, "link_doctype": "Customer", "parenttype": "Contact"},
+            "link_name",
+        )
+        if customer and frappe.db.exists("Customer", customer):
+            return customer
+
+    # 3. No customer found — create one from the User record
+    user_rec = frappe.db.get_value("User", email, ["full_name"], as_dict=True)
+    base_name = (user_rec.full_name if user_rec else None) or email.split("@")[0]
+
+    unique_name, i = base_name, 1
+    while frappe.db.exists("Customer", unique_name):
+        unique_name = f"{base_name} {i}"
+        i += 1
+
+    new_customer = frappe.get_doc({
+        "doctype": "Customer",
+        "customer_name": unique_name,
+        "customer_type": "Individual",
+        "customer_group": "Individual",
+        "territory": "All Territories",
+        "portal_users": [{"user": email}],
+    })
+    new_customer.flags.ignore_permissions = True
+    new_customer.insert()
+
+    return new_customer.name
+
+
+@frappe.whitelist(allow_guest=True)
+def create_support_ticket(subject: str, description: str, priority: str = "Medium", raised_by: str = "", attachments=None) -> dict:
+    import base64 as _b64
+    import os
+
+    subject = (subject or "").strip()
+    description = (description or "").strip()
+    raised_by = (raised_by or "").strip()
+
+    if not subject:
+        frappe.throw(_("Subject is required."))
+    if not description:
+        frappe.throw(_("Description is required."))
+    if priority not in ("Low", "Medium", "High"):
+        priority = "Medium"
+
+    customer = _get_or_create_customer_for_user(raised_by)
+
+    issue = frappe.get_doc({
+        "doctype": "Issue",
+        "subject": escape_html(subject),
+        "description": escape_html(description),
+        "priority": priority,
+        "raised_by": raised_by,
+        "customer": customer,
+        "via_customer_portal": 1,
+    })
+    issue.flags.ignore_permissions = True
+    if raised_by and frappe.db.exists("User", raised_by):
+        issue.owner = raised_by
+    issue.insert()
+
+    if attachments:
+        if isinstance(attachments, str):
+            attachments = json.loads(attachments)
+
+        allowed_ext = {
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+            ".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv"
+        }
+        max_bytes = 10 * 1024 * 1024
+
+        for att in (attachments or []):
+            try:
+                fname = (att.get("name") or "attachment").strip()
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in allowed_ext:
+                    continue
+                content = _b64.b64decode(att.get("content", ""))
+                if len(content) > max_bytes:
+                    continue
+                from frappe.utils.file_manager import save_file
+                save_file(fname=fname, content=content, dt="Issue", dn=issue.name, is_private=0)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "Support Ticket Attachment Error")
+
+    frappe.db.commit()
+    return {"name": issue.name}
+
+
 @frappe.whitelist(allow_guest=True)
 def sign_up(email: str, full_name: str, password: str) -> dict:
 
