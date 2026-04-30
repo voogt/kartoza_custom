@@ -3,9 +3,10 @@ import frappe
 from frappe import whitelist
 from frappe import _
 from frappe.utils.global_search import search as default_search
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, cint, escape_html
 from frappe.model.naming import make_autoname
 from frappe.core.doctype.communication.email import make
+from frappe.utils.password import remove_encrypted_password, set_encrypted_password, update_password
 
 
 @frappe.whitelist(allow_guest=True)
@@ -287,3 +288,48 @@ def send_expense_email(docname):
     )
 
     return 'sent'
+
+@frappe.whitelist(allow_guest=True)
+def sign_up(email: str, full_name: str, password: str) -> dict:
+
+    user = frappe.db.get("User", {"email": email})
+    if user:
+        if user.enabled:
+            return {"status": 0, "message": _("Already Registered")}
+        else:
+            return {"status": 0, "message": _("Registered but disabled")}
+    else:
+        max_signups_allowed_per_hour = cint(frappe.get_system_settings("max_signups_allowed_per_hour") or 300)
+        users_created_past_hour = frappe.db.get_creation_count("User", 60)
+        if users_created_past_hour >= max_signups_allowed_per_hour:
+            frappe.respond_as_web_page(
+                _("Temporarily Disabled"),
+                _(
+                    "Too many users signed up recently, so the registration is disabled. Please try back in an hour"
+                ),
+                http_status_code=429,
+            )
+
+        user = frappe.get_doc(
+            {
+                "doctype": "User",
+                "email": email,
+                "first_name": escape_html(full_name),
+                "enabled": 1,
+                "new_password": '',
+                "user_type": "Website User",
+            }
+        )
+        user.flags.ignore_permissions = True
+        user.flags.ignore_password_policy = True
+        user.flags.no_welcome_mail = True
+        user.insert()
+
+        # set default signup role as per Portal Settings
+        default_role = frappe.get_single_value("Portal Settings", "default_role")
+        if default_role:
+            user.add_roles(default_role)
+
+        update_password(user=user.name, pwd=password, logout_all_sessions=0)
+
+        return {"status": 1, "message": _("Registration successful. Please log in to continue.")}
