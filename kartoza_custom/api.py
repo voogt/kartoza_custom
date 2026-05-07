@@ -275,8 +275,8 @@ def send_expense_email(docname):
     message = f"""
         <p>{doc.employee_name} has submitted a new Expense Claim.</p>
         <p>Please review the Expense Claim at 
-        <a href='https://kartoza.com/app/employee-expense-claim/{doc.name}'>
-        https://kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
+        <a href='https://erp.kartoza.com/app/employee-expense-claim/{doc.name}'>
+        https://erp.kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
     """
 
     frappe.sendmail(
