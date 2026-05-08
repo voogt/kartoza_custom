@@ -7,7 +7,7 @@ from frappe.utils import now_datetime, cint, escape_html
 from frappe.model.naming import make_autoname
 from frappe.core.doctype.communication.email import make
 from frappe.utils.password import remove_encrypted_password, set_encrypted_password, update_password
-
+from webshop.webshop.variant_selector.item_variants_cache import ItemVariantsCacheManager
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
@@ -445,3 +445,88 @@ def sign_up(email: str, full_name: str, password: str) -> dict:
         update_password(user=user.name, pwd=password, logout_all_sessions=0)
 
         return {"status": 1, "message": _("Registration successful. Please log in to continue.")}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_attributes_and_values(item_code):
+    """Return variant schedule data as a JSON-serializable list.
+
+    Example:
+    [
+        {"name": "Introduction to QGIS Course-11 - 13 August 2026-ONLINE", "display_date": "11 - 13 August 2026", "venue": "online"}
+    ]
+    """
+    item_code = (item_code or "").strip()
+    if not item_code:
+        return []
+
+    # Accept either internal Item name or human-readable item_name from the client.
+    template_code = item_code
+    if not frappe.db.exists("Item", template_code):
+        template_code = frappe.db.get_value(
+            "Item",
+            {"item_name": item_code, "has_variants": 1},
+            "name",
+        )
+
+    if not template_code:
+        return []
+
+    item_cache = ItemVariantsCacheManager(template_code)
+    item_variants_data = item_cache.get_item_variants_data() or []
+
+    variant_codes = set()
+    variant_meta = {}
+
+    for variant_code, attribute, attribute_value in item_variants_data:
+        variant_codes.add(variant_code)
+        attr_key = (attribute or "").strip().lower()
+        value = (attribute_value or "").strip()
+        if not value:
+            continue
+
+        meta = variant_meta.setdefault(variant_code, {})
+        if "date" in attr_key and not meta.get("display_date"):
+            meta["display_date"] = value
+        if ("venue" in attr_key or "location" in attr_key) and not meta.get("venue"):
+            meta["venue"] = value.lower()
+
+    if not variant_codes:
+        variant_codes = set(
+            frappe.get_all(
+                "Item",
+                filters={"variant_of": template_code},
+                pluck="name",
+            )
+        )
+        if not variant_codes:
+            variant_codes = {template_code}
+
+    items = frappe.get_all(
+        "Item",
+        filters={"name": ["in", list(variant_codes)]},
+        fields=["name", "item_name"],
+        order_by="item_name asc",
+    )
+
+    response = []
+    for item in items:
+        full_name = (item.get("item_name") or item.get("name") or "").strip()
+        meta = variant_meta.get(item.get("name"), {})
+        display_date = meta.get("display_date")
+        venue = meta.get("venue")
+
+        # Fallback parser for names shaped like: Course Title-11 - 13 August 2026-ONLINE
+        if full_name and (not display_date or not venue):
+            parts = full_name.rsplit("-", 2)
+            if len(parts) == 3:
+                display_date = display_date or parts[1].strip()
+                venue = venue or parts[2].strip().lower()
+
+        response.append({
+            "name": full_name,
+            "display_date": display_date,
+            "venue": venue,
+        })
+
+    return response
