@@ -14,11 +14,11 @@ def check_passport_expiry():
     # Fetch employees with passport expiring within the alert_days
     employees = frappe.get_all(
         "Employee",
-        filters={
-            "valid_upto": [">=", today()],
-            "valid_upto": ["<=", alert_date],
-            "status": "Active"
-        },
+        filters=[
+            ["Employee", "valid_upto", ">=", today()],
+            ["Employee", "valid_upto", "<=", alert_date],
+            ["Employee", "status", "=", "Active"],
+        ],
         fields=["name", "employee_name", "valid_upto"]
     )
 
