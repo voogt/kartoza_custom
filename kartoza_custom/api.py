@@ -1,4 +1,6 @@
 import json
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 import frappe
 from frappe import whitelist
 from frappe import _
@@ -6,14 +8,135 @@ from frappe.utils.global_search import search as default_search
 from frappe.utils import now_datetime, cint, escape_html
 from frappe.model.naming import make_autoname
 from frappe.core.doctype.communication.email import make
-from frappe.utils.password import remove_encrypted_password, set_encrypted_password, update_password
+from frappe.rate_limiter import rate_limit
+from frappe.utils.password import (
+    check_password,
+    get_password_reset_limit,
+    remove_encrypted_password,
+    set_encrypted_password,
+    update_password as set_user_password,
+)
 from webshop.webshop.variant_selector.item_variants_cache import ItemVariantsCacheManager
+
+
+def _build_frontend_password_reset_link(reset_link: str) -> str:
+    frontend_url = (frappe.conf.get("password_reset_frontend_url") or "").strip()
+    if not frontend_url:
+        frappe.throw(
+            _("Password reset frontend URL is not configured."),
+            title=_("Missing Configuration"),
+        )
+
+    reset_query = parse_qs(urlparse(reset_link).query)
+    key = (reset_query.get("key") or [""])[0]
+    if not key:
+        frappe.throw(_("Unable to generate a valid password reset link."))
+
+    parsed_frontend_url = urlparse(frontend_url)
+    frontend_query = parse_qs(parsed_frontend_url.query)
+    frontend_query["key"] = [key]
+
+    return urlunparse(
+        parsed_frontend_url._replace(query=urlencode(frontend_query, doseq=True))
+    )
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=get_password_reset_limit, seconds=60 * 60)
+def request_password_reset(email: str) -> dict[str, str]:
+    email = (email or "").strip().lower()
+    if not email:
+        frappe.throw(_("Email is required."))
+
+    response = {
+        "message": _(
+            "If an account exists for this email address, a password reset link has been sent."
+        )
+    }
+
+    try:
+        user = frappe.get_doc("User", email)
+    except frappe.DoesNotExistError:
+        frappe.clear_messages()
+        return response
+
+    if user.name == "Administrator" or not user.enabled:
+        return response
+
+    user.validate_reset_password()
+    reset_link = user.reset_password(send_email=False)
+    frontend_link = _build_frontend_password_reset_link(reset_link)
+    user.password_reset_mail(frontend_link)
+
+    return response
+
+@frappe.whitelist(methods=['POST'])
+def change_email(new_email, current_password):
+    """Change the current user's email address.
+
+    Email is the primary key (name) of the Frappe User doctype, so this uses
+    rename_doc to cascade updates to all Link fields. Data fields (contact_email
+    on open quotations, Contact Email records) are updated manually.
+    The session is invalidated afterwards so the user must log in with the new address.
+    """
+    import re
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to change your email."), frappe.PermissionError)
+
+    new_email = (new_email or '').strip().lower()
+    if not new_email:
+        frappe.throw(_("New email address is required."))
+
+    if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', new_email):
+        frappe.throw(_("Please enter a valid email address."))
+
+    if new_email == user.lower():
+        frappe.throw(_("The new email address is the same as your current one."))
+
+    # Verify identity before making any changes
+    try:
+        check_password(user, current_password)
+    except frappe.AuthenticationError:
+        frappe.throw(_("Incorrect password. Please try again."), frappe.AuthenticationError)
+
+    if frappe.db.exists('User', new_email):
+        frappe.throw(_("An account with this email address already exists."))
+
+    # Rename the User document — Frappe cascades this to all Link-type fields
+    frappe.rename_doc('User', user, new_email, force=True, ignore_permissions=True)
+
+    # Update Data fields that rename_doc does not cascade
+    # 1. Open Shopping Cart quotations (contact_email is a plain Data field)
+    frappe.db.sql(
+        "UPDATE `tabQuotation` SET contact_email = %s WHERE contact_email = %s",
+        (new_email, user),
+    )
+    # 2. Contact Email child table
+    frappe.db.sql(
+        "UPDATE `tabContact Email` SET email_id = %s WHERE email_id = %s",
+        (new_email, user),
+    )
+    # 3. Sales Orders (contact_email Data field)
+    frappe.db.sql(
+        "UPDATE `tabSales Order` SET contact_email = %s WHERE contact_email = %s",
+        (new_email, user),
+    )
+
+    frappe.db.commit()
+
+    # Invalidate the current session — user must log in with the new email
+    frappe.local.login_manager.logout()
+
+    return {'new_email': new_email}
+
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
     # Fetch the latest Quotation for the current user (customer)
     user = frappe.session.user
-    quotation = frappe.db.get_value('Quotation', 
+    quotation = frappe.db.get_value('Quotation',
                                     filters={'owner': user, 'docstatus': 0},  # Draft status (docstatus = 0)
                                     order_by='creation desc')  # Get the most recent Quotation
 
@@ -26,6 +149,591 @@ def get_latest_quotation_items():
                            fields=['item_code', 'item_name', 'qty', 'rate'])
 
     return {'quotation': quotation, 'items': items}
+
+
+@frappe.whitelist()
+def get_cart_items():
+    """Return the current user's active cart with full pricing details.
+
+    Uses the same quotation lookup as the ERPNext Webshop (contact_email +
+    order_type = 'Shopping Cart') so the data is always consistent with what
+    update_cart / _get_cart_quotation operate on.
+    """
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to view your cart."), frappe.PermissionError)
+
+    # Mirror webshop's _get_cart_quotation filter so we always see the same record.
+    quotation_list = frappe.get_all(
+        'Quotation',
+        fields=['name'],
+        filters={
+            'contact_email': user,
+            'order_type': 'Shopping Cart',
+            'docstatus': 0,
+        },
+        order_by='modified desc',
+        limit_page_length=1,
+    )
+
+    if not quotation_list:
+        return {'items': [], 'total': 0, 'tax_amount': 0, 'grand_total': 0, 'currency': 'USD'}
+
+    quotation = frappe.get_doc('Quotation', quotation_list[0].name)
+
+    items = [
+        {
+            'item_code': item.item_code,
+            'item_name': item.item_name,
+            'qty': item.qty,
+            'rate': item.rate,
+            'amount': item.amount,
+        }
+        for item in quotation.items
+    ]
+
+    return {
+        'quotation': quotation.name,
+        'items': items,
+        'total': quotation.total,
+        'tax_amount': quotation.total_taxes_and_charges or 0,
+        'grand_total': quotation.grand_total,
+        'currency': quotation.currency or 'USD',
+    }
+
+
+@frappe.whitelist()
+def get_checkout_config():
+    """Return cart totals, Paystack public key, customer info, and billing addresses for the checkout page."""
+    from frappe.contacts.doctype.address.address import get_address_display
+    from webshop.webshop.shopping_cart.cart import get_party
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to proceed to checkout."), frappe.PermissionError)
+
+    # Ensure the user has a linked Customer (creates one via webshop logic if absent).
+    party = get_party()
+    if not party:
+        frappe.throw(_("Could not set up your customer profile. Please contact support."))
+
+    cart = get_cart_items()
+    if not cart.get('items'):
+        frappe.throw(_("Your cart is empty."))
+
+    company = frappe.db.get_single_value('Webshop Settings', 'company')
+    from frappe_paystack.utils import resolve_paystack_settings
+    settings = resolve_paystack_settings(company)
+    if not settings:
+        frappe.throw(_("Payment gateway is not configured. Please contact support."))
+
+    user_doc = frappe.get_doc('User', user)
+
+    # Fetch existing billing addresses linked to this customer.
+    billing_addresses = []
+    addr_links = frappe.get_all(
+        'Dynamic Link',
+        filters={'link_doctype': party.doctype, 'link_name': party.name, 'parenttype': 'Address'},
+        fields=['parent'],
+    )
+    if addr_links:
+        address_names = [a.parent for a in addr_links]
+        addrs = frappe.get_all(
+            'Address',
+            filters={'name': ['in', address_names], 'address_type': 'Billing'},
+            fields=['name', 'address_title', 'address_line1', 'address_line2',
+                    'city', 'state', 'pincode', 'country'],
+        )
+        for addr in addrs:
+            addr_doc = frappe.get_doc('Address', addr['name'])
+            addr['display'] = get_address_display(addr_doc.as_dict())
+            billing_addresses.append(addr)
+
+    # Check if the open quotation already has an address set.
+    selected_address = None
+    if cart.get('quotation'):
+        selected_address = frappe.db.get_value('Quotation', cart['quotation'], 'customer_address') or None
+
+    return {
+        'items': cart['items'],
+        'total': cart['total'],
+        'tax_amount': cart['tax_amount'],
+        'grand_total': cart['grand_total'],
+        'currency': cart['currency'],
+        'paystack_public_key': settings['public_key'],
+        'customer_email': user,
+        'customer_name': user_doc.full_name or user_doc.first_name or user,
+        'billing_addresses': billing_addresses,
+        'selected_address': selected_address,
+    }
+
+
+@frappe.whitelist(methods=['POST'])
+def save_billing_address(address_line1, city, country,
+                         address_line2='', state='', pincode='',
+                         address_name=None):
+    """Create or update a billing Address and link it to the user's open cart quotation.
+
+    If `address_name` is provided, the existing Address is updated in place and re-linked.
+    Otherwise a new Address is created and linked.
+    In both cases the quotation's customer_address field is set so ERPNext is consistent.
+    """
+    from frappe.contacts.doctype.address.address import get_address_display
+    from webshop.webshop.shopping_cart.cart import _get_cart_quotation, get_party
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to save an address."), frappe.PermissionError)
+
+    address_line1 = (address_line1 or '').strip()
+    city = (city or '').strip()
+    country = (country or '').strip()
+    if not address_line1 or not city or not country:
+        frappe.throw(_("Address Line 1, City, and Country are required."))
+
+    party = get_party()
+    if not party:
+        frappe.throw(_("Could not find your customer profile. Please contact support."))
+
+    address_name = (address_name or '').strip() or None
+
+    if address_name and frappe.db.exists('Address', address_name):
+        address = frappe.get_doc('Address', address_name)
+        address.address_line1 = address_line1
+        address.address_line2 = address_line2 or ''
+        address.city = city
+        address.state = state or ''
+        address.pincode = pincode or ''
+        address.country = country
+        # Ensure the Customer link exists on the address
+        linked = any(
+            lnk.link_doctype == party.doctype and lnk.link_name == party.name
+            for lnk in address.get('links', [])
+        )
+        if not linked:
+            address.append('links', {'link_doctype': party.doctype, 'link_name': party.name})
+        address.flags.ignore_permissions = True
+        address.save()
+    else:
+        address = frappe.get_doc({
+            'doctype': 'Address',
+            'address_title': getattr(party, 'customer_name', None) or party.name,
+            'address_type': 'Billing',
+            'address_line1': address_line1,
+            'address_line2': address_line2 or '',
+            'city': city,
+            'state': state or '',
+            'pincode': pincode or '',
+            'country': country,
+            'links': [{'link_doctype': party.doctype, 'link_name': party.name}],
+        })
+        address.flags.ignore_permissions = True
+        address.insert()
+
+    address_doc = frappe.get_doc('Address', address.name)
+    address_display = get_address_display(address_doc.as_dict())
+
+    # Attach address to the open cart quotation
+    quotation = _get_cart_quotation(party=party)
+    quotation.customer_address = address.name
+    quotation.address_display = address_display
+    if not quotation.shipping_address_name:
+        quotation.shipping_address_name = address.name
+    quotation.flags.ignore_permissions = True
+    quotation.payment_schedule = []
+    quotation.save()
+    frappe.db.commit()
+
+    return {
+        'address_name': address.name,
+        'address_display': address_display,
+    }
+
+
+@frappe.whitelist(methods=['POST'])
+def initialize_paystack_payment(callback_url):
+    """Initialize a Paystack transaction server-side and return the authorization URL.
+
+    Using the redirect flow avoids loading any third-party scripts in the browser,
+    which are frequently blocked by ad-blockers and privacy extensions.
+    """
+    import requests as _requests
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to proceed to checkout."), frappe.PermissionError)
+
+    cart = get_cart_items()
+    if not cart.get('items'):
+        frappe.throw(_("Your cart is empty."))
+
+    company = frappe.db.get_single_value('Webshop Settings', 'company')
+    from frappe_paystack.utils import resolve_paystack_settings
+    settings = resolve_paystack_settings(company)
+    if not settings:
+        frappe.throw(_("Payment gateway not configured. Please contact support."))
+
+    user_doc = frappe.get_doc('User', user)
+    amount_minor = int(round(cart['grand_total'] * 100))
+
+    resp = _requests.post(
+        'https://api.paystack.co/transaction/initialize',
+        headers={
+            'Authorization': f'Bearer {settings["secret_key"]}',
+            'Content-Type': 'application/json',
+        },
+        json={
+            'email': user,
+            'amount': amount_minor,
+            'currency': cart['currency'] or 'ZAR',
+            'callback_url': callback_url,
+            'metadata': {
+                'customer': user_doc.full_name or user,
+                'email': user,
+            },
+        },
+        timeout=30,
+    )
+
+    if not resp.ok:
+        frappe.throw(_("Could not connect to payment gateway. Please try again."))
+
+    data = resp.json()
+    if not data.get('status'):
+        frappe.throw(_(data.get('message') or 'Payment initialization failed.'))
+
+    return {
+        'authorization_url': data['data']['authorization_url'],
+        'reference': data['data']['reference'],
+        'access_code': data['data']['access_code'],
+    }
+
+
+def _enrol_user_in_moodle_courses(user, sales_order_name, first_name, last_name):
+    """Core Moodle enrollment: register/enrol `user` in all auto-enroll items of the Sales Order.
+
+    `first_name` and `last_name` are supplied by the caller so the user can confirm
+    or correct them via the registration form before submitting.
+    """
+    from frappe_paystack.utils import register_user_and_enrol
+
+    sales_order_doc = frappe.get_doc('Sales Order', sales_order_name)
+
+    courses = []
+    for item in sales_order_doc.items:
+        item_data = frappe.get_doc('Item', item.item_code)
+        if item_data.get('custom_auto_enroll_in_moodle') == 1:
+            course_id = item_data.get('custom_moodle_course_id')
+            token = item_data.get('custom_moodle_web_token')
+            if course_id and token:
+                courses.append({
+                    'course_id': course_id,
+                    'token': token,
+                    'item_name': item.item_name,
+                })
+
+    if not courses:
+        return {'all_successful': True, 'courses': []}
+
+    # Reuse an existing log for this Sales Order if one was already created.
+    existing_log = frappe.db.get_value('Moodle Enrollment Logs', {'sales_order': sales_order_name}, 'name')
+    if existing_log:
+        log = frappe.get_doc('Moodle Enrollment Logs', existing_log)
+    else:
+        log = frappe.get_doc({'doctype': 'Moodle Enrollment Logs', 'sales_order': sales_order_name})
+        log.insert(ignore_permissions=True)
+
+    moodle_url = 'https://training.kartoza.com'
+    results = []
+    all_ok = True
+
+    for course in courses:
+        response = register_user_and_enrol(
+            moodle_url,
+            course['token'],
+            user,
+            first_name,
+            last_name,
+            course['course_id'],
+        )
+
+        success = response.get('enrollment_succesful', False)
+        if not success:
+            all_ok = False
+
+        log.append('table_details', {
+            'name1': f"{first_name} {last_name}".strip(),
+            'email': user,
+            'course_id': course['course_id'],
+            'enrollment_succesful': success,
+        })
+        results.append({
+            'item_name': course['item_name'],
+            'course_id': course['course_id'],
+            'enrolled': success,
+        })
+
+    log.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {'all_successful': all_ok, 'courses': results}
+
+
+@frappe.whitelist(methods=['POST'])
+def enrol_in_moodle(sales_order, enrollees):
+    """Enrol one or more people in Moodle courses for a completed Sales Order.
+
+    `enrollees` is a list of dicts, one per seat:
+        [{"item_code": "...", "first_name": "...", "last_name": "...", "email": "..."}, ...]
+
+    Each entry may repeat the same item_code when qty > 1 (multiple places for one course).
+    Verifies the Sales Order belongs to the session user before enrolling.
+    """
+    from frappe_paystack.utils import register_user_and_enrol
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to enrol."), frappe.PermissionError)
+
+    if isinstance(enrollees, str):
+        enrollees = json.loads(enrollees)
+
+    contact_email = frappe.db.get_value('Sales Order', sales_order, 'contact_email')
+    if contact_email != user:
+        frappe.throw(_("You do not have permission to enrol for this order."), frappe.PermissionError)
+
+    existing_log = frappe.db.get_value('Moodle Enrollment Logs', {'sales_order': sales_order}, 'name')
+    if existing_log:
+        log = frappe.get_doc('Moodle Enrollment Logs', existing_log)
+    else:
+        log = frappe.get_doc({'doctype': 'Moodle Enrollment Logs', 'sales_order': sales_order})
+        log.insert(ignore_permissions=True)
+
+    moodle_url = 'https://training.kartoza.com'
+    all_ok = True
+    results = []
+
+    for enrollee in enrollees:
+        item_code = (enrollee.get('item_code') or '').strip()
+        first_name = (enrollee.get('first_name') or '').strip()
+        last_name = (enrollee.get('last_name') or '').strip()
+        email = (enrollee.get('email') or '').strip()
+
+        if not first_name or not email:
+            all_ok = False
+            results.append({'item_code': item_code, 'email': email, 'enrolled': False, 'error': 'Missing required fields'})
+            continue
+
+        try:
+            item_data = frappe.get_doc('Item', item_code)
+            course_id = item_data.get('custom_moodle_course_id')
+            token = item_data.get('custom_moodle_web_token')
+            item_name = item_data.item_name
+
+            if not course_id or not token:
+                all_ok = False
+                results.append({'item_code': item_code, 'email': email, 'enrolled': False, 'error': 'Moodle course not configured'})
+                continue
+
+            response = register_user_and_enrol(moodle_url, token, email, first_name, last_name, course_id)
+            success = response.get('enrollment_succesful', False)
+            if not success:
+                all_ok = False
+
+            log.append('table_details', {
+                'name1': f"{first_name} {last_name}".strip(),
+                'email': email,
+                'course_id': course_id,
+                'enrollment_succesful': success,
+            })
+            results.append({'item_code': item_code, 'item_name': item_name, 'email': email, 'enrolled': success})
+
+        except Exception as e:
+            all_ok = False
+            frappe.log_error(str(e), f'enrol_in_moodle: failed for {email} in {item_code}')
+            results.append({'item_code': item_code, 'email': email, 'enrolled': False, 'error': str(e)})
+
+    log.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {'all_successful': all_ok, 'results': results}
+
+
+@frappe.whitelist(methods=['POST'])
+def complete_checkout(paystack_reference, currency=None):
+    """Verify Paystack payment, convert cart quotation to Sales Order, log the payment."""
+    import requests as _requests
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to complete checkout."), frappe.PermissionError)
+
+    company = frappe.db.get_single_value('Webshop Settings', 'company')
+    from frappe_paystack.utils import resolve_paystack_settings
+    settings = resolve_paystack_settings(company)
+    if not settings:
+        frappe.throw(_("Payment gateway not configured."))
+
+    # Verify the payment with Paystack before touching any orders
+    verify_url = f'https://api.paystack.co/transaction/verify/{paystack_reference}'
+    resp = _requests.get(
+        verify_url,
+        headers={'Authorization': f'Bearer {settings["secret_key"]}'},
+        timeout=30,
+    )
+    if not resp.ok:
+        frappe.throw(_("Could not reach payment gateway. Please contact support."))
+
+    data = resp.json()
+    if not data.get('status') or (data.get('data') or {}).get('status') != 'success':
+        frappe.throw(_("Payment was not successful. Please try again or contact support."))
+
+    tx = data['data']
+    amount_paid = (tx.get('amount') or 0) / 100
+    currency_paid = (tx.get('currency') or currency or 'ZAR').upper()
+
+    # Convert quotation → Sales Order (courses are digital; skip address requirement)
+    from webshop.webshop.shopping_cart.cart import _get_cart_quotation
+    from erpnext.selling.doctype.quotation.quotation import _make_sales_order
+
+    quotation = _get_cart_quotation()
+    quotation.company = company
+    quotation.flags.ignore_permissions = True
+    quotation.payment_schedule = []
+    quotation.save()
+
+    fresh_quotation = frappe.get_doc('Quotation', quotation.name)
+    fresh_quotation.flags.ignore_permissions = True
+    fresh_quotation.submit()
+
+    so_dict = _make_sales_order(fresh_quotation.name, ignore_permissions=True)
+    sales_order = frappe.get_doc(so_dict)
+    sales_order.payment_schedule = []
+    sales_order.flags.ignore_permissions = True
+    sales_order.flags.ignore_mandatory = True
+    sales_order.insert()
+    sales_order.submit()
+
+    # Create a Paystack Payment Log so the webhook reconciler can find it
+    log = frappe.get_doc({
+        'doctype': 'Paystack Payment Log',
+        'company': company,
+        'linked_doctype': 'Sales Order',
+        'linked_docname': sales_order.name,
+        'amount': amount_paid,
+        'currency': currency_paid,
+        'status': 'Processed',
+        'amount_paid': amount_paid,
+        'currency_paid': currency_paid,
+        'payment_reference': paystack_reference,
+        'transaction_id': str(tx.get('id', '')),
+        'payment_date': frappe.utils.today(),
+        'raw_response': frappe.as_json(tx),
+    })
+    log.flags.ignore_permissions = True
+    log.insert()
+    frappe.db.commit()
+
+    # Create and submit a Sales Invoice from the Sales Order
+    invoice_name = None
+    try:
+        from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
+        invoice = make_sales_invoice(sales_order.name, ignore_permissions=True)
+        invoice.flags.ignore_permissions = True
+        invoice.submit()
+        frappe.db.set_value('Sales Invoice', invoice.name, 'status', 'Paid')
+        frappe.db.set_value('Sales Order', sales_order.name, 'status', 'Closed')
+        frappe.db.set_value('Sales Order', sales_order.name, 'per_billed', 100)
+        frappe.db.commit()
+        invoice_name = invoice.name
+    except Exception as e:
+        frappe.log_error(str(e), 'complete_checkout: Sales Invoice creation failed')
+
+    # Identify items that need Moodle enrollment so the frontend can show the registration form.
+    moodle_courses = []
+    try:
+        for item in sales_order.items:
+            item_data = frappe.get_doc('Item', item.item_code)
+            if item_data.get('custom_auto_enroll_in_moodle') == 1:
+                moodle_courses.append({
+                    'item_code': item.item_code,
+                    'item_name': item.item_name,
+                    'qty': int(item.qty or 1),
+                })
+    except Exception as e:
+        frappe.log_error(str(e), 'complete_checkout: Moodle course check failed')
+
+    user_doc = frappe.get_doc('User', user)
+    return {
+        'sales_order': sales_order.name,
+        'sales_invoice': invoice_name,
+        'payment_log': log.name,
+        'moodle_courses': moodle_courses,
+        'customer_first_name': user_doc.first_name or '',
+        'customer_last_name': user_doc.last_name or '',
+        'customer_email': user,
+    }
+
+
+@frappe.whitelist()
+def get_invoice_pdf(invoice_name):
+    """Return a base64-encoded PDF of a Sales Invoice the current user owns."""
+    from frappe.utils.pdf import get_pdf
+
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login."), frappe.PermissionError)
+
+    # Verify ownership via the Sales Order that produced this invoice
+    so_name = frappe.db.get_value('Sales Invoice Item', {'parent': invoice_name}, 'sales_order')
+    if not so_name:
+        frappe.throw(_("Invoice not found."), frappe.DoesNotExistError)
+
+    contact_email = frappe.db.get_value('Sales Order', so_name, 'contact_email')
+    if contact_email != user:
+        frappe.throw(_("You do not have permission to download this invoice."), frappe.PermissionError)
+
+    html = frappe.get_print('Sales Invoice', invoice_name, print_format='Kartoza Without Timesheet')
+    pdf_data = get_pdf(html)
+
+    import base64
+    return {
+        'pdf': base64.b64encode(pdf_data).decode('utf-8'),
+        'filename': f'{invoice_name}.pdf',
+    }
+
+
+@frappe.whitelist()
+def get_my_orders():
+    """Return the current user's submitted Sales Orders (shopping cart purchases) with items."""
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to view your orders."), frappe.PermissionError)
+
+    orders = frappe.get_all(
+        'Sales Order',
+        filters={
+            'contact_email': user,
+            'order_type': 'Shopping Cart',
+            'docstatus': 1,
+        },
+        fields=['name', 'transaction_date', 'grand_total', 'currency', 'status'],
+        order_by='transaction_date desc',
+    )
+
+    for order in orders:
+        order['items'] = frappe.get_all(
+            'Sales Order Item',
+            filters={'parent': order['name']},
+            fields=['item_code', 'item_name', 'qty', 'rate', 'amount'],
+        )
+        order['invoice'] = frappe.db.get_value(
+            'Sales Invoice Item',
+            {'sales_order': order['name']},
+            'parent',
+        ) or None
+
+    return orders
 
 
 @frappe.whitelist(allow_guest=True)
@@ -442,7 +1150,7 @@ def sign_up(email: str, full_name: str, password: str) -> dict:
         if default_role:
             user.add_roles(default_role)
 
-        update_password(user=user.name, pwd=password, logout_all_sessions=0)
+        set_user_password(user=user.name, pwd=password, logout_all_sessions=0)
 
         return {"status": 1, "message": _("Registration successful. Please log in to continue.")}
 
