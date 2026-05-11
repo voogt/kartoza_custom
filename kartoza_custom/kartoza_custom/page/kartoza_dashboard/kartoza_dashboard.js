@@ -36,9 +36,15 @@ frappe.pages['kartoza-dashboard'].on_page_load = function(wrapper) {
 
 let availableFilters = [];
 
+const KARTOZA_DT_SCRIPT_ID = 'kartoza-jquery-datatables-script';
+const KARTOZA_DT_STYLE_ID = 'kartoza-jquery-datatables-style';
+
 
 function loadCSS() {
+    if (document.getElementById(KARTOZA_DT_STYLE_ID)) return;
+
     const link = document.createElement('link');
+    link.id = KARTOZA_DT_STYLE_ID;
     link.rel = 'stylesheet';
     link.href = "https://cdn.datatables.net/v/dt/dt-2.3.3/datatables.min.css";
     link.integrity = "sha384-C0ogMvg31Mu1GWzYxEEobPIlBlGbp/DY94Le4M9y/HFd9VGLT1zWL7MErNMsM2x6";
@@ -47,10 +53,24 @@ function loadCSS() {
 }
 
 function loadScript() {
+    if (!window.__frappeDataTableCtor && window.DataTable) {
+        window.__frappeDataTableCtor = window.DataTable;
+    }
+
+    const existingScript = document.getElementById(KARTOZA_DT_SCRIPT_ID);
+    if (existingScript) return;
+
     const script = document.createElement('script');
+    script.id = KARTOZA_DT_SCRIPT_ID;
     script.src = "https://cdn.datatables.net/v/dt/dt-2.3.3/datatables.min.js";
     script.integrity = "sha384-qyN6ZT87DHLvgCDC+GYE3myTUDGpz3swpW19cYxOh4oa/8GNSGPMteQwbyM6Ot0D";
     script.crossOrigin = "anonymous";
+    script.onload = function() {
+        // Restore Frappe's DataTable constructor so other report pages keep working.
+        if (window.__frappeDataTableCtor) {
+            window.DataTable = window.__frappeDataTableCtor;
+        }
+    };
     document.body.appendChild(script);
 }
 
@@ -107,11 +127,11 @@ function fetchDataAndPlot() {
             "title": "Billable Hours",
             "args": { start_date, end_date },
         },
-        {
-            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
-            "title": "Utilisation",
-            "args": { start_date, end_date },
-        },
+        // {
+        //     "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_utilisation',
+        //     "title": "Utilisation",
+        //     "args": { start_date, end_date },
+        // },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_projects_data',
             "title": "Projects",
@@ -543,11 +563,13 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
     }
 
 
-    // Initialize DataTable
-    const dt = new DataTable(`#${id}`, {
-        lengthChange: false,
-        ordering: false
-    });
+    // Use jQuery DataTables plugin without overriding Frappe's global DataTable constructor.
+    if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.DataTable === 'function') {
+        window.jQuery(`#${id}`).DataTable({
+            lengthChange: false,
+            ordering: false
+        });
+    }
 
     const start_date = document.getElementById("start_date").value;
     const end_date = document.getElementById("end_date").value;

@@ -596,7 +596,7 @@ def export_report_to_text(start_date, end_date, transaction_year):
                     ]
                 )
 
-                if _3696 > 0:
+                if _3696 > 0 and not _3701 > 0:
                     output_lines.append([
                         3602,_3602_reimbursement_purchases + _3651,
                         3703,_3703,

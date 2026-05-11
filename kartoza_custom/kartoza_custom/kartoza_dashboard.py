@@ -115,15 +115,19 @@ def get_staff_count(start_date, end_date):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_utilisation(start_date, end_date):
+def get_billable_hours(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
-    add = frappe.utils.add_to_date
+    total_external = 0
+    total_internal = 0
+    total_investment = 0
+    total_invoicable_all_staff = 0
+    total_uninvoicable_all_staff = 0
 
     for start, end in ranges:
-        print("START:", start)
-        print("END:", end)
+    
         b = False
+        add = frappe.utils.add_to_date
         cur_date = start
         date_range = []
         while b == False:
@@ -134,8 +138,8 @@ def get_utilisation(start_date, end_date):
             cur_date = add(cur_date, days=1)
 
         date_range = " union all ".join(date_range)
-        #p(f"{date_range}") 
-        sql = f"""
+
+        util_sql = f"""
         SELECT
             wd.employee_name, 
             wd.name,
@@ -145,7 +149,7 @@ def get_utilisation(start_date, end_date):
             SUM(tsd.hours) as `timesheet_hours`,
             SUM(tsd.hours) + wd.holiday_hours + wd.leave_hours as `booked_hours`,
             wd.total_hours as `hours_pm`,
-            wd.total_hours - wd.holiday_hours - wd.leave_hours as `total_hours`,
+            wd.total_hours - wd.holiday_hours as `total_hours`,
             COALESCE(SUM(tsd.hours)) + wd.holiday_hours + wd.leave_hours - wd.total_hours as `shortage`, 
             SUM(CASE WHEN tsd.is_billable = 0 THEN tsd.hours ELSE 0 END) as `non_billing_hours`,
             -- billable
@@ -158,9 +162,10 @@ def get_utilisation(start_date, end_date):
             SUM(tsd.costing_amount) as `costing_rate`,
             SUM(tsd.billing_amount) - SUM(tsd.costing_amount) as `profit`,
 
-            SUM(CASE WHEN tp.project_type = 'Investment' THEN tsd.hours ELSE 0 END) as `investment_hours`,
-            SUM(CASE WHEN tp.project_type = 'External' THEN tsd.hours ELSE 0 END) as `external_hours`,
-            SUM(CASE WHEN tp.project_type = 'Internal' THEN tsd.hours ELSE 0 END) as `internal_hours`
+            SUM(CASE WHEN tp.project_type = 'Investment' AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) as `investment_hours`,
+            SUM(CASE WHEN tp.project_type = 'External' AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) as `external_hours`,
+            SUM(CASE WHEN tp.project_type = 'Internal' AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) as `internal_hours`,
+            SUM(CASE WHEN tsd.project IS NULL AND tsd.is_billable = 1 THEN tsd.hours ELSE 0 END) as `no_project_linked_hours`
 
         FROM (
             SELECT -- wd (aggregated per employee)
@@ -351,177 +356,35 @@ def get_utilisation(start_date, end_date):
         ORDER BY wd.employee_name
         """
 
-        results = frappe.db.sql(sql, as_dict=True)
-
-        total_actual_hours = 0
+        util_results = frappe.db.sql(util_sql, as_dict=True)
         total_capacity_hours = 0
-
-        for result in results:
-            total_actual_hours += 0 if result.get("timesheet_hours") is None else result.get("timesheet_hours")
-            total_capacity_hours += 0 if result.get("total_hours") is None else result.get("total_hours")
-
-        capacity_comparison_percent = (
-            (total_actual_hours / total_capacity_hours) * 100 if total_capacity_hours else 0
-        )
-
-        month_label = get_month_label(start)
-
-        chart_data.append({
-            "month": month_label,
-            "total_actual_hours": f"{total_actual_hours:.0f}",
-            "total_capacity_hours": f"{total_capacity_hours:.0f}",
-            "capacity_comparison_percent": f"{capacity_comparison_percent:.0f}"
-        })
-
-    # Transform chart_data for stacked chart
-    labels = [row["month"] for row in chart_data]
-
-    total_actual_hours_values = [row["total_actual_hours"] for row in chart_data]
-    total_capacity_hours_values = [row["total_capacity_hours"] for row in chart_data]
-    capacity_comparison_percent_values = [row["capacity_comparison_percent"] for row in chart_data]
-
-    data = {
-        "element_id": "utilisation",
-        "isReverse": False,
-        "showTotal": True,
-        "shouldSplitLongLabels": False,
-        "isLegendReverse": False,
-        "type": "single",
-        "title": "Utilisation",
-        "total_cards": [],
-        "help": """
-        <div style='font-size: 14px;text-align: left'>
-            <b>Shows staff utilisation per month:</b><br><br>
-            <ul style='margin-left: 1em;'>
-                <li><b>Total Actual Hours:</b> Sum of all logged timesheet hours for included staff in the selected month.</li>
-                <li><b>Actual vs Capacity %:</b> (Total actual hours / total capacity hours) × 100.</li>
-                <li><b>Total Capacity Hours:</b> Available hours after excluding holidays and approved leave.</li>
-                <li>Only staff with <b>custom_utilization=1</b> are included.</li>
-            </ul>
-        </div>
-        """,
-        "labels": labels,
-        "datasets": [
-            {
-                "type": "bar",
-                "name": "Total Actual Hours",
-                "values": total_actual_hours_values
-            },
-            {
-                "type": "bar",
-                "name": "Total Capacity Hours",
-                "values": total_capacity_hours_values
-            },
-            {
-                "type": "line",
-                "name": "Actual vs Capacity %",
-                "values": capacity_comparison_percent_values
-            },
-        ]
-    }
-
-    return data
-
-@frappe.whitelist(allow_guest=True)
-def get_billable_hours(start_date, end_date):
-    ranges = get_month_ranges(start_date, end_date)
-    chart_data = []
-    total_external = 0
-    total_internal = 0
-    total_investment = 0
-    total_no_project_linked = 0
-    total_invoicable_all_staff = 0
-    total_uninvoicable_all_staff = 0
-
-    for start, end in ranges:
-        sql = f"""
-            SELECT
-                (
-                    CASE
-                        WHEN p.project_type = 'External' THEN p.project_type
-                        WHEN p.project_type = 'Internal' THEN p.project_type
-                        WHEN p.project_type = 'Investment' THEN p.project_type
-                        ELSE 'No Project Linked'
-                    END
-                ) as `project_type`,
-                SUM(
-                    CASE
-                        WHEN p.project_type IN ('External', 'Internal', 'Investment') AND tsd.is_billable = 1 
-                        THEN tsd.hours
-                        ELSE 0
-                    END
-                ) AS `billable_hours`
-                
-            FROM `tabTimesheet Detail` tsd
-
-            JOIN `tabTimesheet` ts
-                ON ts.name = tsd.parent
-                AND ts.status in ('Submitted', 'Draft', 'Billed', 'Completed')
-            JOIN `tabEmployee` emp
-                ON ts.employee = emp.name AND emp.custom_utilization = '1'
-            JOIN `tabProject` p
-                ON tsd.project = p.name
-                AND p.project_type in ('External', 'Internal', 'Investment') OR p.project_type = ""
-                
-            LEFT JOIN `tabTask` task
-                ON task.name = tsd.task
-                
-            WHERE tsd.from_time >= '{start} 00:00:00' 
-            AND tsd.to_time <= '{end} 23:59:59' 
-            GROUP BY p.project_type
-            """
-
-        results = frappe.db.sql(sql, as_dict=True)
-
-        invoicable_sql = f"""
-            SELECT 
-                SUM(
-                    CASE 
-                        WHEN is_billable = 1 THEN hours
-                        ELSE 0
-                    END
-                ) AS `invoicable_all_staff`
-            FROM `tabTimesheet Detail` tsd
-            WHERE tsd.from_time >= '{start} 00:00:00'
-            AND tsd.to_time <= '{end} 23:59:59' 
-        """
-
-        uninvoicable_sql = f"""
-            SELECT 
-                SUM(
-                    CASE 
-                        WHEN is_billable = 0 THEN hours
-                        ELSE 0
-                    END
-                ) AS `uninvoicable_all_staff`
-            FROM `tabTimesheet Detail` tsd
-            WHERE tsd.from_time >= '{start} 00:00:00'
-            AND tsd.to_time <= '{end} 23:59:59' 
-        """
-
-        invoicable_all_staff = frappe.db.sql(invoicable_sql, as_dict=True)[0]["invoicable_all_staff"]
-        uninvoicable_all_staff = frappe.db.sql(uninvoicable_sql, as_dict=True)[0]["uninvoicable_all_staff"]
-        total_invoicable_all_staff += invoicable_all_staff if invoicable_all_staff else 0
-        total_uninvoicable_all_staff += uninvoicable_all_staff if uninvoicable_all_staff else 0
-
-        no_project_linked = 0
         external = 0
         internal = 0
         investment = 0
+        invoicable_all_staff = 0
+        uninvoicable_all_staff = 0
+        no_project_linked = 0
+        holiday_hours = 0
 
-        for result in results:
-            if result.project_type == 'No Project Linked':
-                no_project_linked = result.billable_hours
-                total_no_project_linked += no_project_linked
-            elif result.project_type == 'External':
-                external = result.billable_hours
-                total_external += external
-            elif result.project_type == 'Internal':
-                internal = result.billable_hours
-                total_internal += internal
-            elif result.project_type == 'Investment':
-                investment = result.billable_hours
-                total_investment += investment
+        for util_result in util_results:
+            external += util_result.get("external_hours", 0)
+            internal += util_result.get("internal_hours", 0)
+            investment += util_result.get("investment_hours", 0)
+            total_capacity_hours += util_result.get("total_hours", 0)
+            no_project_linked += util_result.get("no_project_linked_hours", 0)
+            holiday_hours += util_result.get("holiday_hours", 0)
+            invoicable_all_staff += util_result.get("billable_hours", 0)
+            uninvoicable_all_staff += util_result.get("non_billing_hours", 0)
+
+        capacity_comparison_percent = (
+            (invoicable_all_staff / total_capacity_hours) * 100 if total_capacity_hours else 0
+        )
+
+        total_invoicable_all_staff += invoicable_all_staff
+        total_uninvoicable_all_staff += uninvoicable_all_staff if uninvoicable_all_staff else 0
+        total_external += external
+        total_internal += internal
+        total_investment += investment
 
         month_label = get_month_label(start)
 
@@ -531,7 +394,9 @@ def get_billable_hours(start_date, end_date):
             "external": f"{external:.0f}",
             "internal": f"{internal:.0f}",
             "investment": f"{investment:.0f}",
-            "invoicable_all_staff": f"{invoicable_all_staff:.0f}"
+            "capacity_hours": f"{total_capacity_hours:.0f}",
+            "holiday_hours": f"{holiday_hours:.0f}",
+            "capacity_comparison_percent": f"{capacity_comparison_percent:.0f}"
         })
 
     # Transform chart_data for stacked chart
@@ -541,7 +406,9 @@ def get_billable_hours(start_date, end_date):
     external_values = [row["external"] for row in chart_data]
     internal_values = [row["internal"] for row in chart_data]
     investment_values = [row["investment"] for row in chart_data]
-    invoicable_all_staff_values = [row["invoicable_all_staff"] for row in chart_data]
+    capacity_comparison_percent_values = [row["capacity_comparison_percent"] for row in chart_data]
+    capacity_hours = [row["capacity_hours"] for row in chart_data]
+    holiday_hours = [row["holiday_hours"] for row in chart_data]
 
     data = {
         "element_id": "billable_hours",
@@ -557,7 +424,10 @@ def get_billable_hours(start_date, end_date):
             <ul style='margin-left: 1em;'>
                 <li><b>No Project Linked:</b> Billable hours not linked to any project.</li>
                 <li><b>External/Internal/Investment:</b> Billable hours for each project type.</li>
-                <li><b>Invoicable All Staff:</b> All billable hours, regardless of project link.</li>
+                <li><b>Capacity Comparison Percent %:</b> (Total billable hours / total capacity hours) × 100.</li>
+                <li><b>Capacity Utilisation Staff Hours:</b> Available hours after excluding holidays</li>
+                <li><b>Holiday Hours:</b> Hours taken as holidays.</li>
+                <li>Only staff with <b>custom_utilization=1</b> are included.</li>
             </ul>
             <span style='color: #888;'>Totals are summed across the selected period.</span>
         </div>
@@ -596,9 +466,19 @@ def get_billable_hours(start_date, end_date):
             },
             {
                 "type": "bar",
-                "name": "Invoicable All Staff",
-                "values": invoicable_all_staff_values
+                "name": "Holiday Hours",
+                "values": holiday_hours
             },
+            {
+                "type": "bar",
+                "name": "Capacity Utilisation Staff Hours",
+                "values": capacity_hours
+            },
+            {
+                "type": "line",
+                "name": "Capacity Comparison Percent",
+                "values": capacity_comparison_percent_values
+            }
         ]
     }
 
@@ -1774,34 +1654,52 @@ def get_open_sla():
     return data
 
 @frappe.whitelist(allow_guest=True)
-def get_open_sales_orders():
+def get_open_sales_orders(start_date=None, end_date=None):
     chart_data = []
 
     total_billed_amount = 0
     total_billed_sales_orders = 0
     total_to_be_billed_all = 0
 
-    final_dict = frappe.db.sql("""
-    SELECT
-        p.name AS project,
-        p.status
+    date_filter = ""
+    if end_date:
+        date_filter = f" AND tso.transaction_date <= '{end_date}'"
+
+    final_dict = frappe.db.sql(f"""
+        SELECT
+            DISTINCT p.name AS project,
+            p.status
         FROM `tabProject` p
-        WHERE p.status = 'Open'
-        GROUP BY p.name
+        INNER JOIN `tabSales Order` tso ON tso.project = p.name
+        WHERE tso.docstatus = 1
+        AND tso.status NOT IN ('Cancelled')
+        AND tso.name NOT IN (
+            SELECT reference_name 
+            FROM
+            `tabComment` tc
+            WHERE
+                reference_doctype = 'Sales Order'
+                AND content = 'Closed'
+                AND tc.creation <= %(end_date)s
+        )
+        {date_filter}
         ORDER BY p.name
-    """, as_dict=1, debug=0)
+    """, {"end_date": end_date}, as_dict=1, debug=0)
 
     # Extract project names
     projects = [d['project'] for d in final_dict]
 
     # Fetch related sales data
-    data_map = get_all_data(projects)
+    data_map = get_all_data(projects, start_date, end_date)
+    future_financial_years = data_map.get('future_financial_years', [])
+    total_deferred_revenue_by_fy = {fy: 0 for fy in future_financial_years}
 
     # Enrich final_dict with totals
     for d in final_dict:
         billed = data_map['sales_invoices'].get(d['project'], 0) or 0
         ordered = data_map['sales_orders'].get(d['project'], 0) or 0
         risk_percentages = data_map['risk_percentages'].get(d['project'], 0)
+        deferred_revenue_by_fy = data_map.get('deferred_revenues_by_fy', {}).get(d['project'], {})
         total_to_be_billed = ordered - billed
 
         total_billed_amount += billed
@@ -1812,6 +1710,17 @@ def get_open_sales_orders():
         d['total_billed_sales_order'] = ordered
         d['total_to_be_billed'] = total_to_be_billed
         d["risk_percentage"] = risk_percentages
+
+        for fy in future_financial_years:
+            fy_value = deferred_revenue_by_fy.get(fy, 0) or 0
+            d[f"deferred_revenue_{fy}"] = fy_value
+            total_deferred_revenue_by_fy[fy] += fy_value
+
+    # Keep only financial-year columns that have at least one non-zero value.
+    visible_financial_years = [
+        fy for fy in future_financial_years
+        if float(total_deferred_revenue_by_fy.get(fy, 0) or 0) != 0.0
+    ]
 
     # Filter only projects that have sales orders
     all_sales_orders = [d for d in final_dict if d['total_billed_sales_order'] > 0]
@@ -1825,6 +1734,10 @@ def get_open_sales_orders():
             "total_billed_sales_order": f"{sale_order['total_billed_sales_order']:.0f}",
             "total_to_be_billed": f"{sale_order['total_to_be_billed']:.0f}",
             "risk_percentage": f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0",
+            "deferred_revenue_by_fy": {
+                fy: f"{sale_order.get(f'deferred_revenue_{fy}', 0):.0f}"
+                for fy in visible_financial_years
+            },
         })
 
     # Transform chart_data for stacked chart
@@ -1848,6 +1761,7 @@ def get_open_sales_orders():
                 <li><b>Total Billed Amount:</b> Sum of sales invoices for each open project.</li>
                 <li><b>Total Sales Order:</b> Sum of sales orders for each open project.</li>
                 <li><b>Total To Be Billed:</b> Sales order total minus billed amount.</li>
+                <li><b>Deferred Revenue by SA Financial Year:</b> Future deferred revenue is grouped into South African financial years (April to March) based on invoice due date.</li>
                 <li><b>Risk:</b> Green represents low risk or good performance (0-40%), amber represents moderate risk (41-75%), and red represents high risk (76-100%).</li>
             </ul>
             <span style='color: #888;'>Totals are summed for the period.</span>
@@ -1858,6 +1772,13 @@ def get_open_sales_orders():
                 "title": f"Total To Be Billed",
                 "value": f"{total_to_be_billed_all:.0f}"
             },
+            *[
+                {
+                    "title": f"Deferred Revenue {fy}",
+                    "value": f"{total_deferred_revenue_by_fy.get(fy, 0):.0f}"
+                }
+                for fy in visible_financial_years
+            ],
         ],
         "datasets": [
             {
@@ -1878,13 +1799,25 @@ def get_open_sales_orders():
                 "values": [f"{sale_order['total_to_be_billed']:.0f}" if sale_order.get('total_to_be_billed') else "0" for sale_order in all_sales_orders],
                 "isColorCoded": False
             },
+            *[
+                {
+                    "type": "bar",
+                    "name": f"Deferred Revenue {fy}",
+                    "values": [
+                        f"{sale_order.get(f'deferred_revenue_{fy}', 0):.0f}"
+                        for sale_order in all_sales_orders
+                    ],
+                    "isColorCoded": False
+                }
+                for fy in visible_financial_years
+            ],
             {
                 "type": "line",
                 "name": "Risk",
                 "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders],
                 "isColorCoded": True
             },
-            
+
         ]
     }
 
@@ -2196,36 +2129,6 @@ def get_overhead_cost_pty(start_date, end_date):
     chart_data = []
 
     for start, end in ranges:
-        overhead_cost_salaries_sql = f"""
-            SELECT 
-                SUM(tss.total_cost) as `total_cost`
-            FROM `tabSalary Slip` tss
-            LEFT JOIN `tabEmployee` te ON te.name = tss.employee
-            WHERE te.department IN ('PMO - K', 'PMO - KE', 'Admin - K', 'Admin - KE', 'Management - K', 'Management - KE')
-            AND tss.posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_insurance_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza (Pty) Ltd'
-            AND ts.supplier_group = 'Insurance'
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_supplier_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza (Pty) Ltd'
-            AND ts.supplier_group NOT IN ('Insurance')
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
 
         filters = frappe._dict({
             "company": "Kartoza (Pty) Ltd",
@@ -2266,16 +2169,33 @@ def get_overhead_cost_pty(start_date, end_date):
             ignore_closing_entries=True,
         )
 
-        total_revenue =  get_profit(
-		income, period_list, filters.company, filters.presentation_currency
+        expense = get_data(
+            "Kartoza (Pty) Ltd",
+            "Expense",
+            "Debit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
 	    )
 
-        overhead_cost_salaries = frappe.db.sql(overhead_cost_salaries_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
-        overhead_variable_cost = overhead_cost_supplier
-        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
+        overhead_fixed = 0
+        overhead_variable = 0
+
+        for expense_row in expense:
+            account = expense_row.get("account")
+            if account == '5200 - Expenses - K':
+                overhead_fixed += expense_row["total"]
+            elif account == '5100 - Cost of Sales - K':
+                overhead_variable += expense_row["total"]
+
+        total_revenue =  get_profit(
+		    income, period_list, filters.company, filters.presentation_currency
+	    )
+
+        overhead_variable_cost = overhead_variable
+        overhead_fixed_cost = overhead_fixed
+        overhead_cost = overhead_fixed_cost + overhead_variable_cost
         overhead_percantage = (overhead_cost / total_revenue) * 100
 
         month_label = get_month_label(start)
@@ -2352,28 +2272,6 @@ def get_overhead_cost_lda(start_date, end_date):
 
     for start, end in ranges:
 
-        overhead_cost_insurance_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza Lda'
-            AND ts.supplier_group = 'Insurance'
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
-        overhead_cost_supplier_sql = f"""
-            SELECT 
-                SUM(base_paid_amount) * {zar_eur_rate} as `total_cost`
-            FROM `tabPayment Entry` te
-            LEFT JOIN `tabSupplier` ts ON ts.name = te.party
-            WHERE payment_type = 'Pay'
-            AND company = 'Kartoza Lda'
-            AND ts.supplier_group NOT IN ('Insurance')
-            AND posting_date BETWEEN '{start}' AND '{end}'
-        """
-
         filters = frappe._dict({
             "company": "Kartoza Lda",
             "filter_based_on": "Date Range",
@@ -2413,6 +2311,26 @@ def get_overhead_cost_lda(start_date, end_date):
             ignore_closing_entries=True,
         )
 
+        expense = get_data(
+            "Kartoza Lda",
+            "Expense",
+            "Debit",
+            period_list,
+            filters=filters,
+            accumulated_values=filters.accumulated_values,
+            ignore_closing_entries=True,
+	    )
+
+        overhead_fixed = 0
+        overhead_variable = 0
+
+        for expense_row in expense:
+            account = expense_row.get("account")
+            if account == '5200 - Expenses - KE':
+                overhead_fixed += expense_row["total"]
+            elif account == '5100 - Cost of Sales - KE':
+                overhead_variable += expense_row["total"]
+
         total_revenue =  get_profit(
 		income, period_list, filters.company, filters.presentation_currency
 	    )
@@ -2421,12 +2339,9 @@ def get_overhead_cost_lda(start_date, end_date):
             total_revenue = 0.0
         total_revenue = total_revenue * zar_eur_rate
 
-        overhead_cost_salaries = 260000
-        overhead_cost_supplier = frappe.db.sql(overhead_cost_supplier_sql, as_dict=True)[0].total_cost or 0
-        overhead_cost_insurance = frappe.db.sql(overhead_cost_insurance_sql, as_dict=True)[0].total_cost or 0
-        overhead_variable_cost = overhead_cost_supplier
-        overhead_fixed_cost = overhead_cost_salaries + overhead_cost_insurance
-        overhead_cost = overhead_cost_salaries + overhead_cost_supplier + overhead_cost_insurance
+        overhead_variable_cost = overhead_variable * zar_eur_rate
+        overhead_fixed_cost = (overhead_fixed * zar_eur_rate) + 260000
+        overhead_cost = overhead_fixed_cost + overhead_variable_cost
         overhead_percantage = (overhead_cost / total_revenue) * 100 if total_revenue else 0.0
 
         month_label = get_month_label(start)
@@ -2851,6 +2766,7 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
             LEFT JOIN `tabTask` tt on tt.name = ttd.task
             WHERE ttd.project = 'Kartoza Sales'
             AND ttd.creation BETWEEN '{start}' AND '{end}'
+            AND tt.subject != ''
             GROUP BY ttd.activity_type, ttd.task 
         """, as_dict=1, debug=0)
 

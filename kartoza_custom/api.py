@@ -3,10 +3,11 @@ import frappe
 from frappe import whitelist
 from frappe import _
 from frappe.utils.global_search import search as default_search
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, cint, escape_html
 from frappe.model.naming import make_autoname
 from frappe.core.doctype.communication.email import make
-
+from frappe.utils.password import remove_encrypted_password, set_encrypted_password, update_password
+from webshop.webshop.variant_selector.item_variants_cache import ItemVariantsCacheManager
 
 @frappe.whitelist(allow_guest=True)
 def get_latest_quotation_items():
@@ -212,22 +213,26 @@ def before_insert_customer(doc, method):
     if user.user_type == "System User":
         return
 
-    # Only override if customer_name matches session user's full name
-    if doc.customer_name == user.full_name:
-        doc.customer_name = user.full_name
+    customer_name = (doc.customer_name or "").strip()
+    if not customer_name:
+        customer_name = (user.full_name or "").strip()
 
-        # Slugify full name
-        base_name = user.full_name
+    if not customer_name and website_user:
+        customer_name = website_user.split("@", 1)[0]
 
-        # Ensure unique name
-        new_name = base_name
-        i = 1
-        while frappe.db.exists("Customer", new_name):
-            new_name = f"{base_name}-{i}"
-            i += 1
+    if not customer_name:
+        customer_name = "Website Customer"
 
-        # Change docname before saving
-        doc.name = new_name
+    doc.customer_name = customer_name
+
+    base_name = customer_name
+    new_name = base_name
+    i = 1
+    while frappe.db.exists("Customer", new_name):
+        new_name = f"{base_name}-{i}"
+        i += 1
+
+    doc.name = new_name
 
 @frappe.whitelist()
 def send_expense_email(docname):
@@ -270,8 +275,8 @@ def send_expense_email(docname):
     message = f"""
         <p>{doc.employee_name} has submitted a new Expense Claim.</p>
         <p>Please review the Expense Claim at 
-        <a href='https://kartoza.com/app/employee-expense-claim/{doc.name}'>
-        https://kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
+        <a href='https://erp.kartoza.com/app/employee-expense-claim/{doc.name}'>
+        https://erp.kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
     """
 
     frappe.sendmail(
@@ -283,3 +288,245 @@ def send_expense_email(docname):
     )
 
     return 'sent'
+
+def _get_or_create_customer_for_user(email: str) -> str:
+    """Return the Customer name linked to this email, creating one if none exists."""
+    if not email:
+        return ""
+
+    # 1. Portal User child table — most direct User → Customer link
+    customer = frappe.db.get_value(
+        "Portal User",
+        {"user": email, "parenttype": "Customer"},
+        "parent",
+    )
+    if customer and frappe.db.exists("Customer", customer):
+        return customer
+
+    # 2. Contact Email → Dynamic Link → Customer
+    contact = frappe.db.get_value(
+        "Contact Email",
+        {"email_id": email, "parenttype": "Contact"},
+        "parent",
+    )
+    if contact:
+        customer = frappe.db.get_value(
+            "Dynamic Link",
+            {"parent": contact, "link_doctype": "Customer", "parenttype": "Contact"},
+            "link_name",
+        )
+        if customer and frappe.db.exists("Customer", customer):
+            return customer
+
+    # 3. No customer found — create one from the User record
+    user_rec = frappe.db.get_value("User", email, ["full_name"], as_dict=True)
+    base_name = (user_rec.full_name if user_rec else None) or email.split("@")[0]
+
+    unique_name, i = base_name, 1
+    while frappe.db.exists("Customer", unique_name):
+        unique_name = f"{base_name} {i}"
+        i += 1
+
+    new_customer = frappe.get_doc({
+        "doctype": "Customer",
+        "customer_name": unique_name,
+        "customer_type": "Individual",
+        "customer_group": "Individual",
+        "territory": "All Territories",
+        "portal_users": [{"user": email}],
+    })
+    new_customer.flags.ignore_permissions = True
+    new_customer.insert()
+
+    return new_customer.name
+
+
+@frappe.whitelist(allow_guest=True)
+def create_support_ticket(subject: str, description: str, priority: str = "Medium", raised_by: str = "", attachments=None) -> dict:
+    import base64 as _b64
+    import os
+
+    subject = (subject or "").strip()
+    description = (description or "").strip()
+    raised_by = (raised_by or "").strip()
+
+    if not subject:
+        frappe.throw(_("Subject is required."))
+    if not description:
+        frappe.throw(_("Description is required."))
+    if priority not in ("Low", "Medium", "High"):
+        priority = "Medium"
+
+    customer = _get_or_create_customer_for_user(raised_by)
+
+    issue = frappe.get_doc({
+        "doctype": "Issue",
+        "subject": escape_html(subject),
+        "description": escape_html(description),
+        "priority": priority,
+        "raised_by": raised_by,
+        "customer": customer,
+        "via_customer_portal": 1,
+    })
+    issue.flags.ignore_permissions = True
+    if raised_by and frappe.db.exists("User", raised_by):
+        issue.owner = raised_by
+    issue.insert()
+
+    if attachments:
+        if isinstance(attachments, str):
+            attachments = json.loads(attachments)
+
+        allowed_ext = {
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
+            ".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv"
+        }
+        max_bytes = 10 * 1024 * 1024
+
+        for att in (attachments or []):
+            try:
+                fname = (att.get("name") or "attachment").strip()
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in allowed_ext:
+                    continue
+                content = _b64.b64decode(att.get("content", ""))
+                if len(content) > max_bytes:
+                    continue
+                from frappe.utils.file_manager import save_file
+                save_file(fname=fname, content=content, dt="Issue", dn=issue.name, is_private=0)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), "Support Ticket Attachment Error")
+
+    frappe.db.commit()
+    return {"name": issue.name}
+
+
+@frappe.whitelist(allow_guest=True)
+def sign_up(email: str, full_name: str, password: str) -> dict:
+
+    user = frappe.db.get("User", {"email": email})
+    if user:
+        if user.enabled:
+            return {"status": 0, "message": _("Already Registered")}
+        else:
+            return {"status": 0, "message": _("Registered but disabled")}
+    else:
+        max_signups_allowed_per_hour = cint(frappe.get_system_settings("max_signups_allowed_per_hour") or 300)
+        users_created_past_hour = frappe.db.get_creation_count("User", 60)
+        if users_created_past_hour >= max_signups_allowed_per_hour:
+            frappe.respond_as_web_page(
+                _("Temporarily Disabled"),
+                _(
+                    "Too many users signed up recently, so the registration is disabled. Please try back in an hour"
+                ),
+                http_status_code=429,
+            )
+
+        user = frappe.get_doc(
+            {
+                "doctype": "User",
+                "email": email,
+                "first_name": escape_html(full_name),
+                "enabled": 1,
+                "new_password": '',
+                "user_type": "Website User",
+            }
+        )
+        user.flags.ignore_permissions = True
+        user.flags.ignore_password_policy = True
+        user.flags.no_welcome_mail = True
+        user.insert()
+
+        # set default signup role as per Portal Settings
+        default_role = frappe.get_single_value("Portal Settings", "default_role")
+        if default_role:
+            user.add_roles(default_role)
+
+        update_password(user=user.name, pwd=password, logout_all_sessions=0)
+
+        return {"status": 1, "message": _("Registration successful. Please log in to continue.")}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_attributes_and_values(item_code):
+    """Return variant schedule data as a JSON-serializable list.
+
+    Example:
+    [
+        {"name": "Introduction to QGIS Course-11 - 13 August 2026-ONLINE", "display_date": "11 - 13 August 2026", "venue": "online"}
+    ]
+    """
+    item_code = (item_code or "").strip()
+    if not item_code:
+        return []
+
+    # Accept either internal Item name or human-readable item_name from the client.
+    template_code = item_code
+    if not frappe.db.exists("Item", template_code):
+        template_code = frappe.db.get_value(
+            "Item",
+            {"item_name": item_code, "has_variants": 1},
+            "name",
+        )
+
+    if not template_code:
+        return []
+
+    item_cache = ItemVariantsCacheManager(template_code)
+    item_variants_data = item_cache.get_item_variants_data() or []
+
+    variant_codes = set()
+    variant_meta = {}
+
+    for variant_code, attribute, attribute_value in item_variants_data:
+        variant_codes.add(variant_code)
+        attr_key = (attribute or "").strip().lower()
+        value = (attribute_value or "").strip()
+        if not value:
+            continue
+
+        meta = variant_meta.setdefault(variant_code, {})
+        if "date" in attr_key and not meta.get("display_date"):
+            meta["display_date"] = value
+        if ("venue" in attr_key or "location" in attr_key) and not meta.get("venue"):
+            meta["venue"] = value.lower()
+
+    if not variant_codes:
+        variant_codes = set(
+            frappe.get_all(
+                "Item",
+                filters={"variant_of": template_code},
+                pluck="name",
+            )
+        )
+        if not variant_codes:
+            variant_codes = {template_code}
+
+    items = frappe.get_all(
+        "Item",
+        filters={"name": ["in", list(variant_codes)]},
+        fields=["name", "item_name"],
+        order_by="item_name asc",
+    )
+
+    response = []
+    for item in items:
+        full_name = (item.get("item_name") or item.get("name") or "").strip()
+        meta = variant_meta.get(item.get("name"), {})
+        display_date = meta.get("display_date")
+        venue = meta.get("venue")
+
+        # Fallback parser for names shaped like: Course Title-11 - 13 August 2026-ONLINE
+        if full_name and (not display_date or not venue):
+            parts = full_name.rsplit("-", 2)
+            if len(parts) == 3:
+                display_date = display_date or parts[1].strip()
+                venue = venue or parts[2].strip().lower()
+
+        response.append({
+            "name": full_name,
+            "display_date": display_date,
+            "venue": venue,
+        })
+
+    return response
