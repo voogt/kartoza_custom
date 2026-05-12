@@ -678,8 +678,6 @@ def complete_checkout(paystack_reference, currency=None):
 @frappe.whitelist()
 def get_invoice_pdf(invoice_name):
     """Return a base64-encoded PDF of a Sales Invoice the current user owns."""
-    from frappe.utils.pdf import get_pdf
-
     user = frappe.session.user
     if user == 'Guest':
         frappe.throw(_("Please login."), frappe.PermissionError)
@@ -693,8 +691,15 @@ def get_invoice_pdf(invoice_name):
     if contact_email != user:
         frappe.throw(_("You do not have permission to download this invoice."), frappe.PermissionError)
 
-    html = frappe.get_print('Sales Invoice', invoice_name, print_format='Kartoza Without Timesheet')
-    pdf_data = get_pdf(html)
+    # as_pdf=True uses Frappe's full PDF pipeline (wkhtmltopdf with correct base URL,
+    # CSS resolution, and letterhead) — the same path as the ERPNext print dialog.
+    pdf_data = frappe.get_print(
+        'Sales Invoice',
+        invoice_name,
+        print_format='Kartoza Without Timesheet',
+        as_pdf=True,
+        no_letterhead=0,
+    )
 
     import base64
     return {
