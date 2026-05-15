@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import datetime
+import traceback
 import frappe
 from frappe import _
 from frappe.query_builder.functions import Sum
@@ -576,60 +577,63 @@ def compute_data(filters, company_currency, profit_data, period_list, light_mapp
 
 
 def execute(filters=None):
-	if not filters.periodicity:
-		filters.periodicity = "Monthly"
-	period_list = get_period_list(
-		filters.from_fiscal_year,
-		filters.to_fiscal_year,
-		filters.period_start_date,
-		filters.period_end_date,
-		filters.filter_based_on,
-		filters.periodicity,
-		company=filters.company,
-	)
+	try:
+		if not filters.periodicity:
+			filters.periodicity = "Monthly"
+		period_list = get_period_list(
+			filters.from_fiscal_year,
+			filters.to_fiscal_year,
+			filters.period_start_date,
+			filters.period_end_date,
+			filters.filter_based_on,
+			filters.periodicity,
+			company=filters.company,
+		)
 
-	company = filters.company
+		company = filters.company
 
-	mappers = get_mappers_from_db(company)
-	print(f"Retrieved {mappers} mappers from DB")
+		mappers = get_mappers_from_db(company)
+		print(f"Retrieved {mappers} mappers from DB")
 
-	cash_flow_accounts = setup_mappers(mappers)
+		cash_flow_accounts = setup_mappers(mappers)
 
-	# compute net profit / loss
-	income = get_data(
-		company,
-		"Income",
-		"Credit",
-		period_list,
-		filters=filters,
-		accumulated_values=filters.accumulated_values,
-		ignore_closing_entries=True,
-		ignore_accumulated_values_for_fy=True,
-	)
+		# compute net profit / loss
+		income = get_data(
+			company,
+			"Income",
+			"Credit",
+			period_list,
+			filters=filters,
+			accumulated_values=filters.accumulated_values,
+			ignore_closing_entries=True,
+			ignore_accumulated_values_for_fy=True,
+		)
 
-	expense = get_data(
-		company,
-		"Expense",
-		"Debit",
-		period_list,
-		filters=filters,
-		accumulated_values=filters.accumulated_values,
-		ignore_closing_entries=True,
-		ignore_accumulated_values_for_fy=True,
-	)
+		expense = get_data(
+			company,
+			"Expense",
+			"Debit",
+			period_list,
+			filters=filters,
+			accumulated_values=filters.accumulated_values,
+			ignore_closing_entries=True,
+			ignore_accumulated_values_for_fy=True,
+		)
 
-	net_profit_loss = get_net_profit_loss(income, expense, period_list, company)
+		net_profit_loss = get_net_profit_loss(income, expense, period_list, company)
 
-	company_currency = frappe.get_cached_value("Company", company, "default_currency")
+		company_currency = frappe.get_cached_value("Company", company, "default_currency")
 
-	data = compute_data(filters, company_currency, net_profit_loss, period_list, mappers, cash_flow_accounts)
+		data = compute_data(filters, company_currency, net_profit_loss, period_list, mappers, cash_flow_accounts)
 
-	_add_total_row_account(data, data, _("Net Change in Cash"), period_list, company_currency)
-	columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, company)
+		_add_total_row_account(data, data, _("Net Change in Cash"), period_list, company_currency)
+		columns = get_columns(filters.periodicity, period_list, filters.accumulated_values, company)
 
-	data = [d for d in data if d]
+		data = [d for d in data if d]
 
-	return columns, data
+		return columns, data
+	except Exception:
+		frappe.throw(traceback.format_exc())
 
 
 def _get_account_type_based_data(filters, account_names, period_list, accumulated_values, opening_balances=0):

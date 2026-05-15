@@ -1162,11 +1162,18 @@ def sign_up(email: str, full_name: str, password: str) -> dict:
 
 @frappe.whitelist(allow_guest=True)
 def get_attributes_and_values(item_code):
-    """Return variant schedule data as a JSON-serializable list.
+    """Return variant attribute data as a JSON-serializable list.
 
     Example:
     [
-        {"name": "Introduction to QGIS Course-11 - 13 August 2026-ONLINE", "display_date": "11 - 13 August 2026", "venue": "online"}
+        {
+            "name": "Introduction to QGIS Course-11 - 13 August 2026-ONLINE",
+            "item_code": "INTRO-QGIS-ONLINE-2026-08-11",
+            "variants": {"Schedule": "11 - 13 August 2026", "Venue": "ONLINE"},
+            "prices": [
+                {"price_list": "Standard Selling", "price_list_rate": 1299, "currency": "ZAR", "uom": "Nos"}
+            ]
+        }
     ]
     """
     item_code = (item_code or "").strip()
@@ -1193,16 +1200,22 @@ def get_attributes_and_values(item_code):
 
     for variant_code, attribute, attribute_value in item_variants_data:
         variant_codes.add(variant_code)
-        attr_key = (attribute or "").strip().lower()
+        attr_key = (attribute or "").strip()
         value = (attribute_value or "").strip()
-        if not value:
+        if not attr_key or not value:
             continue
 
         meta = variant_meta.setdefault(variant_code, {})
-        if "date" in attr_key and not meta.get("display_date"):
-            meta["display_date"] = value
-        if ("venue" in attr_key or "location" in attr_key) and not meta.get("venue"):
-            meta["venue"] = value.lower()
+        # Keep all variant attributes instead of hardcoding specific keys.
+        if attr_key in meta and meta[attr_key] != value:
+            existing = meta[attr_key]
+            if isinstance(existing, list):
+                if value not in existing:
+                    existing.append(value)
+            else:
+                meta[attr_key] = [existing, value]
+        else:
+            meta[attr_key] = value
 
     if not variant_codes:
         variant_codes = set(
@@ -1222,24 +1235,40 @@ def get_attributes_and_values(item_code):
         order_by="item_name asc",
     )
 
+    item_codes = [item.get("name") for item in items if item.get("name")]
+    price_rows = []
+    if item_codes:
+        price_rows = frappe.get_all(
+            "Item Price",
+            filters={"item_code": ["in", item_codes]},
+            fields=["item_code", "price_list", "price_list_rate", "currency", "uom"],
+            order_by="item_code asc, price_list asc",
+        )
+
+    prices_by_item = {}
+    for row in price_rows:
+        code = row.get("item_code")
+        if not code:
+            continue
+
+        prices_by_item.setdefault(code, []).append({
+            "price_list": row.get("price_list"),
+            "price_list_rate": row.get("price_list_rate"),
+            "currency": row.get("currency"),
+            "uom": row.get("uom"),
+        })
+
     response = []
     for item in items:
+        item_name = item.get("name")
         full_name = (item.get("item_name") or item.get("name") or "").strip()
-        meta = variant_meta.get(item.get("name"), {})
-        display_date = meta.get("display_date")
-        venue = meta.get("venue")
-
-        # Fallback parser for names shaped like: Course Title-11 - 13 August 2026-ONLINE
-        if full_name and (not display_date or not venue):
-            parts = full_name.rsplit("-", 2)
-            if len(parts) == 3:
-                display_date = display_date or parts[1].strip()
-                venue = venue or parts[2].strip().lower()
+        meta = variant_meta.get(item_name, {})
 
         response.append({
             "name": full_name,
-            "display_date": display_date,
-            "venue": venue,
+            "item_code": item_name,
+            "variants": meta,
+            "prices": prices_by_item.get(item_name, []),
         })
 
     return response
