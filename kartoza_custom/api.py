@@ -1231,7 +1231,7 @@ def get_attributes_and_values(item_code):
     items = frappe.get_all(
         "Item",
         filters={"name": ["in", list(variant_codes)]},
-        fields=["name", "item_name"],
+        fields=["name", "item_name", "image", "website_image", "description", "website_description"],
         order_by="item_name asc",
     )
 
@@ -1263,12 +1263,83 @@ def get_attributes_and_values(item_code):
         item_name = item.get("name")
         full_name = (item.get("item_name") or item.get("name") or "").strip()
         meta = variant_meta.get(item_name, {})
+        image = item.get("image") or item.get("website_image")
+        description = item.get("description") or item.get("website_description")
 
         response.append({
             "name": full_name,
             "item_code": item_name,
+            "image": image,
+            "description": description,
             "variants": meta,
             "prices": prices_by_item.get(item_name, []),
         })
+
+    return response
+
+
+@frappe.whitelist(allow_guest=True)
+def get_active_items_with_variants():
+    """Return all active items and include variants for template items."""
+    items = frappe.get_all(
+        "Item",
+        filters={"disabled": 0},
+        fields=[
+            "name",
+            "item_name",
+            "has_variants",
+            "variant_of",
+            "image",
+            "website_image",
+            "description",
+            "website_description",
+        ],
+        order_by="item_name asc",
+    )
+
+    template_codes = [item.get("name") for item in items if item.get("has_variants")]
+
+    variants_by_template = {}
+    if template_codes:
+        variants = frappe.get_all(
+            "Item",
+            filters={
+                "disabled": 0,
+                "variant_of": ["in", template_codes],
+            },
+            fields=["name", "item_name", "variant_of", "image", "website_image", "description", "website_description"],
+            order_by="item_name asc",
+        )
+
+        for variant in variants:
+            parent = variant.get("variant_of")
+            if not parent:
+                continue
+
+            variants_by_template.setdefault(parent, []).append(
+                {
+                    "item_code": variant.get("name"),
+                    "name": (variant.get("item_name") or variant.get("name") or "").strip(),
+                    "image": variant.get("image") or variant.get("website_image"),
+                    "description": variant.get("description") or variant.get("website_description"),
+                }
+            )
+
+    response = []
+    for item in items:
+        item_code = item.get("name")
+        is_template = bool(item.get("has_variants"))
+
+        response.append(
+            {
+                "item_code": item_code,
+                "name": (item.get("item_name") or item_code or "").strip(),
+                "is_template": is_template,
+                "variant_of": item.get("variant_of"),
+                "image": item.get("image") or item.get("website_image"),
+                "description": item.get("description") or item.get("website_description"),
+                "variants": variants_by_template.get(item_code, []) if is_template else [],
+            }
+        )
 
     return response
