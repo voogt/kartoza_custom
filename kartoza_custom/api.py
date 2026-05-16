@@ -1192,6 +1192,8 @@ def get_attributes_and_values(item_code):
     if not template_code:
         return []
 
+    is_template = bool(frappe.db.get_value("Item", template_code, "has_variants"))
+
     item_cache = ItemVariantsCacheManager(template_code)
     item_variants_data = item_cache.get_item_variants_data() or []
 
@@ -1217,15 +1219,33 @@ def get_attributes_and_values(item_code):
         else:
             meta[attr_key] = value
 
-    if not variant_codes:
-        variant_codes = set(
+    # If the selected item is a template, only keep active variants.
+    if is_template:
+        active_variant_codes = set(
             frappe.get_all(
                 "Item",
-                filters={"variant_of": template_code},
+                filters={"variant_of": template_code, "disabled": 0},
                 pluck="name",
             )
         )
-        if not variant_codes:
+        if variant_codes:
+            variant_codes = variant_codes.intersection(active_variant_codes)
+        else:
+            variant_codes = active_variant_codes
+
+    if not variant_codes:
+        variant_filters = {"variant_of": template_code}
+        if is_template:
+            variant_filters["disabled"] = 0
+
+        variant_codes = set(
+            frappe.get_all(
+                "Item",
+                filters=variant_filters,
+                pluck="name",
+            )
+        )
+        if not variant_codes and not is_template:
             variant_codes = {template_code}
 
     items = frappe.get_all(
