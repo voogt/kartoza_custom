@@ -1248,10 +1248,20 @@ def get_attributes_and_values(item_code):
         if not variant_codes and not is_template:
             variant_codes = {template_code}
 
+    item_meta = frappe.get_meta("Item")
+    has_website_image = bool(item_meta.get_field("website_image"))
+    has_website_description = bool(item_meta.get_field("website_description"))
+
+    item_fields = ["name", "item_name", "image", "description"]
+    if has_website_image:
+        item_fields.append("website_image")
+    if has_website_description:
+        item_fields.append("website_description")
+
     items = frappe.get_all(
         "Item",
         filters={"name": ["in", list(variant_codes)]},
-        fields=["name", "item_name", "image", "website_image", "description", "website_description"],
+        fields=item_fields,
         order_by="item_name asc",
     )
 
@@ -1283,8 +1293,10 @@ def get_attributes_and_values(item_code):
         item_name = item.get("name")
         full_name = (item.get("item_name") or item.get("name") or "").strip()
         meta = variant_meta.get(item_name, {})
-        image = item.get("image") or item.get("website_image")
-        description = item.get("description") or item.get("website_description")
+        image = item.get("image") or (item.get("website_image") if has_website_image else None)
+        description = item.get("description") or (
+            item.get("website_description") if has_website_description else None
+        )
 
         response.append({
             "name": full_name,
@@ -1301,19 +1313,27 @@ def get_attributes_and_values(item_code):
 @frappe.whitelist(allow_guest=True)
 def get_active_items_with_variants():
     """Return all active items and include variants for template items."""
+    item_meta = frappe.get_meta("Item")
+    has_website_image = bool(item_meta.get_field("website_image"))
+    has_website_description = bool(item_meta.get_field("website_description"))
+
+    item_fields = [
+        "name",
+        "item_name",
+        "has_variants",
+        "variant_of",
+        "image",
+        "description",
+    ]
+    if has_website_image:
+        item_fields.append("website_image")
+    if has_website_description:
+        item_fields.append("website_description")
+
     items = frappe.get_all(
         "Item",
         filters={"disabled": 0},
-        fields=[
-            "name",
-            "item_name",
-            "has_variants",
-            "variant_of",
-            "image",
-            "website_image",
-            "description",
-            "website_description",
-        ],
+        fields=item_fields,
         order_by="item_name asc",
     )
 
@@ -1327,7 +1347,7 @@ def get_active_items_with_variants():
                 "disabled": 0,
                 "variant_of": ["in", template_codes],
             },
-            fields=["name", "item_name", "variant_of", "image", "website_image", "description", "website_description"],
+            fields=item_fields,
             order_by="item_name asc",
         )
 
@@ -1340,8 +1360,10 @@ def get_active_items_with_variants():
                 {
                     "item_code": variant.get("name"),
                     "name": (variant.get("item_name") or variant.get("name") or "").strip(),
-                    "image": variant.get("image") or variant.get("website_image"),
-                    "description": variant.get("description") or variant.get("website_description"),
+                    "image": variant.get("image")
+                    or (variant.get("website_image") if has_website_image else None),
+                    "description": variant.get("description")
+                    or (variant.get("website_description") if has_website_description else None),
                 }
             )
 
@@ -1356,8 +1378,9 @@ def get_active_items_with_variants():
                 "name": (item.get("item_name") or item_code or "").strip(),
                 "is_template": is_template,
                 "variant_of": item.get("variant_of"),
-                "image": item.get("image") or item.get("website_image"),
-                "description": item.get("description") or item.get("website_description"),
+                "image": item.get("image") or (item.get("website_image") if has_website_image else None),
+                "description": item.get("description")
+                or (item.get("website_description") if has_website_description else None),
                 "variants": variants_by_template.get(item_code, []) if is_template else [],
             }
         )
