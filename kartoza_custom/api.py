@@ -948,8 +948,8 @@ def before_insert_customer(doc, method):
     doc.name = new_name
 
 @frappe.whitelist()
-def send_expense_email(docname):
-    doc = frappe.get_doc('Employee Expense Claim', docname)
+def send_expense_email(docname, doctype):
+    doc = frappe.get_doc(doctype, docname)
 
     # Get users with the roles "Expense Approver" or "Expense Manager"
     users = frappe.get_all(
@@ -983,20 +983,25 @@ def send_expense_email(docname):
     if not recipients:
         return 'No valid recipients found with Expense Approver or Expense Manager role.'
     
+    if doctype == 'Travel Request':
+        doc_url = 'travel-request'
+    elif doctype == 'Employee Expense Claim':
+        doc_url = 'employee-expense-claim'
+    
 
     subject = f"{doc.employee_name} has submitted a new Expense Claim"
     message = f"""
         <p>{doc.employee_name} has submitted a new Expense Claim.</p>
         <p>Please review the Expense Claim at 
-        <a href='https://erp.kartoza.com/app/employee-expense-claim/{doc.name}'>
-        https://erp.kartoza.com/app/employee-expense-claim/{doc.name}</a></p>
+        <a href='https://erp.kartoza.com/app/{doc_url}/{doc.name}'>
+        https://erp.kartoza.com/app/{doc_url}/{doc.name}</a></p>
     """
 
     frappe.sendmail(
         recipients=recipients,
         subject=subject,
         message=message,
-        reference_doctype="Employee Expense Claim",
+        reference_doctype=doctype,
         reference_name=doc.name
     )
 
