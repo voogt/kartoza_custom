@@ -429,8 +429,10 @@ def get_all_data(projects, start_date=None, end_date=None):
         END as due_date,
         SUM(
             CASE
-                WHEN tso.company = 'Kartoza (Pty) Ltd' THEN tsi.base_net_amount
-                ELSE tsi.base_net_amount * {zar_eur_rate}
+                WHEN tso.company = 'Kartoza (Pty) Ltd' THEN
+                    GREATEST(0, tsi.base_net_amount - tsi.billed_amt * tso.conversion_rate)
+                ELSE
+                    GREATEST(0, tsi.base_net_amount - tsi.billed_amt * tso.conversion_rate) * {zar_eur_rate}
             END
         ) as `deferred_revenue`
         FROM `tabSales Order Item` tsi
@@ -439,7 +441,7 @@ def get_all_data(projects, start_date=None, end_date=None):
         AND tso.status NOT IN ('Cancelled', 'Return', 'Credit Note Issued', 'Closed')
         AND tso.project IN ('{projects_str}')
         {sales_order_comment_filter}
-        AND tsi.base_net_amount > 0
+        AND tsi.billed_amt < tsi.amount
         GROUP BY tso.project, due_date
     """ if next_fy_start else ""
 
@@ -451,15 +453,15 @@ def get_all_data(projects, start_date=None, end_date=None):
     deferred_revenue_by_fy = {}
     future_financial_years = set()
 
-    # Always expose a rolling future FY horizon so table columns are stable
-    # even when no schedule rows exist yet for a specific future year.
+    # Always expose exactly the 3 coming SA financial years (current FY + next 2)
+    # so columns are stable regardless of whether data exists for each year.
     if end_date:
         anchor_date = datetime.strptime(end_date, "%Y-%m-%d").date()
     else:
         anchor_date = datetime.now().date()
 
     anchor_fy_year = anchor_date.year + 1 if anchor_date.month >= 4 else anchor_date.year
-    for i in range(1, 4):
+    for i in range(0, 3):
         future_financial_years.add(f"FY{anchor_fy_year + i}")
 
     for row in deferred_revenue_data:
@@ -473,32 +475,12 @@ def get_all_data(projects, start_date=None, end_date=None):
         deferred_revenue_totals[project] = deferred_revenue_totals.get(project, 0) + amount
 
         fy_label = get_sa_financial_year_label(due_date)
-        if not fy_label:
+        if not fy_label or fy_label not in future_financial_years:
             continue
 
-        future_financial_years.add(fy_label)
         if project not in deferred_revenue_by_fy:
             deferred_revenue_by_fy[project] = {}
         deferred_revenue_by_fy[project][fy_label] = deferred_revenue_by_fy[project].get(fy_label, 0) + amount
-
-    # Scale raw SO-item amounts down to what is actually still to be billed.
-    # billed_amt on SO items is in transaction currency while base_net_amount is
-    # in base currency, so we cannot subtract them in SQL.  Instead we use the
-    # project-level totals (already correctly calculated) to derive a scale factor
-    # and apply it to every FY bucket so the FY values always sum to to_be_billed.
-    sales_invoices_map = {item['project']: item['total_billed_amount'] or 0 for item in sales_invoice_data}
-    sales_orders_map = {item['project']: item['total_sales_order_amount'] or 0 for item in sales_order_data}
-
-    for project in list(deferred_revenue_by_fy.keys()):
-        total_raw = deferred_revenue_totals.get(project, 0) or 0
-        to_be_billed = max(0, (sales_orders_map.get(project, 0) or 0) - (sales_invoices_map.get(project, 0) or 0))
-        if total_raw > 0:
-            scale = to_be_billed / total_raw
-            for fy in deferred_revenue_by_fy[project]:
-                deferred_revenue_by_fy[project][fy] = deferred_revenue_by_fy[project][fy] * scale
-            deferred_revenue_totals[project] = to_be_billed
-        else:
-            deferred_revenue_totals[project] = 0
 
     sorted_financial_years = sorted(
         future_financial_years,

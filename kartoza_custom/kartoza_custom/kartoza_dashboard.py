@@ -743,6 +743,11 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
     chart_data = []
     total_cost_center = 0
 
+    if type_center == "Profit":
+        title = "Lost Opportunity Cost"
+    if type_center == "Cost":
+        title = "Cost Center Lost Opportunity (Profit/Loss)"
+
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
 
@@ -849,7 +854,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
     }
 
     data = {
-        "title": f"{type_center} Center Lost Opportunity (Profit/Loss)",
+        "title": title,
         "labels": labels,
         "isReverse": False,
         "showTotal": True,
@@ -1716,11 +1721,8 @@ def get_open_sales_orders(start_date=None, end_date=None):
             d[f"deferred_revenue_{fy}"] = fy_value
             total_deferred_revenue_by_fy[fy] += fy_value
 
-    # Keep only financial-year columns that have at least one non-zero value.
-    visible_financial_years = [
-        fy for fy in future_financial_years
-        if float(total_deferred_revenue_by_fy.get(fy, 0) or 0) != 0.0
-    ]
+    # Always show all 3 coming SA financial year columns.
+    visible_financial_years = list(future_financial_years)
 
     # Filter only projects that have sales orders
     all_sales_orders = [d for d in final_dict if d['total_billed_sales_order'] > 0]
@@ -2329,11 +2331,16 @@ def get_overhead_cost_lda(start_date, end_date):
         overhead_fixed = 0
         overhead_variable = 0
 
+        fixed_overhead_accounts = ('5102 - Foreign Exchange Differencee on Salaries', '5104 - Sub-Contrator', '5112 - Domain Registration', '5115 - Hosting', '5125 - Salaries & Wages Non-Admin Staff', '5117 - Insurance as Cost of Sales', '5207 - Accounting Fees', '5231 - Insurance as Expense', '5241 - Rent Paid', '5258 - Salaries & Wages Admin Staff', '5243 - Directors remuneration')
+
+        overhead_variable_accounts = ('5119 - Training', '5121 - Bank Charges as Cost of Sales', '5122 - Exchange Gain/Loss as Cost of Sales', '5206 - Marketing', '5210 - Bank Charges as an Expense', '5216 - Communication', '5218 - Exchange Gain/Loss', '5219 - Gain/Loss on Asset Disposal', '5221 - Computer Expenses', '5222 - Consulting fees', '5238 - Overs and unders', '5239 - Printing & Stationary', '5252 - Travel as an Expense International')
+        
         for expense_row in expense:
-            account = expense_row.get("account")
-            if account == '5200 - Expenses - KE':
+            print(expense_row)
+            account = expense_row.get("account_name")
+            if account in fixed_overhead_accounts:
                 overhead_fixed += expense_row["total"]
-            elif account == '5100 - Cost of Sales - KE':
+            elif account in overhead_variable_accounts:
                 overhead_variable += expense_row["total"]
 
         total_revenue =  get_profit(
@@ -2454,7 +2461,7 @@ def get_project_closed_summary(start_date, end_date):
     # Second pass: build item_map with 0 for missing item_codes
     item_map = {project_name: [] for project_name in all_projects}
     for period_data in month_item_data:
-        period_dict = {item["project_name"]: item["gross_margin"] for item in period_data}
+        period_dict = {item["project_name"]: item["total_billed_amount"] for item in period_data}
         for project_name in all_projects:
             value = period_dict.get(project_name, 0)
             item_map[project_name].append(f"{value:.0f}")
@@ -2472,10 +2479,10 @@ def get_project_closed_summary(start_date, end_date):
         <div style='font-size: 14px;text-align: left'>
             <b>Displays closed project summaries:</b><br><br>
             <ul style='margin-left: 1em;'>
-                <li><b>Project Names:</b> Each bar represents the total gross margin for a project that is closed during the period.</li>
+                <li><b>Project Names:</b> Each bar represents the total billed amount for a project that is closed during the period.</li>
                 <li><b>Missing Projects:</b> If a project is present in one month but not in another, a value of 0 is shown for the missing month.</li>
                 <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
-                <li><b>Source:</b> Closed projects with their gross margins, converted to ZAR if needed, filtered by actual end date.</li>
+                <li><b>Source:</b> Closed projects with their total billed amounts, converted to ZAR if needed, filtered by actual end date.</li>
         </div>
         """,
         "total_cards": [],
@@ -2757,8 +2764,30 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
 
     if type_returned == "hours":
         title = "Timesheet Data for Project 'Kartoza Sales' (Hours)"
+        help = f"""
+            <div style='font-size: 14px;text-align: left'>
+                <b>Shows monthly timesheet variance for the 'Kartoza Sales' project grouped by task and activity:</b><br><br>
+                <ul style='margin-left: 1em;'>
+                    <li><b>Scope:</b> Includes timesheet entries where project = 'Kartoza Sales' within the selected date range.</li>
+                    <li><b>Series:</b> Each series the description of the task</li>
+                    <li><b>Hours:</b> Total hours per series are included in the table for context (to two decimals).</li>
+                </ul>
+                <span style='color: #888;'>Data is grouped by month across the selected period.</span>
+            </div>
+        """
     else:
-        title = "Timesheet Data for Project 'Kartoza Sales' (Cost vs Lost)"
+        title = "Timesheet Data for Project 'Kartoza Sales' (Cost)"
+        help = f"""
+            <div style='font-size: 14px;text-align: left'>
+                <b>Shows monthly timesheet variance for the 'Kartoza Sales' project grouped by task and activity:</b><br><br>
+                <ul style='margin-left: 1em;'>
+                    <li><b>Scope:</b> Includes timesheet entries where project = 'Kartoza Sales' within the selected date range.</li>
+                    <li><b>Series:</b> Each series the description of the task</li>
+                    <li><b>Cost:</b> Total cost per series are included in the table for context (to two decimals).</li>
+                </ul>
+                <span style='color: #888;'>Data is grouped by month across the selected period.</span>
+            </div>
+        """
 
     for start, end in ranges:
         timesheet_data = frappe.db.sql(f"""
@@ -2834,17 +2863,7 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
         "shouldSplitLongLabels": False,
         "isLegendReverse": False,
         "element_id": f"timesheet_data",
-        "help": f"""
-        <div style='font-size: 14px;text-align: left'>
-            <b>Shows monthly timesheet variance for the 'Kartoza Sales' project grouped by task and activity:</b><br><br>
-            <ul style='margin-left: 1em;'>
-                <li><b>Scope:</b> Includes timesheet entries where project = 'Kartoza Sales' within the selected date range.</li>
-                <li><b>Series:</b> Each series the description of the task</li>
-                <li><b>Hours:</b> Total hours per series are included in the table for context (to two decimals).</li>
-            </ul>
-            <span style='color: #888;'>Data is grouped by month across the selected period.</span>
-        </div>
-        """,
+        "help": help,
         "total_cards": [],
         "type": "single",
         "datasets": []
