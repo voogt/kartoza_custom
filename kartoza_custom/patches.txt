@@ -1,0 +1,1 @@
+kartoza_custom.monkey_patches.add_own_car_mode_of_travel
