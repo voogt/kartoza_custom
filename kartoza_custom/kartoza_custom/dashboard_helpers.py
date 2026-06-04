@@ -423,10 +423,7 @@ def get_all_data(projects, start_date=None, end_date=None):
     deferred_revenue_sql = f"""
         SELECT
         tso.project,
-        CASE
-            WHEN tsi.delivery_date > '{end_date}' THEN tsi.delivery_date
-            ELSE '{next_fy_start}'
-        END as due_date,
+        COALESCE(tsi.delivery_date, '{next_fy_start}') as due_date,
         SUM(
             CASE
                 WHEN tso.company = 'Kartoza (Pty) Ltd' THEN
@@ -454,15 +451,11 @@ def get_all_data(projects, start_date=None, end_date=None):
     future_financial_years = set()
 
     # Always expose exactly the 3 coming SA financial years (current FY + next 2)
-    # so columns are stable regardless of whether data exists for each year.
-    if end_date:
-        anchor_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-    else:
-        anchor_date = datetime.now().date()
-
-    anchor_fy_year = anchor_date.year + 1 if anchor_date.month >= 4 else anchor_date.year
+    # anchored to today so past FYs are never shown as columns.
+    today = datetime.now().date()
+    today_fy_year = today.year + 1 if today.month >= 4 else today.year
     for i in range(0, 3):
-        future_financial_years.add(f"FY{anchor_fy_year + i}")
+        future_financial_years.add(f"FY{today_fy_year + i}")
 
     for row in deferred_revenue_data:
         project = row.get('project')
