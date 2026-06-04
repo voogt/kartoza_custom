@@ -811,16 +811,17 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
             potential_revenue_total = total_billed_amount - total_timesheet_billing
 
             if profit_loss < 0:
-
                 total_cost_center += profit_loss
                 cost_center_array.append({
                     'cost_center': dict['cost_center'],
                     'profit_loss': f"{potential_revenue_total:.0f}",
+                    'billing_rate': f"{total_timesheet_billing:.0f}",
                 })
             else:
                 cost_center_array.append({
                     'cost_center': dict['cost_center'],
                     'profit_loss': "0",
+                    'billing_rate': f"{total_timesheet_billing:.0f}",
                 })
 
         month_label = get_month_label(start)
@@ -831,21 +832,20 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         })
 
     # Transform chart_data for stacked chart
-     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
-    # Initialize a dict to hold profit/loss values per cost center
     cost_center_map = {}
+    billing_rate_map = {}
 
     for row in chart_data:
         month_data = row["cost_center_data"]
         for item in month_data:
             name = item["cost_center"]
-            profit_loss = item["profit_loss"]
             if name not in cost_center_map:
                 cost_center_map[name] = []
-            cost_center_map[name].append(profit_loss)
-
+                billing_rate_map[name] = []
+            cost_center_map[name].append(item["profit_loss"])
+            billing_rate_map[name].append(item["billing_rate"])
 
     # Remove cost centers with 0 for all months
     filtered_cost_center_map = {
@@ -866,6 +866,7 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
             <b>Shows lost revenue (potential profit not realized) for centers with negative profit/loss:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Profit/Loss:</b> For centers with negative profit, shows the difference between total billed and total timesheet billing.</li>
+                <li><b>Billing Rate:</b> Total timesheet billing amount for each cost center.</li>
                 <li>Only centers of the specified type are included.</li>
             </ul>
             <span style='color: #888;'>Totals are summed for the period.</span>
@@ -881,6 +882,11 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
             "type": "bar",
             "name": name,
             "values": values
+        })
+        data["datasets"].append({
+            "type": "line",
+            "name": f"Billing Rate: {name}",
+            "values": billing_rate_map[name]
         })
 
     return data

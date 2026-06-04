@@ -427,9 +427,9 @@ def get_all_data(projects, start_date=None, end_date=None):
         SUM(
             CASE
                 WHEN tso.company = 'Kartoza (Pty) Ltd' THEN
-                    GREATEST(0, tsi.base_net_amount - tsi.billed_amt * tso.conversion_rate)
+                    tsi.base_net_amount 
                 ELSE
-                    GREATEST(0, tsi.base_net_amount - tsi.billed_amt * tso.conversion_rate) * {zar_eur_rate}
+                    tsi.base_net_amount * {zar_eur_rate}
             END
         ) as `deferred_revenue`
         FROM `tabSales Order Item` tsi
