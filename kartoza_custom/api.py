@@ -43,16 +43,12 @@ def _build_frontend_password_reset_link(reset_link: str) -> str:
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=get_password_reset_limit, seconds=60 * 60)
-def request_password_reset(email: str) -> dict[str, str]:
+def request_password_reset(email: str) -> str:
     email = (email or "").strip().lower()
     if not email:
         frappe.throw(_("Email is required."))
 
-    response = {
-        "message": _(
-            "If an account exists for this email address, a password reset link has been sent."
-        )
-    }
+    response = _("If an account exists for this email address, a password reset link has been sent.")
 
     try:
         user = frappe.get_doc("User", email)
@@ -64,11 +60,50 @@ def request_password_reset(email: str) -> dict[str, str]:
         return response
 
     user.validate_reset_password()
-    reset_link = user.reset_password(send_email=False)
+    reset_link = user._reset_password(send_email=False)
     frontend_link = _build_frontend_password_reset_link(reset_link)
     user.password_reset_mail(frontend_link)
 
     return response
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def confirm_password_reset(key: str, new_password: str) -> dict:
+    """Validate a password-reset key and set the new password.
+
+    Called from the /reset-password/ frontend page after the user clicks the
+    emailed link and submits the new-password form.
+    """
+    from datetime import timedelta
+    from frappe.utils import get_datetime, now_datetime
+    from frappe.utils.data import sha256_hash
+
+    key = (key or "").strip()
+    if not key:
+        frappe.throw(_("Invalid reset link."))
+    if not new_password or len(new_password) < 8:
+        frappe.throw(_("Password must be at least 8 characters long."))
+
+    # Frappe stores the SHA-256 hash of the key, not the raw key
+    hashed_key = sha256_hash(key)
+    user_name = frappe.db.get_value("User", {"reset_password_key": hashed_key}, "name")
+    if not user_name:
+        frappe.throw(_("This reset link is invalid or has already been used."))
+
+    generated_on = frappe.db.get_value("User", user_name, "last_reset_password_key_generated_on")
+    if generated_on:
+        expiry = get_datetime(generated_on) + timedelta(hours=24)
+        if now_datetime() > expiry:
+            frappe.throw(_("This reset link has expired. Please request a new one."))
+
+    set_user_password(user=user_name, pwd=new_password, logout_all_sessions=0)
+
+    # Invalidate the key so it cannot be reused
+    frappe.db.set_value("User", user_name, "reset_password_key", "")
+    frappe.db.commit()
+
+    return _("Password updated successfully. You can now sign in with your new password.")
+
 
 @frappe.whitelist(methods=['POST'])
 def change_email(new_email, current_password):
@@ -200,6 +235,48 @@ def get_cart_items():
         'grand_total': quotation.grand_total,
         'currency': quotation.currency or 'USD',
     }
+
+
+@frappe.whitelist()
+def remove_from_cart(item_code):
+    """Remove a single item from the active cart quotation.
+
+    Uses the same quotation lookup as get_cart_items. When the removed item is
+    the last one the quotation is deleted rather than saved, avoiding the
+    AttributeError in webshop's update_cart (quotation.name on None).
+    """
+    user = frappe.session.user
+    if user == 'Guest':
+        frappe.throw(_("Please login to modify your cart."), frappe.PermissionError)
+
+    quotation_list = frappe.get_all(
+        'Quotation',
+        fields=['name'],
+        filters={
+            'contact_email': user,
+            'order_type': 'Shopping Cart',
+            'docstatus': 0,
+        },
+        order_by='modified desc',
+        limit_page_length=1,
+    )
+
+    if not quotation_list:
+        return {'success': True, 'empty': True}
+
+    quotation = frappe.get_doc('Quotation', quotation_list[0].name)
+    remaining = [item for item in quotation.items if item.item_code != item_code]
+
+    if not remaining:
+        quotation.flags.ignore_permissions = True
+        quotation.delete()
+        return {'success': True, 'empty': True}
+
+    quotation.items = remaining
+    quotation.flags.ignore_permissions = True
+    quotation.payment_schedule = []
+    quotation.save()
+    return {'success': True, 'empty': False}
 
 
 @frappe.whitelist()
@@ -339,14 +416,40 @@ def save_billing_address(address_line1, city, country,
     quotation.address_display = address_display
     if not quotation.shipping_address_name:
         quotation.shipping_address_name = address.name
+
+    # Apply 15% VAT for South African billing addresses; clear taxes for all others.
+    SA_TAX_TEMPLATE = 'South Africa Tax - K'
+    quotation.taxes = []
+    if country == 'South Africa':
+        if frappe.db.exists('Sales Taxes and Charges Template', SA_TAX_TEMPLATE):
+            tax_template = frappe.get_doc('Sales Taxes and Charges Template', SA_TAX_TEMPLATE)
+            for tax_row in tax_template.taxes:
+                quotation.append('taxes', {
+                    'charge_type': tax_row.charge_type,
+                    'account_head': tax_row.account_head,
+                    'rate': tax_row.rate,
+                    'description': tax_row.description or '',
+                    'cost_center': tax_row.cost_center or '',
+                })
+            quotation.taxes_and_charges = SA_TAX_TEMPLATE
+        else:
+            quotation.taxes_and_charges = ''
+    else:
+        quotation.taxes_and_charges = ''
+
     quotation.flags.ignore_permissions = True
     quotation.payment_schedule = []
+    quotation.run_method('calculate_taxes_and_totals')
     quotation.save()
     frappe.db.commit()
 
     return {
         'address_name': address.name,
         'address_display': address_display,
+        'total': quotation.total,
+        'tax_amount': quotation.total_taxes_and_charges or 0,
+        'grand_total': quotation.grand_total,
+        'currency': quotation.currency or 'ZAR',
     }
 
 
@@ -546,7 +649,10 @@ def enrol_in_moodle(sales_order, enrollees):
                 'course_id': course_id,
                 'enrollment_succesful': success,
             })
-            results.append({'item_code': item_code, 'item_name': item_name, 'email': email, 'enrolled': success})
+            results.append({'item_code': item_code, 'item_name': item_name,
+                            'first_name': first_name, 'last_name': last_name,
+                            'email': email, 'enrolled': success,
+                            'course_id': course_id})
 
         except Exception as e:
             all_ok = False
@@ -723,7 +829,7 @@ def get_my_orders():
             'docstatus': 1,
         },
         fields=['name', 'transaction_date', 'grand_total', 'currency', 'status'],
-        order_by='transaction_date desc',
+        order_by='name desc',
     )
 
     for order in orders:
@@ -737,6 +843,33 @@ def get_my_orders():
             {'sales_order': order['name']},
             'parent',
         ) or None
+
+        # Identify which items require Moodle enrollment
+        moodle_items = []
+        for item in order['items']:
+            try:
+                item_doc = frappe.get_cached_doc('Item', item['item_code'])
+                if item_doc.get('custom_auto_enroll_in_moodle') == 1:
+                    moodle_items.append({
+                        'item_code': item['item_code'],
+                        'item_name': item['item_name'],
+                        'qty': int(item.get('qty') or 1),
+                        'course_id': item_doc.get('custom_moodle_course_id') or '',
+                    })
+            except Exception:
+                pass
+        order['moodle_items'] = moodle_items
+
+        # Fetch existing enrollment log details for this order
+        enrollment_details = []
+        log_name = frappe.db.get_value('Moodle Enrollment Logs', {'sales_order': order['name']}, 'name')
+        if log_name:
+            enrollment_details = frappe.get_all(
+                'Moodle Enrollment Details',
+                filters={'parent': log_name},
+                fields=['name1', 'email', 'course_id', 'enrollment_succesful'],
+            )
+        order['enrollment_details'] = [dict(d) for d in enrollment_details]
 
     return orders
 
@@ -770,6 +903,17 @@ def get_or_create_customer(recipient_name, recipient_email, contact_phone, tax_i
     return {'customer_name': new_customer.name}
 
 @frappe.whitelist(allow_guest=True)
+def get_countries():
+    """Return all country names ordered alphabetically for address dropdowns."""
+    return frappe.get_all(
+        'Country',
+        fields=['country_name'],
+        order_by='country_name asc',
+        limit_page_length=300,
+    )
+
+
+@frappe.whitelist(allow_guest=True)
 def get_moodle_course_settings(item):
     return frappe.get_list(
         'Moodle Course Settings',
@@ -783,7 +927,7 @@ def send_course_details_email(email, doc_details):
         # Parse doc_details if it's a JSON string
         if isinstance(doc_details, str):
             doc_details = json.loads(doc_details)
-        
+
         subject = f"Details for {doc_details.get('item')}"
         message = f"""
             <p>Here are the details you requested:</p>
@@ -805,19 +949,115 @@ def send_course_details_email(email, doc_details):
             "doctype": "Moodle Course Email Requests",
             "course": doc_details.get('item'),
             "email": email,
-            "email_sent": 1  
+            "email_sent": 1
         })
-        
+
         # Insert the document into the database
         email_doc.insert(ignore_permissions=True)  # Ignore permissions if running as admin
-        
+
         # Commit the transaction
         frappe.db.commit()
 
         return {"status": "success", "message": _(f"""Email being sent to {email}. Please allow a few minutes for the email to reach your inbox. If it doesn't appear after a while, kindly check your spam folder or contact us for assistance.""")}
-    
+
     except Exception as e:
         frappe.throw(_(f"Unable to send email. Please try again later. {e}"))
+
+
+@frappe.whitelist(allow_guest=True)
+def get_free_courses():
+    """Return all Moodle courses available for free self-registration (zero_rated = 1)."""
+    return frappe.get_all(
+        'Moodle Course Settings',
+        filters={'zero_rated': 1},
+        fields=['item', 'course_link'],
+    )
+
+
+@frappe.whitelist(allow_guest=True)
+def self_register_free_course(item_code, email):
+    """Self-register a user for a free (zero-rated) Moodle course.
+
+    Looks up Moodle Course Settings for the given item, confirms it is free
+    (zero_rated = 1), then emails the enrollment key and course link to the
+    provided address. Duplicate registrations for the same course + email are
+    rejected to prevent key leakage via repeated requests.
+    """
+    from frappe.utils import validate_email_address
+
+    item_code = (item_code or "").strip()
+    email = (email or "").strip()
+
+    if not item_code or not email:
+        frappe.throw(_("Item code and email address are required."))
+
+    if not validate_email_address(email):
+        frappe.throw(_("Please provide a valid email address."))
+
+    settings = frappe.get_all(
+        'Moodle Course Settings',
+        filters={'item': item_code, 'zero_rated': 1},
+        fields=['item', 'enrollment_key', 'course_link'],
+        limit=1,
+    )
+
+    if not settings:
+        frappe.throw(_("This course is not available for free self-registration."))
+
+    course = settings[0]
+
+    already_registered = frappe.db.exists(
+        'Moodle Course Email Requests',
+        {'course': item_code, 'email': email, 'email_sent': 1},
+    )
+    if already_registered:
+        return {
+            "status": "already_registered",
+            "message": _("You have already registered for this course. Please check your inbox for the enrollment details."),
+        }
+
+    course_name = frappe.db.get_value('Item', item_code, 'item_name') or item_code
+    subject = f"Your Free Course Access: {course_name}"
+    message = f"""
+        <p>Thank you for registering for <strong>{course_name}</strong>!</p>
+        <p>You can access the course at the link below. Use the enrollment key when prompted.</p>
+        <table style="margin: 1rem 0; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0.4rem 1rem 0.4rem 0; font-weight: 600;">Course Link:</td>
+                <td><a href="{course.get('course_link')}">{course.get('course_link')}</a></td>
+            </tr>
+            <tr>
+                <td style="padding: 0.4rem 1rem 0.4rem 0; font-weight: 600;">Enrollment Key:</td>
+                <td><code>{course.get('enrollment_key')}</code></td>
+            </tr>
+        </table>
+        <p>If you have any questions, please <a href="https://kartoza.com/contact-us/">contact us</a>.</p>
+        <p>Happy learning!<br>The Kartoza Team</p>
+    """
+
+    frappe.sendmail(
+        recipients=email,
+        subject=subject,
+        message=message,
+        sender="Kartoza <notifications@erpnext.com>",
+        now=True,
+    )
+
+    frappe.get_doc({
+        'doctype': 'Moodle Course Email Requests',
+        'course': item_code,
+        'email': email,
+        'email_sent': 1,
+    }).insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "status": "success",
+        "message": _(
+            "Enrollment details have been sent to {0}. "
+            "Please check your inbox (and spam folder) for the course link and enrollment key."
+        ).format(email),
+    }
 
 
 @frappe.whitelist()
