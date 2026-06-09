@@ -815,36 +815,81 @@ def get_invoice_pdf(invoice_name):
 
 
 @frappe.whitelist()
-def get_my_orders():
-    """Return the current user's submitted Sales Orders (shopping cart purchases) with items."""
+def get_my_orders(page=1, page_size=5, search='', date_from='', date_to=''):
+    """Return the current user's submitted Sales Orders with server-side pagination and filtering."""
     user = frappe.session.user
     if user == 'Guest':
         frappe.throw(_("Please login to view your orders."), frappe.PermissionError)
 
-    orders = frappe.get_all(
+    page = max(1, int(page or 1))
+    page_size = min(50, max(1, int(page_size or 5)))
+    search = (search or '').strip()
+    date_from = (date_from or '').strip()
+    date_to = (date_to or '').strip()
+
+    base_filters = [
+        ['contact_email', '=', user],
+        ['order_type', '=', 'Shopping Cart'],
+        ['docstatus', '=', 1],
+    ]
+    if date_from:
+        base_filters.append(['transaction_date', '>=', date_from])
+    if date_to:
+        base_filters.append(['transaction_date', '<=', date_to])
+
+    # Fetch all matching order names (lightweight — names only, sorted)
+    all_names = frappe.get_all(
         'Sales Order',
-        filters={
-            'contact_email': user,
-            'order_type': 'Shopping Cart',
-            'docstatus': 1,
-        },
-        fields=['name', 'transaction_date', 'grand_total', 'currency', 'status'],
+        filters=base_filters,
+        pluck='name',
         order_by='name desc',
     )
 
-    for order in orders:
+    if search:
+        search_lower = search.lower()
+        name_matched = {n for n in all_names if search_lower in n.lower()}
+
+        item_matched = set()
+        if all_names:
+            item_matched = set(frappe.get_all(
+                'Sales Order Item',
+                filters=[
+                    ['parent', 'in', all_names],
+                    ['item_name', 'like', f'%{search}%'],
+                ],
+                pluck='parent',
+            ))
+
+        matched = name_matched | item_matched
+        # Preserve sort order (all_names is already name desc)
+        all_names = [n for n in all_names if n in matched]
+
+    total = len(all_names)
+    start = (page - 1) * page_size
+    page_names = all_names[start:start + page_size]
+
+    orders = []
+    for name in page_names:
+        order = frappe.db.get_value(
+            'Sales Order',
+            name,
+            ['name', 'transaction_date', 'grand_total', 'currency', 'status'],
+            as_dict=True,
+        )
+        if not order:
+            continue
+
         order['items'] = frappe.get_all(
             'Sales Order Item',
-            filters={'parent': order['name']},
+            filters={'parent': name},
             fields=['item_code', 'item_name', 'qty', 'rate', 'amount'],
         )
         order['invoice'] = frappe.db.get_value(
             'Sales Invoice Item',
-            {'sales_order': order['name']},
+            {'sales_order': name},
             'parent',
         ) or None
 
-        # Identify which items require Moodle enrollment
         moodle_items = []
         for item in order['items']:
             try:
@@ -860,9 +905,8 @@ def get_my_orders():
                 pass
         order['moodle_items'] = moodle_items
 
-        # Fetch existing enrollment log details for this order
         enrollment_details = []
-        log_name = frappe.db.get_value('Moodle Enrollment Logs', {'sales_order': order['name']}, 'name')
+        log_name = frappe.db.get_value('Moodle Enrollment Logs', {'sales_order': name}, 'name')
         if log_name:
             enrollment_details = frappe.get_all(
                 'Moodle Enrollment Details',
@@ -871,7 +915,9 @@ def get_my_orders():
             )
         order['enrollment_details'] = [dict(d) for d in enrollment_details]
 
-    return orders
+        orders.append(order)
+
+    return {'orders': orders, 'total': total, 'page': page, 'page_size': page_size}
 
 
 @frappe.whitelist(allow_guest=True)
