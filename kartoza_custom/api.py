@@ -20,11 +20,27 @@ from webshop.webshop.variant_selector.item_variants_cache import ItemVariantsCac
 
 
 def _build_frontend_password_reset_link(reset_link: str) -> str:
-    frontend_url = (frappe.conf.get("password_reset_frontend_url") or "").strip()
-    if not frontend_url:
+    # Derive the frontend origin from the incoming request's Origin header,
+    # falling back to Referer, then the legacy site_config setting.
+    origin = None
+    request = getattr(frappe.local, "request", None)
+    if request:
+        raw = request.headers.get("Origin") or request.headers.get("Referer") or ""
+        if raw:
+            parsed = urlparse(raw)
+            if parsed.scheme and parsed.netloc:
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    if not origin:
+        fallback = (frappe.conf.get("password_reset_frontend_url") or "").strip()
+        if fallback:
+            parsed = urlparse(fallback)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    if not origin:
         frappe.throw(
-            _("Password reset frontend URL is not configured."),
-            title=_("Missing Configuration"),
+            _("Unable to determine the password reset URL."),
+            title=_("Configuration Error"),
         )
 
     reset_query = parse_qs(urlparse(reset_link).query)
@@ -32,13 +48,7 @@ def _build_frontend_password_reset_link(reset_link: str) -> str:
     if not key:
         frappe.throw(_("Unable to generate a valid password reset link."))
 
-    parsed_frontend_url = urlparse(frontend_url)
-    frontend_query = parse_qs(parsed_frontend_url.query)
-    frontend_query["key"] = [key]
-
-    return urlunparse(
-        parsed_frontend_url._replace(query=urlencode(frontend_query, doseq=True))
-    )
+    return f"{origin}/reset-password/?key={key}"
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
