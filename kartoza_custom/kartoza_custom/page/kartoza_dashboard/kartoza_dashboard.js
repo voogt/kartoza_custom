@@ -244,6 +244,11 @@ function fetchDataAndPlot() {
             "args": { start_date, end_date },
         },
         {
+            "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_sales_trend_5_years',
+            "title": "Sales Trend (Last 5 Years)",
+            "args": {},
+        },
+        {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_cost_profit_center_data',
             "title": "Cost Center True Cost (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Cost' },
@@ -327,7 +332,7 @@ const addCards = (data) => {
             cardElement.style.margin = "10px"
             cardElement.innerHTML = `
                 <div class="card-header" style="height:80px">${card.title}</div>
-                <div class="card-body">${formatNumber(card.value)}</div>
+                <div class="card-body">${formatWithUnit(card.value, card.unit)}</div>
             `;
             parentElement.appendChild(cardElement);
         });
@@ -377,7 +382,7 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
         y: set.values,
         name: set.name,
         type: set.type || 'bar',
-        customdata: set.values.map(v => formatNumber(v)),
+        customdata: set.values.map(v => formatWithUnit(v, set.unit)),
         // Show legend (dataset name) as the title in the hovertemplate
         hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
     }));
@@ -481,12 +486,13 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
         datasets.forEach(set => {
             tableHTML += `<tr><td>${set.name}</td>`;
             set.values.forEach(value => {
-                tableHTML += `<td>${formatNumber(value)}</td>`;
+                tableHTML += `<td>${formatWithUnit(value, set.unit)}</td>`;
             });
             tableHTML += '</tr>';
         });
         // Add totals row (sum for each column, excluding datasets with '%' in set.name)
         if (datasets.length > 0 && showTotal) {
+            const totalUnit = (datasets.find(set => !isPercentDataset(set)) || {}).unit;
             tableHTML += `<tr style="font-weight:bold;background:#f7f7f7;"><td>Total</td>`;
 
             for (let i = 0; i < labels.length; i++) {
@@ -498,7 +504,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
                     }
                 });
 
-                tableHTML += `<td>${formatNumber(colTotal)}</td>`;
+                tableHTML += `<td>${formatWithUnit(colTotal, totalUnit)}</td>`;
             }
 
             tableHTML += '</tr>';
@@ -528,7 +534,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
                     }
                 }
                 else{
-                    tableHTML += `<td>${formatNumber(set.values[labelIdx])}</td>`;
+                    tableHTML += `<td>${formatWithUnit(set.values[labelIdx], set.unit)}</td>`;
                 }
             });
             tableHTML += '</tr>';
@@ -542,7 +548,7 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
                     if (!isPercentDataset(set)) {
                         // Sum all values for this dataset
                         let total = set.values.reduce((acc, v) => acc + (Number(v) || 0), 0);
-                        tableHTML += `<td>${formatNumber(total)}</td>`;
+                        tableHTML += `<td>${formatWithUnit(total, set.unit)}</td>`;
                     } else {
                         tableHTML += `<td></td>`;
                     }
@@ -712,6 +718,22 @@ function formatNumber(value) {
         return num.toLocaleString('en-US').replace(/,/g, ' ');
     }
     return value;
+}
+
+// Append the unit (hours, employees, percent, rand, count) to a formatted number
+const UNIT_DISPLAY = {
+    rand: { prefix: 'R ' },
+    percent: { suffix: '%' },
+    hours: { suffix: ' hrs' },
+    employees: { suffix: ' employees' },
+    count: {}
+};
+
+function formatWithUnit(value, unit) {
+    const formatted = formatNumber(value);
+    const display = UNIT_DISPLAY[unit];
+    if (!display) return formatted;
+    return `${display.prefix || ''}${formatted}${display.suffix || ''}`;
 }
 
 function formatNumberShortHand(value) {

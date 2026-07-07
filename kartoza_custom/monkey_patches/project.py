@@ -25,7 +25,6 @@ class CustomProject(Project):
             from `tabSales Order Item` soi
             inner join `tabSales Order` so on so.name = soi.parent
             where soi.custom_project = %s
-            and so.docstatus = 1
             """,
             self.name,
         )

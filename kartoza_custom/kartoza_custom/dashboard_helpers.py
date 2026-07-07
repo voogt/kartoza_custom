@@ -58,6 +58,28 @@ def get_month_ranges(start_date_str, end_date_str):
     return month_ranges
 
 
+def get_year_ranges(num_years):
+    """
+    Generate a list of (start_date, end_date) tuples for the past `num_years`
+    calendar years up to today (oldest first). The most recent year is
+    truncated to today if it is still in progress.
+    """
+    today = datetime.now().date()
+
+    year_ranges = []
+    for years_ago in range(num_years - 1, -1, -1):
+        year = today.year - years_ago
+        year_start = datetime(year, 1, 1).date()
+        year_end = datetime(year, 12, 31).date()
+
+        if year_end > today:
+            year_end = today
+
+        year_ranges.append((year_start.strftime('%Y-%m-%d'), year_end.strftime('%Y-%m-%d')))
+
+    return year_ranges
+
+
 def get_month_label(date_str):
     date = datetime.strptime(date_str, '%Y-%m-%d')
     year = date.year

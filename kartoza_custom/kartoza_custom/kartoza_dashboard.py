@@ -10,7 +10,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
+from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
     get_data,
     get_period_list
@@ -91,21 +91,25 @@ def get_staff_count(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Opening Count",
+                "unit": "employees",
                 "values": opening_values
             },
             {
                 "type": "bar",
                 "name": "New Staff",
+                "unit": "employees",
                 "values": new_staff_values
             },
             {
                 "type": "bar",
                 "name": "Departures",
+                "unit": "employees",
                 "values": departure_values
             },
             {
                 "type": "bar",
                 "name": "Closing Count",
+                "unit": "employees",
                 "values": closing_values
             }
         ]
@@ -435,10 +439,12 @@ def get_billable_hours(start_date, end_date):
         "total_cards": [
             {
                 "title": "Billable Hours Total",
+                "unit": "hours",
                 "value": f"{total_invoicable_all_staff:.0f}"
             },
             {
                 "title": "Unbillable Hours Total",
+                "unit": "hours",
                 "value": f"{total_uninvoicable_all_staff:.0f}"
             },
         ],
@@ -447,36 +453,43 @@ def get_billable_hours(start_date, end_date):
             {
                 "type": "bar",
                 "name": "No Project Linked",
+                "unit": "hours",
                 "values": no_project_linked_values
             },
             {
                 "type": "bar",
                 "name": "External",
+                "unit": "hours",
                 "values": external_values
             },
             {
                 "type": "bar",
                 "name": "Internal",
+                "unit": "hours",
                 "values": internal_values
             },
             {
                 "type": "bar",
                 "name": "Investment",
+                "unit": "hours",
                 "values": investment_values
             },
             {
                 "type": "bar",
                 "name": "Holiday Hours",
+                "unit": "hours",
                 "values": holiday_hours
             },
             {
                 "type": "bar",
                 "name": "Capacity Utilisation Staff Hours",
+                "unit": "hours",
                 "values": capacity_hours
             },
             {
                 "type": "line",
                 "name": "Capacity Comparison Percent",
+                "unit": "percent",
                 "values": capacity_comparison_percent_values
             }
         ]
@@ -579,6 +592,7 @@ def get_projects_data(start_date, end_date):
         "total_cards": [
             {
                 "title": "Total Closed Projects Value",
+                "unit": "rand",
                 "value": f"{total_projects_closed_value:.0f}"
             }
         ],
@@ -586,16 +600,19 @@ def get_projects_data(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Backlog: Sold but not invoiced (Rand)",
+                "unit": "rand",
                 "values": backlog_values
             },
             {
                 "type": "bar",
                 "name": "Value (Closed Projects Rand)",
+                "unit": "rand",
                 "values": project_values
             },
             {
                 "type": "line",
                 "name": "Margin (Closed Projects) %",
+                "unit": "percent",
                 "values": margin_per_values
             },
         ]
@@ -731,6 +748,7 @@ def get_cost_profit_center_data(start_date, end_date, type_center):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -881,11 +899,13 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
         data["datasets"].append({
             "type": "line",
             "name": f"Billing Rate: {name}",
+            "unit": "rand",
             "values": billing_rate_map[name]
         })
 
@@ -990,6 +1010,7 @@ def get_activity_cost_data(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -1096,6 +1117,7 @@ def get_company_salary_pty(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -1171,6 +1193,7 @@ def get_company_salary_lda(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -1258,13 +1281,15 @@ def get_salary_percent_of_sales(start_date, end_date):
         "total_cards": [
             {
                 "title": "Period Salaries % of Sales",
-                "value": f"{period_percent:.2f}%"
+                "unit": "percent",
+                "value": f"{period_percent:.2f}"
             }
         ],
         "datasets": [
             {
                 "type": "bar",
                 "name": "Salaries % of Sales",
+                "unit": "percent",
                 "values": salary_percent_values
             }
         ]
@@ -1297,6 +1322,7 @@ def get_company_pipeline_pty():
         datasets.append({
             "type": "bar",
             "name": obj["quote_name"],
+            "unit": "rand",
             "values": [f"{obj['amount']:.0f}"]
         })
 
@@ -1320,6 +1346,7 @@ def get_company_pipeline_pty():
         "total_cards": [
             {
                 "title": f"Total Quotes Pty",
+                "unit": "rand",
                 "value": f"{total_quotes:.0f}"
             }
         ],
@@ -1382,14 +1409,16 @@ def get_company_pipeline_opportunities_pty():
             {
                 "type": "bar",
                 "name": "Total Amount",
+                "unit": "rand",
                 "values": total_amount_values
             },
             {
                 "type": "bar",
                 "name": "Probability(%)",
+                "unit": "percent",
                 "values": total_probability_values
             },
-            
+
         ],
         "help": """
         <div style='font-size: 14px;text-align: left'>
@@ -1403,6 +1432,7 @@ def get_company_pipeline_opportunities_pty():
         "total_cards": [
             {
                 "title": f"Total Opportunities Pty",
+                "unit": "rand",
                 "value": f"{total_opps:.0f}"
             }
         ],
@@ -1465,14 +1495,16 @@ def get_company_pipeline_opportunities_lda():
             {
                 "type": "bar",
                 "name": "Total Amount",
+                "unit": "rand",
                 "values": total_amount_values
             },
             {
                 "type": "bar",
                 "name": "Probability(%)",
+                "unit": "percent",
                 "values": total_probability_values
             },
-            
+
         ],
         "help": """
         <div style='font-size: 14px;text-align: left'>
@@ -1486,6 +1518,7 @@ def get_company_pipeline_opportunities_lda():
         "total_cards": [
             {
                 "title": f"Total Opportunities Lda",
+                "unit": "rand",
                 "value": f"{total_opps:.0f}"
             }
         ],
@@ -1522,6 +1555,7 @@ def get_company_pipeline_lda():
         datasets.append({
             "type": "bar",
             "name": obj["quote_name"],
+            "unit": "rand",
             "values": [f"{obj['amount']:.0f}"]
         })
 
@@ -1547,6 +1581,7 @@ def get_company_pipeline_lda():
         "total_cards": [
             {
                 "title": f"Total Quotes Lda",
+                "unit": "rand",
                 "value": f"{total_quotes:.0f}"
             }
         ],
@@ -1652,11 +1687,13 @@ def get_open_sla():
             {
                 "type": "bar",
                 "name": "Total Sales Order Amount",
+                "unit": "rand",
                 "values": sales_order_amount_values
             },
             {
                 "type": "bar",
                 "name": "Total Sales Invoice Amount",
+                "unit": "rand",
                 "values": sales_invoice_amount_values
             }
         ]
@@ -1778,11 +1815,13 @@ def get_open_sales_orders(start_date=None, end_date=None):
         "total_cards": [
             {
                 "title": f"Total To Be Billed",
+                "unit": "rand",
                 "value": f"{total_to_be_billed_all:.0f}"
             },
             *[
                 {
                     "title": f"Deferred Revenue {fy}",
+                    "unit": "rand",
                     "value": f"{total_deferred_revenue_by_fy.get(fy, 0):.0f}"
                 }
                 for fy in visible_financial_years
@@ -1792,18 +1831,21 @@ def get_open_sales_orders(start_date=None, end_date=None):
             {
                 "type": "bar",
                 "name": "Total Billed Amount",
+                "unit": "rand",
                 "values": total_billed_amount_values,
                 "isColorCoded": False
             },
             {
                 "type": "bar",
                 "name": "Total Sales Order",
+                "unit": "rand",
                 "values": total_billed_sales_order_values,
                 "isColorCoded": False
             },
             {
                 "type": "bar",
                 "name": "Total To Be Billed",
+                "unit": "rand",
                 "values": [f"{sale_order['total_to_be_billed']:.0f}" if sale_order.get('total_to_be_billed') else "0" for sale_order in all_sales_orders],
                 "isColorCoded": False
             },
@@ -1811,6 +1853,7 @@ def get_open_sales_orders(start_date=None, end_date=None):
                 {
                     "type": "bar",
                     "name": f"Deferred Revenue {fy}",
+                    "unit": "rand",
                     "values": [
                         f"{sale_order.get(f'deferred_revenue_{fy}', 0):.0f}"
                         for sale_order in all_sales_orders
@@ -1822,6 +1865,7 @@ def get_open_sales_orders(start_date=None, end_date=None):
             {
                 "type": "line",
                 "name": "Risk",
+                "unit": "percent",
                 "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders],
                 "isColorCoded": True
             },
@@ -1907,6 +1951,7 @@ def get_item_wise_annual_sales_pty(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -1990,6 +2035,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -2057,6 +2103,7 @@ def get_sales_analytics_customers_pty(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -2125,6 +2172,7 @@ def get_sales_analytics_customers_lda(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -2254,21 +2302,25 @@ def get_overhead_cost_pty(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Overhead Fixed Cost",
+                "unit": "rand",
                 "values": overhead_fixed_cost_values
             },
             {
                 "type": "bar",
                 "name": "Overhead Variable Cost",
+                "unit": "rand",
                 "values": overhead_variable_cost_values
             },
             {
                 "type": "bar",
                 "name": "Total Revenue",
+                "unit": "rand",
                 "values": total_revenue_values
             },
             {
                 "type": "Line",
                 "name": "Overhead %",
+                "unit": "percent",
                 "values": overhead_percantage_values
             }
         ]
@@ -2405,21 +2457,25 @@ def get_overhead_cost_lda(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Overhead Fixed Cost",
+                "unit": "rand",
                 "values": overhead_fixed_cost_values
             },
             {
                 "type": "bar",
                 "name": "Overhead Variable Cost",
+                "unit": "rand",
                 "values": overhead_variable_cost_values
             },
             {
                 "type": "bar",
                 "name": "Total Revenue",
+                "unit": "rand",
                 "values": total_revenue_values
             },
             {
                 "type": "Line",
                 "name": "Overhead %",
+                "unit": "percent",
                 "values": overhead_percantage_values
             }
         ]
@@ -2499,6 +2555,7 @@ def get_project_closed_summary(start_date, end_date):
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": "rand",
             "values": values
         })
 
@@ -2657,51 +2714,61 @@ def get_tender_summary(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Lost Opportunities Count",
+                "unit": "count",
                 "values": lost_opportunities_values
             },
             {
                 "type": "bar",
                 "name": "Lost Opportunities Amount",
+                "unit": "rand",
                 "values": lost_opportunities_amounts
             },
             {
                 "type": "bar",
                 "name": "Lost Quotes Count",
+                "unit": "count",
                 "values": lost_quotes_values
             },
             {
                 "type": "bar",
                 "name": "Lost Quotes Amount",
+                "unit": "rand",
                 "values": lost_quotes_amounts
             },
             {
                 "type": "bar",
                 "name": "Won Opportunities Count",
+                "unit": "count",
                 "values": won_opportunities_values
             },
             {
                 "type": "bar",
                 "name": "Won Opportunities Amount",
+                "unit": "rand",
                 "values": won_opportunities_amounts
             },
             {
                 "type": "bar",
                 "name": "Won Quotes Count",
+                "unit": "count",
                 "values": won_quotes_values
             },
             {
                 "type": "bar",
                 "name": "Won Quotes Amount",
+                "unit": "rand",
                 "values": won_quotes_amounts
             },
             {
                 "type": "bar",
                 "name": "Total Tender Hours",
+                "unit": "hours",
                 "values": total_hours_values
             },
             {
                 "type": "bar",
                 "name": "Total Tender Costing",
+                "unit": "rand",
                 "values": total_costing_values
             }
         ]
@@ -2755,7 +2822,144 @@ def get_opportunity_trend(start_date, end_date):
             {
                 "type": "bar",
                 "name": "Opportunity Count",
+                "unit": "count",
                 "values": opp_count_values
+            },
+        ]
+    }
+
+    return data
+
+
+@frappe.whitelist(allow_guest=True)
+def get_sales_trend_5_years():
+    ranges = get_year_ranges(5)
+    chart_data = []
+
+    total_sales_orders = 0
+    total_quotes = 0
+    total_opportunities = 0
+
+    for start, end in ranges:
+        zar_eur_rate = get_rates(end, "EUR")
+        zar_usd_rate = get_rates(end, "USD")
+        zar_gbp_rate = get_rates(end, "GBP")
+
+        sales_order_sql = f"""
+            SELECT SUM(
+                CASE
+                    WHEN company = 'Kartoza (Pty) Ltd' THEN base_grand_total
+                    ELSE base_grand_total * {zar_eur_rate}
+                END
+            ) as `total`
+            FROM `tabSales Order`
+            WHERE docstatus = 1
+            AND status NOT IN ('Cancelled', 'Closed')
+            AND transaction_date BETWEEN '{start}' AND '{end}'
+        """
+
+        quotation_sql = f"""
+            SELECT SUM(
+                CASE
+                    WHEN company = 'Kartoza (Pty) Ltd' THEN base_grand_total
+                    ELSE base_grand_total * {zar_eur_rate}
+                END
+            ) as `total`
+            FROM `tabQuotation`
+            WHERE status != 'Cancelled'
+            AND transaction_date BETWEEN '{start}' AND '{end}'
+        """
+
+        opportunity_sql = f"""
+            SELECT SUM(
+                CASE
+                    WHEN currency = 'EUR' THEN opportunity_amount * {zar_eur_rate}
+                    WHEN currency = 'USD' THEN opportunity_amount * {zar_usd_rate}
+                    WHEN currency = 'GBP' THEN opportunity_amount * {zar_gbp_rate}
+                    ELSE opportunity_amount
+                END
+            ) as `total`
+            FROM `tabOpportunity`
+            WHERE creation BETWEEN '{start}' AND '{end}'
+        """
+
+        sales_order_total = frappe.db.sql(sales_order_sql, as_dict=True)[0].total or 0
+        quotation_total = frappe.db.sql(quotation_sql, as_dict=True)[0].total or 0
+        opportunity_total = frappe.db.sql(opportunity_sql, as_dict=True)[0].total or 0
+
+        total_sales_orders += sales_order_total
+        total_quotes += quotation_total
+        total_opportunities += opportunity_total
+
+        year_label = start[:4]
+
+        chart_data.append({
+            "year": year_label,
+            "sales_orders": f"{sales_order_total:.0f}",
+            "quotes": f"{quotation_total:.0f}",
+            "opportunities": f"{opportunity_total:.0f}",
+        })
+
+    labels = [row["year"] for row in chart_data]
+    sales_order_values = [row["sales_orders"] for row in chart_data]
+    quote_values = [row["quotes"] for row in chart_data]
+    opportunity_values = [row["opportunities"] for row in chart_data]
+
+    data = {
+        "element_id": "sales_trend_5_years",
+        "type": "single",
+        "title": "Sales Trend (Last 5 Years)",
+        "labels": labels,
+        "isReverse": False,
+        "showTotal": True,
+        "shouldSplitLongLabels": False,
+        "isLegendReverse": False,
+        "help": """
+        <div style='font-size: 14px;text-align: left'>
+            <b>Shows yearly sales trends for the past 5 years:</b><br><br>
+            <ul style='margin-left: 1em;'>
+                <li><b>Sales Orders:</b> Total value of submitted, non-cancelled sales orders per year, converted to Rand.</li>
+                <li><b>Quotes:</b> Total value of non-cancelled quotations per year, converted to Rand.</li>
+                <li><b>Opportunities:</b> Total value of opportunities created per year, converted to Rand.</li>
+            </ul>
+            <span style='color: #888;'>Combines Kartoza (Pty) Ltd and Kartoza Lda. The most recent year is year-to-date.</span>
+        </div>
+        """,
+        "total_cards": [
+            {
+                "title": "Total Sales Orders (5 Years)",
+                "unit": "rand",
+                "value": f"{total_sales_orders:.0f}"
+            },
+            {
+                "title": "Total Quotes (5 Years)",
+                "unit": "rand",
+                "value": f"{total_quotes:.0f}"
+            },
+            {
+                "title": "Total Opportunities (5 Years)",
+                "unit": "rand",
+                "value": f"{total_opportunities:.0f}"
+            },
+        ],
+        "datasets": [
+            {
+                "type": "bar",
+                "name": "Sales Orders",
+                "unit": "rand",
+                "values": sales_order_values
+            },
+            {
+                "type": "bar",
+                "name": "Quotes",
+                "unit": "rand",
+                "values": quote_values
+            },
+            {
+                "type": "bar",
+                "name": "Opportunities",
+                "unit": "rand",
+                "values": opportunity_values
             },
         ]
     }
@@ -2875,10 +3079,12 @@ def get_timesheet_data(start_date, end_date, type_returned="hours"):
         "datasets": []
     }
 
+    timesheet_unit = "hours" if type_returned == "hours" else "rand"
     for name, values in timesheet_map.items():
         data["datasets"].append({
             "type": "bar",
             "name": name,
+            "unit": timesheet_unit,
             "values": values
         })
 
