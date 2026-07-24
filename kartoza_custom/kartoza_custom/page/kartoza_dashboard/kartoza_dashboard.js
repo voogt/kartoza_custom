@@ -255,7 +255,7 @@ function fetchDataAndPlot() {
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
-            "title": "Cost Center Lost Opportunity (Profit/Loss)",
+            "title": "Cost Center Opportunity (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Cost' },
         },
         {
@@ -265,7 +265,7 @@ function fetchDataAndPlot() {
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_profit_cost_lost_revenue_data',
-            "title": "Profit Center Lost Opportunity (Profit/Loss)",
+            "title": "Profit Center Opportunity (Profit/Loss)",
             "args": { start_date, end_date, "type_center":'Profit' },
         }
     ]

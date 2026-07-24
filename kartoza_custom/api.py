@@ -573,6 +573,7 @@ def _enrol_user_in_moodle_courses(user, sales_order_name, first_name, last_name)
         success = response.get('enrollment_succesful', False)
         if not success:
             all_ok = False
+            print(f"Moodle registration failed for {user} in course {course['course_id']}: {response}", flush=True)
 
         log.append('table_details', {
             'name1': f"{first_name} {last_name}".strip(),
@@ -652,6 +653,7 @@ def enrol_in_moodle(sales_order, enrollees):
             success = response.get('enrollment_succesful', False)
             if not success:
                 all_ok = False
+                print(f"Moodle registration failed for {email} in course {course_id}: {response}", flush=True)
 
             log.append('table_details', {
                 'name1': f"{first_name} {last_name}".strip(),

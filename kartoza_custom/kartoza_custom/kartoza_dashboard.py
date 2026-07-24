@@ -762,9 +762,9 @@ def get_profit_cost_lost_revenue_data(start_date, end_date, type_center):
     total_cost_center = 0
 
     if type_center == "Profit":
-        title = "Lost Opportunity Cost"
+        title = "Opportunity Cost"
     if type_center == "Cost":
-        title = "Cost Center Lost Opportunity (Profit/Loss)"
+        title = "Cost Center Opportunity (Profit/Loss)"
 
     for start, end in ranges:
         zar_rate = get_rates(end, "EUR")
@@ -1229,13 +1229,22 @@ def get_salary_percent_of_sales(start_date, end_date):
             SELECT
                 SUM(
                     CASE
-                        WHEN company = 'Kartoza (Pty) Ltd' THEN base_grand_total
-                        ELSE base_grand_total * {zar_rate}
+                        WHEN si.company = 'Kartoza (Pty) Ltd' THEN si.base_grand_total
+                        ELSE si.base_grand_total * {zar_rate}
                     END
                 ) AS total_sales
-            FROM `tabSales Invoice`
-            WHERE status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
-            AND posting_date BETWEEN '{start}' AND '{end}'
+            FROM (
+                SELECT DISTINCT tsi.name, tsi.company, tsi.base_grand_total
+                FROM `tabSales Invoice` tsi
+                INNER JOIN `tabPayment Entry Reference` per
+                    ON per.reference_doctype = 'Sales Invoice'
+                    AND per.reference_name = tsi.name
+                INNER JOIN `tabPayment Entry` pe ON pe.name = per.parent
+                WHERE tsi.docstatus = 1
+                AND tsi.status NOT IN ('Cancelled', 'Draft', 'Return', 'Credit Note Issued')
+                AND pe.docstatus = 1
+                AND pe.posting_date BETWEEN '{start}' AND '{end}'
+            ) si
         """
 
         monthly_salary = frappe.db.sql(salary_sql, as_dict=True)[0].get("total_salary") or 0
@@ -1273,7 +1282,7 @@ def get_salary_percent_of_sales(start_date, end_date):
             <ul style='margin-left: 1em;'>
                 <li><b>Salaries % of Sales:</b> (Total salaries / total sales invoices) * 100 for each month.</li>
                 <li><b>Sales Source:</b> Sales are summed from <b>base_grand_total</b>; for non-Pty companies this value is treated as EUR and converted to ZAR using the monthly EUR rate.</li>
-                <li><b>Date Filter:</b> Monthly sales amounts only include sales invoices with <b>posting_date</b> between the selected month start and end dates.</li>
+                <li><b>Date Filter:</b> Monthly sales amounts only include sales invoices that have a submitted Payment Entry whose <b>posting_date</b> falls between the selected month start and end dates (the invoice's own posting date is not used).</li>
                 <li><b>Invoice Status:</b> Sales invoices with status <b>Cancelled</b>, <b>Draft</b>, <b>Return</b>, and <b>Credit Note Issued</b> are excluded from the calculation.</li>
             </ul>
         </div>
