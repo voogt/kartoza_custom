@@ -201,6 +201,7 @@ override_whitelisted_methods = {
 # Only check for SQL injection on every request, but check for form spam only on write (data-modifying) requests
 before_request = [
     "kartoza_custom.monkey_patches.employee_reminders.apply_monkey_patches",
+    "kartoza_custom.monkey_patches.permissions.apply_monkey_patches",
     "kartoza_custom.security_hooks.check_sql_injection",
     "kartoza_custom.security_hooks.check_form_spam"
 ]
@@ -240,9 +241,9 @@ before_job = ["kartoza_custom.monkey_patches.employee_reminders.apply_monkey_pat
 # Authentication and authorization
 # --------------------------------
 
-# auth_hooks = [
-# 	"kartoza_custom.auth.validate"
-# ]
+auth_hooks = [
+	"kartoza_custom.api_access.enforce_read_only_for_api_key_auth"
+]
 
 
 
@@ -261,6 +262,10 @@ fixtures = [
 	{
 	"doctype": "Report",
 	"filters": [["name", "in", ["Kartoza Cash Flow", "All Companies Consolidated Financial Report"]]]
+   },
+	{
+	"doctype": "Custom Field",
+	"filters": [["dt", "=", "User"], ["fieldname", "=", "custom_api_read_only"]]
    }
 ]
 

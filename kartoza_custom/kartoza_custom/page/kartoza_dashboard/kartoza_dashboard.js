@@ -292,9 +292,12 @@ function fetchDataAndPlot() {
                 type: 'GET',
                 callback: function(r) {
                     if (r.message) {
-                        drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
+                        const chartRefs = drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
                         if(r.message.total_cards){
                             addCards(r.message.total_cards);
+                        }
+                        if (methods[index]["title"] === "Billable Hours") {
+                            setupBillableHoursStaffToggle(chartRefs);
                         }
                         resolve();
                     } else {
@@ -330,6 +333,7 @@ const addCards = (data) => {
             const cardElement = document.createElement('div');
             cardElement.className = 'card col-md-2';
             cardElement.style.margin = "10px"
+            cardElement.dataset.cardTitle = card.title;
             cardElement.innerHTML = `
                 <div class="card-header" style="height:80px">${card.title}</div>
                 <div class="card-body">${formatWithUnit(card.value, card.unit)}</div>
@@ -339,11 +343,18 @@ const addCards = (data) => {
     }
 }
 
-function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText, shouldSplitLongLabels, showTotal) {
-    // Ensure unique element_id for each chart
-    const unique_element_id = `${element_id}-${generateRandomId()}`;
-    const containerId = `${unique_element_id}-container`;
+// Update an already-rendered card's value in place (matched by title)
+function updateCardValue(title, value, unit) {
+    const parentElement = document.getElementById('parent-cards');
+    if (!parentElement) return;
+    const cardElement = parentElement.querySelector(`[data-card-title="${CSS.escape(title)}"]`);
+    if (!cardElement) return;
+    const body = cardElement.querySelector('.card-body');
+    if (body) body.innerHTML = formatWithUnit(value, unit);
+}
 
+// Render (or re-render in place) the Plotly chart for an existing chart element.
+function renderPlot(chartElementId, labels, datasets, barmode, shouldSplitLongLabels) {
     // Determine if any label is long (e.g., > 12 chars)
     const maxLabelLength = Math.max(...labels.map(l => l.length));
     const shouldRotate = maxLabelLength > 20;
@@ -417,6 +428,16 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
         layout.margin.t = 100; // increase top margin to accommodate legend
     }
 
+    // Render the chart without the top toolbar
+    Plotly.newPlot(chartElementId, traces, layout, {displayModeBar: false});
+}
+
+function drawChart(labels, datasets, title, element_id, barmode, isReverse, helpText, shouldSplitLongLabels, showTotal) {
+    // Ensure unique element_id for each chart
+    const unique_element_id = `${element_id}-${generateRandomId()}`;
+    const containerId = `${unique_element_id}-container`;
+    const tableId = `${unique_element_id}-table`;
+
     // Create a container for the chart and table using insertAdjacentHTML to preserve previous DOM nodes
     const parentElement = document.getElementById('parent-chart');
     // Add info icon with custom HTML popover if helpText is provided
@@ -434,7 +455,7 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
         <div id="${containerId}" style="margin-bottom: 80px;">
             <h3 style='text-align: center;'>${title}${infoIconHTML}</h3>
             <div id="${unique_element_id}" style="width: 100%; height: 480px;"></div>
-            <div id="${unique_element_id}-table" style="margin-top: 20px;"></div>
+            <div id="${tableId}" style="margin-top: 20px;"></div>
             <hr>
         </div>
     `);
@@ -455,17 +476,59 @@ function drawChart(labels, datasets, title, element_id, barmode, isReverse, help
         }
     }
 
-    // Render the chart without the top toolbar
-    Plotly.newPlot(unique_element_id, traces, layout, {displayModeBar: false});
+    renderPlot(unique_element_id, labels, datasets, barmode, shouldSplitLongLabels);
 
     // Render the table below the chart
-    renderChartTable(labels, datasets, `${unique_element_id}-table`, isReverse, element_id, showTotal);
+    renderChartTable(labels, datasets, tableId, isReverse, element_id, showTotal);
+
+    return { containerId, chartId: unique_element_id, tableId };
 }
 
 function generateRandomId(prefix = 'id') {
     // Generate a random string of 8 characters
     const randomStr = Math.random().toString(36).substr(2, 8);
     return `${prefix}-${randomStr}`;
+}
+
+// Add an "Include all staff" checkbox under the Billable Hours chart title,
+// and refresh that chart (and its total cards) in place when it's toggled.
+function setupBillableHoursStaffToggle(chartRefs) {
+    if (!chartRefs) return;
+    const container = document.getElementById(chartRefs.containerId);
+    const titleEl = container && container.querySelector('h3');
+    if (!titleEl) return;
+
+    const toggleWrapper = document.createElement('label');
+    toggleWrapper.style.cssText = 'display:block; text-align:center; font-size:13px; font-weight:normal; margin-top:6px; cursor:pointer;';
+    toggleWrapper.innerHTML = `<input type="checkbox" id="${chartRefs.chartId}-include-all-staff" style="margin-right:4px;" /> Include all staff (ignore utilization flag)`;
+    titleEl.insertAdjacentElement('afterend', toggleWrapper);
+
+    toggleWrapper.querySelector('input').addEventListener('change', function() {
+        refreshBillableHoursChart(chartRefs, this.checked);
+    });
+}
+
+function refreshBillableHoursChart(chartRefs, includeAllStaff) {
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
+        args: { start_date, end_date, include_all_staff: includeAllStaff ? 1 : 0 },
+        type: 'GET',
+        callback: function(r) {
+            if (!r.message) {
+                frappe.msgprint("No data returned.");
+                return;
+            }
+            renderPlot(chartRefs.chartId, r.message.labels, r.message.datasets, r.message.type, r.message.shouldSplitLongLabels);
+            renderChartTable(r.message.labels, r.message.datasets, chartRefs.tableId, r.message.isReverse, r.message.element_id, r.message.showTotal);
+            (r.message.total_cards || []).forEach(card => updateCardValue(card.title, card.value, card.unit));
+        },
+        error: function() {
+            frappe.msgprint("Error occurred while fetching billable hours data.");
+        }
+    });
 }
 
 function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id, showTotal) {
@@ -519,8 +582,9 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
         });
         tableHTML += '</tr></thead><tbody>';
         // Rows for each label
+        const deferredRevenueRegex = /^Deferred Revenue (FY\d+)$/;
         labels.forEach((label, labelIdx) => {
-            tableHTML += `<tr><td>${label}</td>`;
+            tableHTML += `<tr><td>${escapeHtml(label)}</td>`;
             datasets.forEach(set => {
                 if(set.isColorCoded != undefined && set.isColorCoded){
                     if(set.values[labelIdx] >= 0 && set.values[labelIdx] < 41){
@@ -534,7 +598,12 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
                     }
                 }
                 else{
-                    tableHTML += `<td>${formatWithUnit(set.values[labelIdx], set.unit)}</td>`;
+                    const fyMatch = deferredRevenueRegex.exec(set.name || '');
+                    if (fyMatch) {
+                        tableHTML += `<td class="deferred-revenue-cell" style="cursor:pointer;text-decoration:underline;color:#2490ef;" data-project="${escapeHtmlAttr(label)}" data-fy="${escapeHtmlAttr(fyMatch[1])}" title="Click to view sales orders">${formatWithUnit(set.values[labelIdx], set.unit)}</td>`;
+                    } else {
+                        tableHTML += `<td>${formatWithUnit(set.values[labelIdx], set.unit)}</td>`;
+                    }
                 }
             });
             tableHTML += '</tr>';
@@ -566,6 +635,11 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
     const container = document.getElementById(tableContainerId);
     if (container) {
         container.innerHTML = tableHTML;
+        container.querySelectorAll('.deferred-revenue-cell').forEach(cell => {
+            cell.addEventListener('click', function() {
+                showDeferredRevenueDialog(this.getAttribute('data-project'), this.getAttribute('data-fy'));
+            });
+        });
     }
 
 
@@ -708,6 +782,101 @@ function refreshComments(element_id, start_date, end_date) {
         }
     });
 }
+// Escape a value for safe use as HTML text content
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Escape a value for safe use inside an HTML attribute
+function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+}
+
+// Fetch and show the sales orders/line items behind a deferred revenue cell
+function showDeferredRevenueDialog(project, financialYear) {
+    if (!project || !financialYear) return;
+
+    const end_date = document.getElementById("end_date").value;
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_deferred_revenue_sales_orders',
+        args: { project, financial_year: financialYear, end_date },
+        type: 'GET',
+        callback: function(r) {
+            const salesOrders = (r.message && r.message.sales_orders) || [];
+            renderDeferredRevenueDialog(project, financialYear, salesOrders);
+        },
+        error: function() {
+            frappe.msgprint("Error occurred while fetching sales order details.");
+        }
+    });
+}
+
+function renderDeferredRevenueDialog(project, financialYear, salesOrders) {
+    let bodyHtml = '';
+
+    if (!salesOrders.length) {
+        bodyHtml = '<p>No sales orders found for this deferred revenue amount.</p>';
+    } else {
+        salesOrders.forEach(so => {
+            bodyHtml += `
+                <div style="margin-bottom:20px;">
+                    <h5 style="margin-bottom:8px;">
+                        <a href="/app/sales-order/${encodeURIComponent(so.sales_order)}" target="_blank">
+                            ${escapeHtml(so.sales_order)}
+                        </a>
+                    </h5>
+                    <table class="table table-bordered" style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Delivery Date</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+            so.items.forEach(item => {
+                const itemLabel = item.item_name || item.item_code || '';
+                bodyHtml += `
+                            <tr>
+                                <td>${escapeHtml(itemLabel)}</td>
+                                <td>${escapeHtml(item.delivery_date || '')}</td>
+                                <td>${formatWithUnit(item.amount, 'rand')}</td>
+                            </tr>`;
+            });
+
+            bodyHtml += `
+                            <tr style="font-weight:bold;background:#f7f7f7;">
+                                <td colspan="2">Subtotal</td>
+                                <td>${formatWithUnit(so.total, 'rand')}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>`;
+        });
+    }
+
+    const dialog = new frappe.ui.Dialog({
+        title: `Deferred Revenue - ${escapeHtml(project)} (${escapeHtml(financialYear)})`,
+        size: 'large',
+        fields: [
+            {
+                fieldtype: 'HTML',
+                fieldname: 'deferred_revenue_html',
+                options: bodyHtml
+            }
+        ]
+    });
+    dialog.show();
+}
+
 // Format numbers with spaces as thousands separators, no M/K/B suffixes
 function formatNumber(value) {
     if (typeof value === 'number') {

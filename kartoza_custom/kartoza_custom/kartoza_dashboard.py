@@ -10,7 +10,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
+from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit, get_deferred_revenue_sales_orders as get_deferred_revenue_sales_orders_data
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
     get_data,
     get_period_list
@@ -119,7 +119,24 @@ def get_staff_count(start_date, end_date):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_billable_hours(start_date, end_date):
+def get_billable_hours(start_date, end_date, include_all_staff=0):
+    """Return billable hours per month, by project type.
+
+    :param start_date: Start of the reporting period.
+    :type start_date: str
+
+    :param end_date: End of the reporting period.
+    :type end_date: str
+
+    :param include_all_staff: If falsy (default), only staff flagged with
+        custom_utilization=1 are included. If truthy, all staff are
+        included regardless of the utilization flag.
+    :type include_all_staff: int, str
+
+    :rtype: dict
+    """
+    include_all_staff = frappe.utils.cint(include_all_staff)
+    utilization_condition = "" if include_all_staff else " AND wd.custom_utilization = '1'"
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
     total_external = 0
@@ -350,8 +367,8 @@ def get_billable_hours(start_date, end_date):
         LEFT JOIN `tabProject` tp
             ON tsd.project = tp.name
         WHERE wd.emp_status = (CASE
-            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
-            WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
+            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0{utilization_condition} THEN wd.emp_status
+            WHEN wd.emp_status = 'Active'{utilization_condition} THEN wd.emp_status
             ELSE NULL
             END
         )
@@ -431,7 +448,7 @@ def get_billable_hours(start_date, end_date):
                 <li><b>Capacity Comparison Percent %:</b> (Total billable hours / total capacity hours) × 100.</li>
                 <li><b>Capacity Utilisation Staff Hours:</b> Available hours after excluding holidays</li>
                 <li><b>Holiday Hours:</b> Hours taken as holidays.</li>
-                <li>Only staff with <b>custom_utilization=1</b> are included.</li>
+                <li>By default only staff with <b>custom_utilization=1</b> are included. Tick "Include all staff" above to include all staff regardless of the utilization flag.</li>
             </ul>
             <span style='color: #888;'>Totals are summed across the selected period.</span>
         </div>
@@ -1883,6 +1900,28 @@ def get_open_sales_orders(start_date=None, end_date=None):
     }
 
     return data
+
+@frappe.whitelist(allow_guest=True)
+def get_deferred_revenue_sales_orders(project, financial_year, end_date=None):
+    """Return the sales orders behind a deferred revenue table cell.
+
+    :param project: Project name shown as the table row.
+    :type project: str
+
+    :param financial_year: SA financial year label of the clicked column, e.g. "FY2027".
+    :type financial_year: str
+
+    :param end_date: Optional end date used to scope open sales orders.
+    :type end_date: str
+
+    :returns: Project, financial year, and the matching sales orders with line items.
+    :rtype: dict
+    """
+    return {
+        "project": project,
+        "financial_year": financial_year,
+        "sales_orders": get_deferred_revenue_sales_orders_data(project, financial_year, end_date),
+    }
 
 @frappe.whitelist(allow_guest=True)
 def get_item_wise_annual_sales_pty(start_date, end_date):

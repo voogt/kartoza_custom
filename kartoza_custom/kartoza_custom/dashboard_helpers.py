@@ -511,6 +511,74 @@ def get_all_data(projects, start_date=None, end_date=None):
         'future_financial_years': sorted_financial_years,
     }
 
+def get_deferred_revenue_sales_orders(project, financial_year, end_date=None):
+    """Return the sales orders (with line items) that make up the deferred
+    revenue of a single project for a single SA financial year."""
+    if not project or not financial_year:
+        return []
+
+    zar_eur_rate = get_rates(None, "EUR")
+
+    sales_order_comment_filter = ""
+    next_fy_start = None
+    if end_date:
+        sales_order_comment_filter = """
+            AND tso.name NOT IN (
+                SELECT reference_name
+                FROM `tabComment` tc
+                WHERE reference_doctype = 'Sales Order'
+                AND content = 'Closed'
+                AND tc.creation <= %(end_date)s
+            )
+        """
+        _anchor = datetime.strptime(end_date, "%Y-%m-%d").date()
+        _anchor_fy_year = _anchor.year + 1 if _anchor.month >= 4 else _anchor.year
+        next_fy_start = f"{_anchor_fy_year}-04-01"
+
+    rows = frappe.db.sql(f"""
+        SELECT
+            tso.name as sales_order,
+            tsi.item_code,
+            tsi.item_name,
+            tsi.delivery_date,
+            CASE
+                WHEN tso.company = 'Kartoza (Pty) Ltd' THEN tsi.base_net_amount
+                ELSE tsi.base_net_amount * {zar_eur_rate}
+            END as deferred_revenue
+        FROM `tabSales Order Item` tsi
+        LEFT JOIN `tabSales Order` tso ON tsi.parent = tso.name
+        WHERE tso.docstatus = 1
+        AND tso.status NOT IN ('Cancelled', 'Return', 'Credit Note Issued', 'Closed')
+        AND tso.project = %(project)s
+        {sales_order_comment_filter}
+        AND tsi.billed_amt < tsi.amount
+    """, {"project": project, "end_date": end_date}, as_dict=1, debug=0)
+
+    orders = {}
+    for row in rows:
+        due_date = row.get('delivery_date') or next_fy_start
+        fy_label = get_sa_financial_year_label(due_date)
+        if fy_label != financial_year:
+            continue
+
+        so_name = row['sales_order']
+        order = orders.setdefault(so_name, {
+            "sales_order": so_name,
+            "items": [],
+            "total": 0,
+        })
+
+        amount = row.get('deferred_revenue') or 0
+        order["items"].append({
+            "item_code": row.get('item_code'),
+            "item_name": row.get('item_name'),
+            "amount": amount,
+            "delivery_date": due_date,
+        })
+        order["total"] += amount
+
+    return sorted(orders.values(), key=lambda o: o["sales_order"])
+
 def get_profit(income, period_list, company, currency=None, consolidated=False):
 	total = 0
 	net_profit_loss = {
