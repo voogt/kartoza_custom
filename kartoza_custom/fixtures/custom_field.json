@@ -6,7 +6,7 @@
   "collapsible": 0,
   "collapsible_depends_on": null,
   "columns": 0,
-  "default": "1",
+  "default": "0",
   "depends_on": null,
   "description": "When checked, requests authenticated with this user's API key/secret can only read data. Create, write, delete, submit, cancel and other write operations are blocked, regardless of the user's roles.",
   "docstatus": 0,
