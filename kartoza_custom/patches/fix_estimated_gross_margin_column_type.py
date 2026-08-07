@@ -12,22 +12,26 @@ def execute():
     Some values in those columns also have more than the 9 fractional
     digits the target decimal(21,9) columns allow (raw Python float
     arithmetic, e.g. "-810511.8977037941"), which makes the ALTER TABLE
-    fail with "Data truncated" under strict SQL mode. Round them down to 2
-    decimal places first, then sync the schema.
+    fail with "Data truncated" under strict SQL mode. Blank/null/non-numeric
+    leftovers from the fields' Data-field days (e.g. "TBC") would trip the
+    same error on the round() below, so reset anything that isn't already a
+    plain decimal string before rounding what's left to 2 decimal places.
     """
     for fieldname in ("custom_estimated_gross_margin", "custom_estimated_gross_margin_"):
         frappe.db.sql(
             f"""
             update `tabProject`
-            set `{fieldname}` = round(`{fieldname}`, 2)
-            where `{fieldname}` is not null and trim(`{fieldname}`) != ''
+            set `{fieldname}` = '0'
+            where `{fieldname}` is null
+               or trim(`{fieldname}`) = ''
+               or `{fieldname}` not regexp '^-?[0-9]+(\\.[0-9]+)?$'
             """
         )
         frappe.db.sql(
             f"""
             update `tabProject`
-            set `{fieldname}` = '0'
-            where `{fieldname}` is null or trim(`{fieldname}`) = ''
+            set `{fieldname}` = round(`{fieldname}`, 2)
+            where `{fieldname}` != '0'
             """
         )
 

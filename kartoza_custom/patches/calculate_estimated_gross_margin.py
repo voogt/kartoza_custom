@@ -30,8 +30,11 @@ def execute():
         },
     )
     # frappe.db.set_value bypasses Custom Field.on_update's schema sync, so
-    # the column stays varchar(140) unless we sync it explicitly.
-    frappe.db.updatedb("Project")
+    # the column stays varchar(140) here. Don't sync it yet: existing values
+    # can have more fractional digits than decimal(21,9) allows (raw Python
+    # float arithmetic), which fails the ALTER before the backfill below gets
+    # a chance to round them. fix_estimated_gross_margin_column_type (the
+    # next patch) sanitizes the data and syncs the schema.
     frappe.clear_cache(doctype="Project")
 
     for project in frappe.get_all("Project", filters={"status": ["!=", "Cancelled"]}, pluck="name"):
