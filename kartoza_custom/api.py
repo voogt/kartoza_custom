@@ -1122,7 +1122,7 @@ def self_register_free_course(item_code, email):
 def get_next_employee_number(company):
     company_abbr = "GEN"
     
-    if company == "Kartoza Lda":
+    if company == "Kartoza Unipessoal Lda":
         company_abbr = "LDA"
 
     # Fetch the last assigned number safely

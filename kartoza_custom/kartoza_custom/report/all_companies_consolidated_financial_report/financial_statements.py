@@ -459,7 +459,7 @@ def get_accounting_entries(
             gl_entry.credit_in_account_currency,
             gl_entry.account_currency,
         )
-        .where(gl_entry.company.isin(['Kartoza (Pty) Ltd', 'Kartoza Lda']))
+        .where(gl_entry.company.isin(['Kartoza (Pty) Ltd', 'Kartoza Unipessoal Lda']))
     )
 
     if doctype == "GL Entry":
@@ -481,9 +481,9 @@ def get_accounting_entries(
     # Fetch exchange rate for EUR to ZAR
     exchange_rate = get_exchange_rate("EUR", "ZAR", to_date)
 
-    # Convert amounts if company is "Kartoza Lda"
+    # Convert amounts if company is "Kartoza Unipessoal Lda"
     for entry in entries:
-        if entry["company"] == "Kartoza Lda" and entry["account_currency"] == "EUR":
+        if entry["company"] == "Kartoza Unipessoal Lda" and entry["account_currency"] == "EUR":
             entry["debit_in_account_currency"] *= exchange_rate
             entry["credit_in_account_currency"] *= exchange_rate
             entry["account_currency"] = "ZAR"  # Change currency to ZAR
@@ -516,7 +516,7 @@ def apply_additional_conditions(doctype, query, from_date, ignore_closing_entrie
 			query = query.where(gl_entry.cost_center.isin(filters.cost_center))
 
 		if filters.get("include_default_book_entries"):
-			companies = ["Kartoza (Pty) Ltd", "Kartoza Lda"]
+			companies = ["Kartoza (Pty) Ltd", "Kartoza Unipessoal Lda"]
 			company_fb = {}
 
 			# Retrieve default finance book for each company

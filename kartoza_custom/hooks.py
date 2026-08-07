@@ -266,6 +266,25 @@ fixtures = [
 	{
 	"doctype": "Custom Field",
 	"filters": [["dt", "=", "User"], ["fieldname", "=", "custom_api_read_only"]]
+   },
+	{
+	"doctype": "Custom Field",
+	"filters": [["dt", "=", "Project"], ["fieldname", "in", [
+		"custom_estimated_gross_margin",
+		"custom_estimated_gross_margin_",
+	]]]
+   },
+	{
+	"doctype": "Property Setter",
+	"filters": [["doc_type", "=", "Project"], ["field_name", "in", [
+		"total_costing_amount",
+		"total_purchase_cost",
+		"total_sales_amount",
+		"total_billable_amount",
+		"total_billed_amount",
+		"total_consumed_material_cost",
+		"gross_margin",
+	]]]
    }
 ]
 

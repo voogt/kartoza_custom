@@ -1195,7 +1195,7 @@ def get_company_salary_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Shows total salary costs per department for Kartoza Lda per month (Currency ZAR):</b><br><br>
+            <b>Shows total salary costs per department for Kartoza Unipessoal Lda per month (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Total Salary:</b> Uses fixed values for each department per month.</li>
             </ul>
@@ -1487,7 +1487,7 @@ def get_company_pipeline_opportunities_lda():
         top.probability as `probability`
         FROM `tabOpportunity` top
         WHERE top.status in ('Draft', 'Open')
-        AND top.company = 'Kartoza Lda'
+        AND top.company = 'Kartoza Unipessoal Lda'
         ORDER BY `amount` DESC
     """
 
@@ -1510,7 +1510,7 @@ def get_company_pipeline_opportunities_lda():
     total_probability_values = [row["probability"] for row in chart_data]
 
     data = {
-        "title": "Pipeline Opportunity Kartoza Lda (Draft/Open)",
+        "title": "Pipeline Opportunity Kartoza Unipessoal Lda (Draft/Open)",
         "labels": labels,
         "isReverse": True,
         "showTotal": True,
@@ -1534,7 +1534,7 @@ def get_company_pipeline_opportunities_lda():
         ],
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays open opportunities for Kartoza Lda (Currency ZAR):</b><br><br>
+            <b>Displays open opportunities for Kartoza Unipessoal Lda (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Amount:</b> Value of each open opportunity (Draft/Open status), grouped by opportunity name.</li>
             </ul>
@@ -1563,7 +1563,7 @@ def get_company_pipeline_lda():
         SUM(tq.base_grand_total * {zar_rate}) AS `amount`
         FROM `tabQuotation` tq
         WHERE tq.status in ('Draft', 'Open')
-        AND tq.company = 'Kartoza Lda'
+        AND tq.company = 'Kartoza Unipessoal Lda'
         GROUP BY tq.name
         ORDER BY `amount` DESC
     """
@@ -1586,7 +1586,7 @@ def get_company_pipeline_lda():
         })
 
     data = {
-        "title": "Pipeline Quotation Kartoza Lda (Draft/Open)",
+        "title": "Pipeline Quotation Kartoza Unipessoal Lda (Draft/Open)",
         "labels": label,
         "isReverse": False,
         "showTotal": True,
@@ -1597,7 +1597,7 @@ def get_company_pipeline_lda():
         "datasets": datasets,
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays open quotations for Kartoza Lda (Currency ZAR):</b><br><br>
+            <b>Displays open quotations for Kartoza Unipessoal Lda (Currency ZAR):</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Amount:</b> Value of each open quotation (Draft/Open status), converted to Rand if needed, grouped by quote name.</li>
             </ul>
@@ -2015,7 +2015,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
             item_code as `item_code`
         FROM `tabSales Invoice Item` tsoi
         LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
-        WHERE tso.company = 'Kartoza Lda'
+        WHERE tso.company = 'Kartoza Unipessoal Lda'
         AND tso.posting_date BETWEEN '{start_date}' AND '{end_date}'
         AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
         GROUP BY tsoi.item_code
@@ -2036,7 +2036,7 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
             SUM(tsoi.base_amount ) * {zar_eur_rate} as `item_total`
         FROM `tabSales Invoice Item` tsoi
         LEFT JOIN `tabSales Invoice` tso ON tso.name = tsoi.parent
-        WHERE tso.company = 'Kartoza Lda'
+        WHERE tso.company = 'Kartoza Unipessoal Lda'
         AND tso.posting_date BETWEEN '{start}' AND '{end}'
         AND tso.status NOT IN ('Cancelled', 'Credit Note Issued', 'Return', 'Draft')
         GROUP BY tsoi.item_code
@@ -2066,12 +2066,12 @@ def get_item_wise_annual_sales_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays per item annual sales for Kartoza Lda:</b><br><br>
+            <b>Displays per item annual sales for Kartoza Unipessoal Lda:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Item Codes:</b> Each bar represents the total sales amount for an item code per month.</li>
                 <li><b>Missing Items:</b> If an item code is present in one month but not in another, a value of 0 is shown for the missing month.</li>
                 <li><b>Period:</b> Data is grouped and displayed for each month in the selected date range.</li>
-                <li><b>Source:</b> Sales Invoice Items for Kartoza Lda, filtered by posting date and document status.</li>
+                <li><b>Source:</b> Sales Invoice Items for Kartoza Unipessoal Lda, filtered by posting date and document status.</li>
             </ul>
         </div>
         """,
@@ -2175,7 +2175,7 @@ def get_sales_analytics_customers_lda(start_date, end_date):
             SUM(base_paid_amount) * {zar_eur_rate} as `paid_amount`
         FROM `tabPayment Entry`
         WHERE party_type = 'Customer'
-        AND company = 'Kartoza Lda'
+        AND company = 'Kartoza Unipessoal Lda'
         AND party_name != ''
         AND posting_date BETWEEN '{start}' AND '{end}'
         GROUP BY party_name
@@ -2204,7 +2204,7 @@ def get_sales_analytics_customers_lda(start_date, end_date):
         "type": "single",
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays customer payment analytics for Kartoza Lda:</b><br><br>
+            <b>Displays customer payment analytics for Kartoza Unipessoal Lda:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Customer Payments:</b> Shows the total amount paid by each customer during each month in the selected period.</li>
                 <li><b>Source:</b> Data is based on Payment Entry records for customers, filtered by company and posting date.</li>
@@ -2386,7 +2386,7 @@ def get_overhead_cost_lda(start_date, end_date):
     for start, end in ranges:
 
         filters = frappe._dict({
-            "company": "Kartoza Lda",
+            "company": "Kartoza Unipessoal Lda",
             "filter_based_on": "Date Range",
             "period_start_date": start,
             "period_end_date": end,
@@ -2410,12 +2410,12 @@ def get_overhead_cost_lda(start_date, end_date):
             filters.period_end_date,
             filters.filter_based_on,
             filters.periodicity,
-            company="Kartoza Lda",
+            company="Kartoza Unipessoal Lda",
 	    )
 
 
         income = get_data(
-            "Kartoza Lda",
+            "Kartoza Unipessoal Lda",
             "Income",
             "Credit",
             period_list,
@@ -2425,7 +2425,7 @@ def get_overhead_cost_lda(start_date, end_date):
         )
 
         expense = get_data(
-            "Kartoza Lda",
+            "Kartoza Unipessoal Lda",
             "Expense",
             "Debit",
             period_list,
@@ -2492,7 +2492,7 @@ def get_overhead_cost_lda(start_date, end_date):
         "total_cards": [],
         "help": """
         <div style='font-size: 14px;text-align: left'>
-            <b>Displays overhead costs for Kartoza Lda per month:</b><br><br>
+            <b>Displays overhead costs for Kartoza Unipessoal Lda per month:</b><br><br>
             <ul style='margin-left: 1em;'>
                 <li><b>Overhead Cost:</b> Sum of salary costs for selected overhead departments (PMO, Admin, Management) plus supplier payments for the period.</li>
                 <li><b>Total Revenue:</b> Total Income as calculated from income accounts for the period.</li>
@@ -2640,7 +2640,7 @@ def get_tender_summary(start_date, end_date):
             COUNT(name) as `count_lost`,
             SUM(
                 CASE
-                    WHEN company = 'Kartoza Lda' THEN
+                    WHEN company = 'Kartoza Unipessoal Lda' THEN
                         base_total * {get_rates(end, 'EUR')}
                     ELSE
                         base_total
@@ -2676,7 +2676,7 @@ def get_tender_summary(start_date, end_date):
             COUNT(name) as `count_lost`,
             SUM(
                 CASE
-                    WHEN company = 'Kartoza Lda' THEN
+                    WHEN company = 'Kartoza Unipessoal Lda' THEN
                         base_total * {get_rates(end, 'EUR')}
                     ELSE
                         base_total
@@ -2970,7 +2970,7 @@ def get_sales_trend_5_years():
                 <li><b>Quotes:</b> Total value of non-cancelled quotations per year, converted to Rand.</li>
                 <li><b>Opportunities:</b> Total value of opportunities created per year, converted to Rand.</li>
             </ul>
-            <span style='color: #888;'>Combines Kartoza (Pty) Ltd and Kartoza Lda. The most recent year is year-to-date.</span>
+            <span style='color: #888;'>Combines Kartoza (Pty) Ltd and Kartoza Unipessoal Lda. The most recent year is year-to-date.</span>
         </div>
         """,
         "total_cards": [

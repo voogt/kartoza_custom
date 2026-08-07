@@ -184,12 +184,12 @@ function fetchDataAndPlot() {
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_opportunities_lda',
-            "title": "Pipeline Opportunity Kartoza Lda (Draft/Open)",
+            "title": "Pipeline Opportunity Kartoza Unipessoal Lda (Draft/Open)",
             "args": { start_date, end_date },
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_company_pipeline_lda',
-            "title": "Pipeline Quotation Kartoza Lda (Draft/Open)",
+            "title": "Pipeline Quotation Kartoza Unipessoal Lda (Draft/Open)",
             "args": { start_date, end_date },
         },
         
@@ -387,20 +387,29 @@ function renderPlot(chartElementId, labels, datasets, barmode, shouldSplitLongLa
         tickfontSize = 9; // smaller font size for rotated labels
     }
 
+    // Datasets measured as a percentage share a "rand"/count scale with the other
+    // bars if plotted on the same axis, which flattens the line into a near-zero
+    // strip. Route them to a secondary (right-hand) y-axis so their own scale is used.
+    const hasPercentDataset = datasets.some(set => (set.unit || '').toLowerCase() === 'percent');
+
     // Generate traces for Plotly chart
-    const traces = datasets.map(set => ({
-        x: processedLabels,
-        y: set.values,
-        name: set.name,
-        type: set.type || 'bar',
-        customdata: set.values.map(v => formatWithUnit(v, set.unit)),
-        // Show legend (dataset name) as the title in the hovertemplate
-        hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
-    }));
+    const traces = datasets.map(set => {
+        const isPercent = (set.unit || '').toLowerCase() === 'percent';
+        return {
+            x: processedLabels,
+            y: set.values,
+            name: set.name,
+            type: set.type || 'bar',
+            yaxis: isPercent ? 'y2' : 'y',
+            customdata: set.values.map(v => formatWithUnit(v, set.unit)),
+            // Show legend (dataset name) as the title in the hovertemplate
+            hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
+        };
+    });
 
     let layout = {
         legend: {},
-        margin: {b: shouldRotate ? 120 : 60, t: 60, l: 60, r: 30},
+        margin: {b: shouldRotate ? 120 : 60, t: 60, l: 60, r: hasPercentDataset ? 60 : 30},
         xaxis: {
             tickangle: shouldRotate ? -45 : 0,
             automargin: true,
@@ -411,6 +420,18 @@ function renderPlot(chartElementId, labels, datasets, barmode, shouldSplitLongLa
             title: { text: "" }
         }
     };
+
+    if (hasPercentDataset) {
+        layout.yaxis2 = {
+            overlaying: 'y',
+            side: 'right',
+            automargin: true,
+            title: { text: "%" },
+            ticksuffix: '%',
+            showgrid: false,
+            rangemode: 'tozero'
+        };
+    }
 
     if (barmode === 'stack') {
         layout.barmode = 'stack';
