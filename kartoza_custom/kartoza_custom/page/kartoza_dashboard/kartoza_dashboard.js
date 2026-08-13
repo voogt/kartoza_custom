@@ -299,6 +299,9 @@ function fetchDataAndPlot() {
                         if (methods[index]["title"] === "Billable Hours") {
                             setupBillableHoursStaffToggle(chartRefs);
                         }
+                        if (methods[index]["title"] === "Current open SLA's") {
+                            setupOpenSlaCategoryFilter(chartRefs);
+                        }
                         resolve();
                     } else {
                         frappe.msgprint("No data returned.");
@@ -548,6 +551,56 @@ function refreshBillableHoursChart(chartRefs, includeAllStaff) {
         },
         error: function() {
             frappe.msgprint("Error occurred while fetching billable hours data.");
+        }
+    });
+}
+
+// Add "All / SLA only / Hosting only" buttons under the Current open SLA's chart title,
+// and refresh that chart in place when the selection changes.
+function setupOpenSlaCategoryFilter(chartRefs) {
+    if (!chartRefs) return;
+    const container = document.getElementById(chartRefs.containerId);
+    const titleEl = container && container.querySelector('h3');
+    if (!titleEl) return;
+
+    const options = [
+        { label: 'All', value: '' },
+        { label: 'SLA only', value: 'SLA' },
+        { label: 'Hosting only', value: 'Hosting' }
+    ];
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; margin-top:6px;';
+    wrapper.innerHTML = options.map((opt, idx) => `
+        <button type="button" class="btn btn-default btn-xs open-sla-filter-btn" data-value="${opt.value}"
+            style="margin:0 3px;${idx === 0 ? 'font-weight:bold;' : ''}">${opt.label}</button>
+    `).join('');
+    titleEl.insertAdjacentElement('afterend', wrapper);
+
+    wrapper.querySelectorAll('.open-sla-filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            wrapper.querySelectorAll('.open-sla-filter-btn').forEach(b => b.style.fontWeight = 'normal');
+            this.style.fontWeight = 'bold';
+            refreshOpenSlaChart(chartRefs, this.dataset.value);
+        });
+    });
+}
+
+function refreshOpenSlaChart(chartRefs, serviceCategory) {
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_open_sla',
+        args: { service_category: serviceCategory },
+        type: 'GET',
+        callback: function(r) {
+            if (!r.message) {
+                frappe.msgprint("No data returned.");
+                return;
+            }
+            renderPlot(chartRefs.chartId, r.message.labels, r.message.datasets, r.message.type, r.message.shouldSplitLongLabels);
+            renderChartTable(r.message.labels, r.message.datasets, chartRefs.tableId, r.message.isReverse, r.message.element_id, r.message.showTotal);
+        },
+        error: function() {
+            frappe.msgprint("Error occurred while fetching open SLA data.");
         }
     });
 }

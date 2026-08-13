@@ -10,7 +10,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit, get_deferred_revenue_sales_orders as get_deferred_revenue_sales_orders_data
+from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
     get_data,
     get_period_list
@@ -119,24 +119,7 @@ def get_staff_count(start_date, end_date):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_billable_hours(start_date, end_date, include_all_staff=0):
-    """Return billable hours per month, by project type.
-
-    :param start_date: Start of the reporting period.
-    :type start_date: str
-
-    :param end_date: End of the reporting period.
-    :type end_date: str
-
-    :param include_all_staff: If falsy (default), only staff flagged with
-        custom_utilization=1 are included. If truthy, all staff are
-        included regardless of the utilization flag.
-    :type include_all_staff: int, str
-
-    :rtype: dict
-    """
-    include_all_staff = frappe.utils.cint(include_all_staff)
-    utilization_condition = "" if include_all_staff else " AND wd.custom_utilization = '1'"
+def get_billable_hours(start_date, end_date):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
     total_external = 0
@@ -367,8 +350,8 @@ def get_billable_hours(start_date, end_date, include_all_staff=0):
         LEFT JOIN `tabProject` tp
             ON tsd.project = tp.name
         WHERE wd.emp_status = (CASE
-            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0{utilization_condition} THEN wd.emp_status
-            WHEN wd.emp_status = 'Active'{utilization_condition} THEN wd.emp_status
+            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
+            WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
             ELSE NULL
             END
         )
@@ -448,7 +431,7 @@ def get_billable_hours(start_date, end_date, include_all_staff=0):
                 <li><b>Capacity Comparison Percent %:</b> (Total billable hours / total capacity hours) × 100.</li>
                 <li><b>Capacity Utilisation Staff Hours:</b> Available hours after excluding holidays</li>
                 <li><b>Holiday Hours:</b> Hours taken as holidays.</li>
-                <li>By default only staff with <b>custom_utilization=1</b> are included. Tick "Include all staff" above to include all staff regardless of the utilization flag.</li>
+                <li>Only staff with <b>custom_utilization=1</b> are included.</li>
             </ul>
             <span style='color: #888;'>Totals are summed across the selected period.</span>
         </div>
@@ -1616,9 +1599,14 @@ def get_company_pipeline_lda():
     return data
 
 @frappe.whitelist(allow_guest=True)
-def get_open_sla():
+def get_open_sla(service_category=None):
     chart_data = []
     zar_rate = get_rates(None, "EUR")
+
+    if service_category in ("SLA", "Hosting"):
+        service_category_filter = f"tp.custom_service_category = '{service_category}'"
+    else:
+        service_category_filter = "(tp.custom_service_category = 'SLA' OR tp.custom_service_category = 'Hosting')"
 
     sql = f"""
     SELECT
@@ -1627,13 +1615,9 @@ def get_open_sla():
         tp.project_name AS project,
         tp.expected_start_date AS start_date,
         tp.expected_end_date AS end_date,
-        CASE 
-            WHEN LOWER(tp.project_name) REGEXP '(^|[[:space:]])sla([[:space:]]|$)' THEN 'SLA'
-            WHEN LOWER(tp.project_name) REGEXP '(^|[[:space:]])hosting([[:space:]]|$)' THEN 'HOSTING'
-            ELSE NULL
-        END AS sla_type
+        tp.custom_service_category as sla_type
     FROM `tabProject` tp
-
+    
     -- Subquery for Sales Orders
     LEFT JOIN (
         SELECT
@@ -1665,10 +1649,7 @@ def get_open_sla():
     ) AS si_data ON si_data.project_name = tp.name
 
     WHERE tp.status = 'Open'
-    AND (
-        LOWER(tp.project_name) REGEXP '(^|[[:space:]])sla([[:space:]]|$)'
-        OR LOWER(tp.project_name) REGEXP '(^|[[:space:]])hosting([[:space:]]|$)'
-    )
+    AND {service_category_filter}
     ORDER BY tp.expected_start_date ASC;
 
     """
@@ -1900,28 +1881,6 @@ def get_open_sales_orders(start_date=None, end_date=None):
     }
 
     return data
-
-@frappe.whitelist(allow_guest=True)
-def get_deferred_revenue_sales_orders(project, financial_year, end_date=None):
-    """Return the sales orders behind a deferred revenue table cell.
-
-    :param project: Project name shown as the table row.
-    :type project: str
-
-    :param financial_year: SA financial year label of the clicked column, e.g. "FY2027".
-    :type financial_year: str
-
-    :param end_date: Optional end date used to scope open sales orders.
-    :type end_date: str
-
-    :returns: Project, financial year, and the matching sales orders with line items.
-    :rtype: dict
-    """
-    return {
-        "project": project,
-        "financial_year": financial_year,
-        "sales_orders": get_deferred_revenue_sales_orders_data(project, financial_year, end_date),
-    }
 
 @frappe.whitelist(allow_guest=True)
 def get_item_wise_annual_sales_pty(start_date, end_date):
@@ -2708,12 +2667,8 @@ def get_tender_summary(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
-            "lost_opportunities_count": f"{(lost_opportunities[0]['count_lost'] or 0):.0f}",
-            "lost_opportunities_amount": f"{(lost_opportunities[0]['amount'] or 0):.0f}",
             "lost_quotes_count": f"{(lost_quotes[0]['count_lost'] or 0):.0f}",
             "lost_quotes_amount": f"{(lost_quotes[0]['amount'] or 0):.0f}",
-            "won_opportunities_count": f"{(won_opportunities[0]['count_lost'] or 0):.0f}",
-            "won_opportunities_amount": f"{(won_opportunities[0]['amount'] or 0):.0f}",
             "won_quotes_count": f"{(won_quotes[0]['count_lost'] or 0):.0f}",
             "won_quotes_amount": f"{(won_quotes[0]['amount'] or 0):.0f}",
             "total_hours": f"{(time_arr[0]['total_hours'] or 0):.0f}",
@@ -2723,12 +2678,8 @@ def get_tender_summary(start_date, end_date):
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
-    lost_opportunities_values = [row["lost_opportunities_count"] for row in chart_data]
-    lost_opportunities_amounts = [row["lost_opportunities_amount"] for row in chart_data]
     lost_quotes_values = [row["lost_quotes_count"] for row in chart_data]
     lost_quotes_amounts = [row["lost_quotes_amount"] for row in chart_data]
-    won_opportunities_values = [row["won_opportunities_count"] for row in chart_data]
-    won_opportunities_amounts = [row["won_opportunities_amount"] for row in chart_data]
     won_quotes_values = [row["won_quotes_count"] for row in chart_data]
     won_quotes_amounts = [row["won_quotes_amount"] for row in chart_data]
     total_hours_values = [row["total_hours"] for row in chart_data]
@@ -2748,9 +2699,7 @@ def get_tender_summary(start_date, end_date):
         <div style='font-size: 14px;text-align: left'>
             <b>Displays summary of tenders (opportunities and quotations) for the selected period:</b><br><br>
             <ul style='margin-left: 1em;'>
-                <li><b>Lost Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Lost' (converted to ZAR if needed).</li>
                 <li><b>Lost Quotes Count/Amount:</b> Number and total value of quotations marked as 'Lost' (converted to ZAR if needed).</li>
-                <li><b>Won Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Converted' (converted to ZAR if needed).</li>
                 <li><b>Won Quotes Count/Amount:</b> Number and total value of quotations marked as 'Ordered' or 'Partially Ordered' (converted to ZAR if needed).</li>
                 <li>All amounts are summed for the period and currency conversions are applied where necessary.</li>
                 <li>Each bar represents the count or amount for the corresponding category per month.</li>
@@ -2759,18 +2708,6 @@ def get_tender_summary(start_date, end_date):
         </div>
         """,
         "datasets": [
-            {
-                "type": "bar",
-                "name": "Lost Opportunities Count",
-                "unit": "count",
-                "values": lost_opportunities_values
-            },
-            {
-                "type": "bar",
-                "name": "Lost Opportunities Amount",
-                "unit": "rand",
-                "values": lost_opportunities_amounts
-            },
             {
                 "type": "bar",
                 "name": "Lost Quotes Count",
@@ -2782,18 +2719,6 @@ def get_tender_summary(start_date, end_date):
                 "name": "Lost Quotes Amount",
                 "unit": "rand",
                 "values": lost_quotes_amounts
-            },
-            {
-                "type": "bar",
-                "name": "Won Opportunities Count",
-                "unit": "count",
-                "values": won_opportunities_values
-            },
-            {
-                "type": "bar",
-                "name": "Won Opportunities Amount",
-                "unit": "rand",
-                "values": won_opportunities_amounts
             },
             {
                 "type": "bar",
