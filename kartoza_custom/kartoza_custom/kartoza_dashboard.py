@@ -1874,7 +1874,8 @@ def get_open_sales_orders(start_date=None, end_date=None):
                 "name": "Risk",
                 "unit": "percent",
                 "values": [f"{sale_order['risk_percentage']:.0f}" if sale_order.get('risk_percentage') else "0" for sale_order in all_sales_orders],
-                "isColorCoded": True
+                "isColorCoded": True,
+                "excludeFromChart": True
             },
 
         ]
@@ -2569,7 +2570,7 @@ def get_project_closed_summary(start_date, end_date):
     return data
 
 @frappe.whitelist(allow_guest=True)
-def get_tender_summary(start_date, end_date):
+def get_tender_summary(start_date, end_date, type_filter=None):
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
 
@@ -2667,6 +2668,10 @@ def get_tender_summary(start_date, end_date):
 
         chart_data.append({
             "month": month_label,
+            "lost_opportunities_count": f"{(lost_opportunities[0]['count_lost'] or 0):.0f}",
+            "lost_opportunities_amount": f"{(lost_opportunities[0]['amount'] or 0):.0f}",
+            "won_opportunities_count": f"{(won_opportunities[0]['count_lost'] or 0):.0f}",
+            "won_opportunities_amount": f"{(won_opportunities[0]['amount'] or 0):.0f}",
             "lost_quotes_count": f"{(lost_quotes[0]['count_lost'] or 0):.0f}",
             "lost_quotes_amount": f"{(lost_quotes[0]['amount'] or 0):.0f}",
             "won_quotes_count": f"{(won_quotes[0]['count_lost'] or 0):.0f}",
@@ -2678,12 +2683,92 @@ def get_tender_summary(start_date, end_date):
     # Transform chart_data for stacked chart
     labels = [row["month"] for row in chart_data]
 
+    lost_opportunities_values = [row["lost_opportunities_count"] for row in chart_data]
+    lost_opportunities_amounts = [row["lost_opportunities_amount"] for row in chart_data]
+    won_opportunities_values = [row["won_opportunities_count"] for row in chart_data]
+    won_opportunities_amounts = [row["won_opportunities_amount"] for row in chart_data]
     lost_quotes_values = [row["lost_quotes_count"] for row in chart_data]
     lost_quotes_amounts = [row["lost_quotes_amount"] for row in chart_data]
     won_quotes_values = [row["won_quotes_count"] for row in chart_data]
     won_quotes_amounts = [row["won_quotes_amount"] for row in chart_data]
     total_hours_values = [row["total_hours"] for row in chart_data]
     total_costing_values = [row["total_costing"] for row in chart_data]
+
+    opportunities_datasets = [
+        {
+            "type": "bar",
+            "name": "Lost Opportunities Count",
+            "unit": "count",
+            "values": lost_opportunities_values
+        },
+        {
+            "type": "bar",
+            "name": "Lost Opportunities Amount",
+            "unit": "rand",
+            "values": lost_opportunities_amounts
+        },
+        {
+            "type": "bar",
+            "name": "Won Opportunities Count",
+            "unit": "count",
+            "values": won_opportunities_values
+        },
+        {
+            "type": "bar",
+            "name": "Won Opportunities Amount",
+            "unit": "rand",
+            "values": won_opportunities_amounts
+        },
+    ]
+
+    quotes_datasets = [
+        {
+            "type": "bar",
+            "name": "Lost Quotes Count",
+            "unit": "count",
+            "values": lost_quotes_values
+        },
+        {
+            "type": "bar",
+            "name": "Lost Quotes Amount",
+            "unit": "rand",
+            "values": lost_quotes_amounts
+        },
+        {
+            "type": "bar",
+            "name": "Won Quotes Count",
+            "unit": "count",
+            "values": won_quotes_values
+        },
+        {
+            "type": "bar",
+            "name": "Won Quotes Amount",
+            "unit": "rand",
+            "values": won_quotes_amounts
+        },
+    ]
+
+    time_datasets = [
+        {
+            "type": "bar",
+            "name": "Total Tender Hours",
+            "unit": "hours",
+            "values": total_hours_values
+        },
+        {
+            "type": "bar",
+            "name": "Total Tender Cost",
+            "unit": "rand",
+            "values": total_costing_values
+        }
+    ]
+
+    if type_filter == "opportunities":
+        datasets = [*opportunities_datasets, *time_datasets]
+    elif type_filter == "quotes":
+        datasets = [*quotes_datasets, *time_datasets]
+    else:
+        datasets = [*opportunities_datasets, *quotes_datasets, *time_datasets]
 
     data = {
         "element_id": "tender_summary",
@@ -2699,52 +2784,16 @@ def get_tender_summary(start_date, end_date):
         <div style='font-size: 14px;text-align: left'>
             <b>Displays summary of tenders (opportunities and quotations) for the selected period:</b><br><br>
             <ul style='margin-left: 1em;'>
-                <li><b>Lost Quotes Count/Amount:</b> Number and total value of quotations marked as 'Lost' (converted to ZAR if needed).</li>
-                <li><b>Won Quotes Count/Amount:</b> Number and total value of quotations marked as 'Ordered' or 'Partially Ordered' (converted to ZAR if needed).</li>
+                <li><b>Lost/Won Opportunities Count/Amount:</b> Number and total value of opportunities marked as 'Lost' or 'Converted' (converted to ZAR if needed).</li>
+                <li><b>Lost/Won Quotes Count/Amount:</b> Number and total value of quotations marked as 'Lost' or 'Ordered'/'Partially Ordered' (converted to ZAR if needed).</li>
                 <li>All amounts are summed for the period and currency conversions are applied where necessary.</li>
                 <li>Each bar represents the count or amount for the corresponding category per month.</li>
+                <li>Use the toggle above the chart to show opportunities only, quotes only, or all.</li>
             </ul>
             <span style='color: #888;'>Helps track tender performance and conversion rates over time.</span>
         </div>
         """,
-        "datasets": [
-            {
-                "type": "bar",
-                "name": "Lost Quotes Count",
-                "unit": "count",
-                "values": lost_quotes_values
-            },
-            {
-                "type": "bar",
-                "name": "Lost Quotes Amount",
-                "unit": "rand",
-                "values": lost_quotes_amounts
-            },
-            {
-                "type": "bar",
-                "name": "Won Quotes Count",
-                "unit": "count",
-                "values": won_quotes_values
-            },
-            {
-                "type": "bar",
-                "name": "Won Quotes Amount",
-                "unit": "rand",
-                "values": won_quotes_amounts
-            },
-            {
-                "type": "bar",
-                "name": "Total Tender Hours",
-                "unit": "hours",
-                "values": total_hours_values
-            },
-            {
-                "type": "bar",
-                "name": "Total Tender Costing",
-                "unit": "rand",
-                "values": total_costing_values
-            }
-        ]
+        "datasets": datasets
     }
 
     return data

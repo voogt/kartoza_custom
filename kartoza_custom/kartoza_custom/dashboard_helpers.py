@@ -6,6 +6,16 @@ from frappe import _
 from frappe.utils import flt
 
 def get_rates(date, cur):
+    # `date` is unused: the API always returns the latest rate regardless of
+    # what's passed in, so the cache only needs to be keyed on currency.
+    # A single dashboard load can call this 150+ times (multiple currencies,
+    # multiplied across every month in the date range), each a live HTTP
+    # round-trip to frankfurter.dev, so cache it for a while.
+    cache_key = f"kartoza_exchange_rate_zar_{cur}"
+    cached_rate = frappe.cache().get_value(cache_key)
+    if cached_rate is not None:
+        return cached_rate
+
     base_url = "https://api.frankfurter.dev/v1/latest"
 
     # We want to convert FROM EUR TO ZAR, so base=EUR and symbols=ZAR
@@ -14,15 +24,18 @@ def get_rates(date, cur):
     api =  f'{base_url}?{conditions}'
 
     try:
-        response = requests.get(api)
+        response = requests.get(api, timeout=5)
         response.raise_for_status()  # Raise error for bad status codes
         r = response.json()["rates"]
 
-        return r["ZAR"]
+        rate = r["ZAR"]
     except (requests.RequestException, KeyError) as e:
         print(f"Error fetching exchange rate: {e}")
         return 0
-    
+
+    frappe.cache().set_value(cache_key, rate, expires_in_sec=3600)
+    return rate
+
 
 def get_month_ranges(start_date_str, end_date_str):
     """

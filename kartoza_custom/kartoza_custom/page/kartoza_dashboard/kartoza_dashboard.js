@@ -283,48 +283,64 @@ function fetchDataAndPlot() {
         }
     }
 
-    // Helper to wrap frappe.call in a Promise for sequential execution
-    function callMethodAsync(index) {
-        return new Promise((resolve, reject) => {
+    // Fire the HTTP request for one method and resolve with its result (no DOM work here).
+    // Kept separate from rendering so a batch of these can run concurrently while
+    // rendering still happens afterwards in the original array order.
+    function fetchMethodData(index) {
+        return new Promise((resolve) => {
             frappe.call({
                 method: methods[index]["method"],
                 args: methods[index]["args"],
                 type: 'GET',
                 callback: function(r) {
-                    if (r.message) {
-                        const chartRefs = drawChart(r.message.labels, r.message.datasets, r.message.title, r.message.element_id, r.message.type, r.message.isReverse, r.message.help, r.message.shouldSplitLongLabels, r.message.showTotal);
-                        if(r.message.total_cards){
-                            addCards(r.message.total_cards);
-                        }
-                        if (methods[index]["title"] === "Billable Hours") {
-                            setupBillableHoursStaffToggle(chartRefs);
-                        }
-                        if (methods[index]["title"] === "Current open SLA's") {
-                            setupOpenSlaCategoryFilter(chartRefs);
-                        }
-                        resolve();
-                    } else {
-                        frappe.msgprint("No data returned.");
-                        resolve();
-                    }
+                    resolve(r && r.message);
                 },
-                error: function(err) {
+                error: function() {
                     frappe.msgprint("Error occurred while fetching data.");
-                    resolve(); // Continue to next even on error
+                    resolve(null);
                 }
             });
         });
     }
 
-    // Sequentially call all methods using async/await
-    (async function runSequentially() {
-        for (let i = 0; i < methods.length; i++) {
-            await callMethodAsync(i);
+    function renderMethodResult(index, message) {
+        if (!message) {
+            frappe.msgprint("No data returned.");
+            return;
+        }
+        const chartRefs = drawChart(message.labels, message.datasets, message.title, message.element_id, message.type, message.isReverse, message.help, message.shouldSplitLongLabels, message.showTotal);
+        if (message.total_cards) {
+            addCards(message.total_cards);
+        }
+        if (methods[index]["title"] === "Billable Hours") {
+            setupBillableHoursStaffToggle(chartRefs);
+        }
+        if (methods[index]["title"] === "Current open SLA's") {
+            setupOpenSlaCategoryFilter(chartRefs);
+        }
+        if (methods[index]["title"] === "Tender Summary") {
+            setupTenderSummaryTypeFilter(chartRefs);
+        }
+    }
+
+    // Run all method calls in fixed-size concurrent batches instead of one at a
+    // time. Charts are still drawn in the original top-to-bottom order (each
+    // batch is rendered in order once the whole batch resolves), but the
+    // network round-trips within a batch overlap instead of queueing serially.
+    const CONCURRENCY = 6;
+    (async function runInBatches() {
+        for (let start = 0; start < methods.length; start += CONCURRENCY) {
+            const batchIndexes = [];
+            for (let i = start; i < Math.min(start + CONCURRENCY, methods.length); i++) {
+                batchIndexes.push(i);
+            }
+            const batchResults = await Promise.all(batchIndexes.map(fetchMethodData));
+            batchIndexes.forEach((index, i) => renderMethodResult(index, batchResults[i]));
         }
         // Hide loader after all calls
         document.getElementById('loader').style.display = 'none';
     })();
-    
+
 }
 
 const addCards = (data) => {
@@ -356,8 +372,23 @@ function updateCardValue(title, value, unit) {
     if (body) body.innerHTML = formatWithUnit(value, unit);
 }
 
+// A 26-color qualitative palette (Plotly Express "Alphabet" set) so charts with
+// many datasets (e.g. Activity Cost, with 20+ categories) don't cycle back to
+// colors already used by an earlier series in the same chart.
+const QUALITATIVE_CHART_COLORS = [
+    '#90AD1C', '#3283FE', '#85660D', '#FBE426', '#565656',
+    '#1C8356', '#16FF32', '#F7E1A0', '#E2E2E2', '#1CBE4F',
+    '#C4451C', '#08306B', '#FE00FA', '#325A9B', '#FEAF16',
+    '#F8A19F', '#FA0087', '#F6222E', '#1CFFCE', '#2ED9FF',
+    '#B10DA1', '#C075A6', '#FC1CBF', '#B00068', '#782AB6',
+    '#AA0DFE',
+];
+
 // Render (or re-render in place) the Plotly chart for an existing chart element.
 function renderPlot(chartElementId, labels, datasets, barmode, shouldSplitLongLabels) {
+    // Some datasets (e.g. Risk) are only meant for the table, not the chart itself
+    datasets = datasets.filter(set => !set.excludeFromChart);
+
     // Determine if any label is long (e.g., > 12 chars)
     const maxLabelLength = Math.max(...labels.map(l => l.length));
     const shouldRotate = maxLabelLength > 20;
@@ -396,14 +427,17 @@ function renderPlot(chartElementId, labels, datasets, barmode, shouldSplitLongLa
     const hasPercentDataset = datasets.some(set => (set.unit || '').toLowerCase() === 'percent');
 
     // Generate traces for Plotly chart
-    const traces = datasets.map(set => {
+    const traces = datasets.map((set, index) => {
         const isPercent = (set.unit || '').toLowerCase() === 'percent';
+        const color = QUALITATIVE_CHART_COLORS[index % QUALITATIVE_CHART_COLORS.length];
         return {
             x: processedLabels,
             y: set.values,
             name: set.name,
             type: set.type || 'bar',
             yaxis: isPercent ? 'y2' : 'y',
+            marker: { color },
+            line: { color },
             customdata: set.values.map(v => formatWithUnit(v, set.unit)),
             // Show legend (dataset name) as the title in the hovertemplate
             hovertemplate: `<b>${set.name}</b><br>%{x}: %{customdata}<extra></extra>`
@@ -605,12 +639,96 @@ function refreshOpenSlaChart(chartRefs, serviceCategory) {
     });
 }
 
+// Add "All / Opportunities only / Quotes only" buttons under the Tender Summary chart title,
+// and refresh that chart in place when the selection changes.
+function setupTenderSummaryTypeFilter(chartRefs) {
+    if (!chartRefs) return;
+    const container = document.getElementById(chartRefs.containerId);
+    const titleEl = container && container.querySelector('h3');
+    if (!titleEl) return;
+
+    const options = [
+        { label: 'All', value: '' },
+        { label: 'Opportunities only', value: 'opportunities' },
+        { label: 'Quotes only', value: 'quotes' }
+    ];
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; margin-top:6px;';
+    wrapper.innerHTML = options.map((opt, idx) => `
+        <button type="button" class="btn btn-default btn-xs tender-summary-filter-btn" data-value="${opt.value}"
+            style="margin:0 3px;${idx === 0 ? 'font-weight:bold;' : ''}">${opt.label}</button>
+    `).join('');
+    titleEl.insertAdjacentElement('afterend', wrapper);
+
+    wrapper.querySelectorAll('.tender-summary-filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            wrapper.querySelectorAll('.tender-summary-filter-btn').forEach(b => b.style.fontWeight = 'normal');
+            this.style.fontWeight = 'bold';
+            refreshTenderSummaryChart(chartRefs, this.dataset.value);
+        });
+    });
+}
+
+function refreshTenderSummaryChart(chartRefs, typeFilter) {
+    const start_date = document.getElementById("start_date").value;
+    const end_date = document.getElementById("end_date").value;
+
+    frappe.call({
+        method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
+        args: { start_date, end_date, type_filter: typeFilter },
+        type: 'GET',
+        callback: function(r) {
+            if (!r.message) {
+                frappe.msgprint("No data returned.");
+                return;
+            }
+            renderPlot(chartRefs.chartId, r.message.labels, r.message.datasets, r.message.type, r.message.shouldSplitLongLabels);
+            renderChartTable(r.message.labels, r.message.datasets, chartRefs.tableId, r.message.isReverse, r.message.element_id, r.message.showTotal);
+        },
+        error: function() {
+            frappe.msgprint("Error occurred while fetching tender summary data.");
+        }
+    });
+}
+
+// (Re)initialize the DataTables plugin for a chart table, honoring the pagination toggle.
+function initChartDataTable(id, enablePagination) {
+    if (!(window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.DataTable === 'function')) return;
+    const $ = window.jQuery;
+    const $table = $(`#${id}`);
+    if ($.fn.DataTable.isDataTable(`#${id}`)) {
+        $table.DataTable().destroy();
+    }
+    const dt = $table.DataTable({
+        lengthChange: false,
+        ordering: false,
+        paging: enablePagination
+    });
+
+    // DataTables' own search box class names differ across versions (and it
+    // rebuilds its wrapper on every init), so hide it and drive searching
+    // from our own input that lives in the controls row next to the toggle.
+    $table.closest('.dataTables_wrapper, .dt-container').find('.dataTables_filter, .dt-search').hide();
+
+    const $searchInput = $(`#${id}-search`);
+    $searchInput.off('input').on('input', function() {
+        dt.search(this.value).draw();
+    });
+}
+
 function renderChartTable(labels, datasets, tableContainerId, isReverse, element_id, showTotal) {
 
     const isPercentDataset = (set) => String(set?.name ?? '').includes('%');
 
     let id = generateRandomId('elem');
-    let tableHTML = `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
+    let tableHTML = `<div id="${id}-controls" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px;">
+        <label style="font-weight:normal;font-size:13px;cursor:pointer;margin:0;"><input type="checkbox" id="${id}-pagination-toggle" checked style="margin-right:4px;" /> Enable pagination</label>
+        <label style="font-weight:normal;font-size:13px;margin:0;display:flex;align-items:center;gap:6px;">Search:
+            <input type="text" id="${id}-search" style="height:28px;padding:2px 6px;border:1px solid #ccc;border-radius:4px;" />
+        </label>
+    </div>`;
+    tableHTML += `<table id='${id}' class="table table-bordered" style="width: 100%; border-collapse: collapse;">`;
 
     if(!isReverse){
         // Header row (months across)
@@ -718,12 +836,14 @@ function renderChartTable(labels, datasets, tableContainerId, isReverse, element
 
 
     // Use jQuery DataTables plugin without overriding Frappe's global DataTable constructor.
-    if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.DataTable === 'function') {
-        window.jQuery(`#${id}`).DataTable({
-            lengthChange: false,
-            ordering: false
+    // Default is to show all rows at once; the toggle switches to paged mode.
+    const paginationToggle = document.getElementById(`${id}-pagination-toggle`);
+    if (paginationToggle) {
+        paginationToggle.addEventListener('change', function() {
+            initChartDataTable(id, this.checked);
         });
     }
+    initChartDataTable(id, true);
 
     const start_date = document.getElementById("start_date").value;
     const end_date = document.getElementById("end_date").value;
