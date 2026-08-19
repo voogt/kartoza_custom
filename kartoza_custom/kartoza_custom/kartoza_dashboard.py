@@ -10,7 +10,7 @@ from frappe.core.doctype.communication.email import make
 from datetime import datetime, timedelta
 import calendar
 import requests
-from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit
+from .dashboard_helpers import get_rates, get_month_ranges, get_year_ranges, get_month_label, getBacklogSalesOrders, get_billing_data, get_departments, compute_department_summary_all, get_salary_slips, get_timesheet_data, compute_department_summary, get_all_data, get_profit, get_deferred_revenue_sales_orders as _get_deferred_revenue_sales_orders
 from erpnext.accounts.report.profit_and_loss_statement.profit_and_loss_statement import ( 
     get_data,
     get_period_list
@@ -119,7 +119,10 @@ def get_staff_count(start_date, end_date):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_billable_hours(start_date, end_date):
+def get_billable_hours(start_date, end_date, include_all_staff=0):
+    # HTTP args arrive as strings (e.g. "1"/"0"), so coerce before using as a flag.
+    include_all_staff = int(include_all_staff or 0)
+    utilization_condition = "" if include_all_staff else " AND wd.custom_utilization = '1'"
     ranges = get_month_ranges(start_date, end_date)
     chart_data = []
     total_external = 0
@@ -350,8 +353,8 @@ def get_billable_hours(start_date, end_date):
         LEFT JOIN `tabProject` tp
             ON tsd.project = tp.name
         WHERE wd.emp_status = (CASE
-            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0 AND wd.custom_utilization = '1' THEN wd.emp_status
-            WHEN wd.emp_status = 'Active' AND wd.custom_utilization = '1' THEN wd.emp_status
+            WHEN wd.emp_status != 'Active'  AND tsd.hours !=0{utilization_condition} THEN wd.emp_status
+            WHEN wd.emp_status = 'Active'{utilization_condition} THEN wd.emp_status
             ELSE NULL
             END
         )
@@ -1882,6 +1885,11 @@ def get_open_sales_orders(start_date=None, end_date=None):
     }
 
     return data
+
+@frappe.whitelist(allow_guest=True)
+def get_deferred_revenue_sales_orders(project, financial_year, end_date=None):
+    sales_orders = _get_deferred_revenue_sales_orders(project, financial_year, end_date)
+    return {"sales_orders": sales_orders}
 
 @frappe.whitelist(allow_guest=True)
 def get_item_wise_annual_sales_pty(start_date, end_date):
