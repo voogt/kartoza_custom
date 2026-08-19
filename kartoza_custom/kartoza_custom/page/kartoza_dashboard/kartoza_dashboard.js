@@ -558,7 +558,7 @@ function setupBillableHoursStaffToggle(chartRefs) {
 
     const toggleWrapper = document.createElement('label');
     toggleWrapper.style.cssText = 'display:block; text-align:center; font-size:13px; font-weight:normal; margin-top:6px; cursor:pointer;';
-    toggleWrapper.innerHTML = `<input type="checkbox" id="${chartRefs.chartId}-include-all-staff" style="margin-right:4px;" /> Include all staff (ignore utilization flag)`;
+    toggleWrapper.innerHTML = `<input type="checkbox" id="${chartRefs.chartId}-include-all-staff" style="margin-right:4px;" /> Include all staff (ignore utilization flag) <span id="${chartRefs.chartId}-include-all-staff-spinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display:none; margin-left:4px; vertical-align:middle;"></span>`;
     titleEl.insertAdjacentElement('afterend', toggleWrapper);
 
     toggleWrapper.querySelector('input').addEventListener('change', function() {
@@ -569,6 +569,11 @@ function setupBillableHoursStaffToggle(chartRefs) {
 function refreshBillableHoursChart(chartRefs, includeAllStaff) {
     const start_date = document.getElementById("start_date").value;
     const end_date = document.getElementById("end_date").value;
+
+    const checkbox = document.getElementById(`${chartRefs.chartId}-include-all-staff`);
+    const spinner = document.getElementById(`${chartRefs.chartId}-include-all-staff-spinner`);
+    if (checkbox) checkbox.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
 
     frappe.call({
         method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_billable_hours',
@@ -585,6 +590,10 @@ function refreshBillableHoursChart(chartRefs, includeAllStaff) {
         },
         error: function() {
             frappe.msgprint("Error occurred while fetching billable hours data.");
+        },
+        always: function() {
+            if (checkbox) checkbox.disabled = false;
+            if (spinner) spinner.style.display = 'none';
         }
     });
 }
@@ -998,6 +1007,8 @@ function showDeferredRevenueDialog(project, financialYear) {
 
     const end_date = document.getElementById("end_date").value;
 
+    frappe.dom.freeze('Loading sales order details...');
+
     frappe.call({
         method: 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_deferred_revenue_sales_orders',
         args: { project, financial_year: financialYear, end_date },
@@ -1008,6 +1019,9 @@ function showDeferredRevenueDialog(project, financialYear) {
         },
         error: function() {
             frappe.msgprint("Error occurred while fetching sales order details.");
+        },
+        always: function() {
+            frappe.dom.unfreeze();
         }
     });
 }
