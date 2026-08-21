@@ -144,8 +144,14 @@ def check_sql_injection():
     data_dict = local.form_dict or {}
 
 
-    # Define keys to skip (fields likely to contain image/file data)
-    SKIP_KEYS = {"image", "file", "attachment", "filedata", "image_data", "img", "avatar", "photo", "picture", "signature"}
+    # Define keys to skip (fields likely to contain image/file data, or
+    # password fields on login/sign-up which are never interpolated into
+    # SQL and so trigger false positives when they contain characters like
+    # "--", "#", ";" or SQL keywords)
+    SKIP_KEYS = {
+        "image", "file", "attachment", "filedata", "image_data", "img", "avatar", "photo", "picture", "signature",
+        "pwd", "password", "new_password", "confirm_password", "old_password",
+    }
 
     # Helper to detect large base64-like strings or embedded image data
     def is_image_or_base64(val):
