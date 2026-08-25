@@ -1,4 +1,12 @@
 from frappe import local, session, get_roles
+# Endpoints exempt from SQLi/spam scanning even though they are public-facing.
+# Address content (street names, unit numbers, etc.) legitimately contains
+# punctuation like ";" or "#" that trips the SQLi heuristics, and checkout
+# retries can trip the spam limiter.
+EXEMPT_METHOD_PATHS = {
+    "/api/method/kartoza_custom.api.save_billing_address",
+}
+
 # Only scan public endpoints for SQL injection
 def is_public_input_path(path):
     """Return True if path is NOT a known safe internal endpoint (scan all user-facing endpoints)."""
@@ -9,6 +17,9 @@ def is_public_input_path(path):
         return False
     # Skip internal API method calls to frappe.* (desk, core)
     if path.startswith("/api/method/frappe."):
+        return False
+    # Skip explicitly exempted endpoints (e.g. address creation)
+    if path in EXEMPT_METHOD_PATHS:
         return False
     # Otherwise, treat as public/user-facing (including /, /web_form, etc)
     return True
