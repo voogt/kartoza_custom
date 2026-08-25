@@ -28,7 +28,11 @@ SQLI_PATTERNS = [
     r"\bDROP\b\s+(?:TABLE|DATABASE)\b",
     r"\bALTER\b\s+TABLE\b",
     r"(SLEEP\s*\(|BENCHMARK\s*\(|IF\s*\()",
-    r"(--|#|/\*|\*/|;)",
+    # Comment/statement-terminator markers only count as suspicious right after a
+    # quote break-out (e.g. `' --`, `';`, `'#`) - a bare ';' or '#' or '/* */' is
+    # extremely common in legit HTML/CSS (e.g. inline styles like "overflow-x: auto;")
+    # and was causing false positives on ordinary invoice/description content.
+    r"['\"]\s*(--|#|;)",
     r"XOR\(",
 ]
 
