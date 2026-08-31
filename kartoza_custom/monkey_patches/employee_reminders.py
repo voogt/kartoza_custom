@@ -4,32 +4,6 @@ import frappe
 logger = frappe.logger("kartoza_custom.employee_reminders")
 
 
-def _get_subscribed_emails(company: str | None = None) -> set[str]:
-    if not frappe.db.has_column("Employee", "custom_subscribe_notification_emails"):
-        return set()
-
-    filters = {
-        "status": "Active",
-        "custom_subscribe_notification_emails": 1,
-    }
-    if company:
-        filters["company"] = company
-
-    employees = frappe.db.get_all(
-        "Employee",
-        filters=filters,
-        fields=["user_id", "personal_email", "company_email"],
-    )
-
-    subscribed_emails = set()
-    for employee in employees:
-        for email in (employee.get("user_id"), employee.get("personal_email"), employee.get("company_email")):
-            if email:
-                subscribed_emails.add(email)
-
-    return subscribed_emails
-
-
 def _get_person_email(person: dict) -> str | None:
     return person.get("user_id") or person.get("personal_email") or person.get("company_email")
 
@@ -37,7 +11,7 @@ def _get_person_email(person: dict) -> str | None:
 def send_birthday_reminders():
     """Custom override for HRMS birthday reminders.
 
-    Send only to employees with custom_subscribe_notification_emails enabled.
+    Send only to employees whose status is Active.
     """
     hrms_employee_reminders = frappe.get_module("hrms.controllers.employee_reminders")
 
@@ -53,19 +27,16 @@ def send_birthday_reminders():
         return
 
     for company, birthday_persons in employees_born_today.items():
-        subscribed_emails = _get_subscribed_emails(company)
-
         employee_emails = hrms_employee_reminders.get_all_employee_emails(company)
         birthday_person_emails = [
             hrms_employee_reminders.get_employee_email(doc) for doc in birthday_persons
         ]
-        recipients = list((set(employee_emails) - set(birthday_person_emails)) & subscribed_emails)
+        recipients = list(set(employee_emails) - set(birthday_person_emails))
         logger.info(
-            "Birthday reminders company=%s total_employees=%s birthday_people=%s subscribed=%s recipients=%s",
+            "Birthday reminders company=%s total_employees=%s birthday_people=%s recipients=%s",
             company,
             len(set(employee_emails)),
             len(birthday_persons),
-            len(subscribed_emails),
             len(recipients),
         )
 
@@ -78,14 +49,14 @@ def send_birthday_reminders():
             )
             logger.info("Birthday reminders sent to team recipients for company=%s", company)
         else:
-            logger.info("Birthday reminders skipped for company=%s: no subscribed recipients", company)
+            logger.info("Birthday reminders skipped for company=%s: no active recipients", company)
 
         if len(birthday_persons) > 1:
             for person in birthday_persons:
                 person_email = _get_person_email(person)
-                if not person_email or person_email not in subscribed_emails:
+                if not person_email:
                     logger.info(
-                        "Birthday shared-reminder skipped for company=%s person=%s reason=not_subscribed_or_no_email",
+                        "Birthday shared-reminder skipped for company=%s person=%s reason=no_email",
                         company,
                         person.get("name"),
                     )
@@ -106,7 +77,7 @@ def send_birthday_reminders():
 def send_work_anniversary_reminders():
     """Custom override for HRMS work anniversary reminders.
 
-    Send only to employees with custom_subscribe_notification_emails enabled.
+    Send only to employees whose status is Active.
     """
     hrms_employee_reminders = frappe.get_module("hrms.controllers.employee_reminders")
 
@@ -128,19 +99,16 @@ def send_work_anniversary_reminders():
     message += frappe._("Everyone, let’s congratulate them on their work anniversary!")
 
     for company, anniversary_persons in employees_joined_today.items():
-        subscribed_emails = _get_subscribed_emails(company)
-
         employee_emails = hrms_employee_reminders.get_all_employee_emails(company)
         anniversary_person_emails = [
             hrms_employee_reminders.get_employee_email(doc) for doc in anniversary_persons
         ]
-        recipients = list((set(employee_emails) - set(anniversary_person_emails)) & subscribed_emails)
+        recipients = list(set(employee_emails) - set(anniversary_person_emails))
         logger.info(
-            "Work anniversary reminders company=%s total_employees=%s anniversary_people=%s subscribed=%s recipients=%s",
+            "Work anniversary reminders company=%s total_employees=%s anniversary_people=%s recipients=%s",
             company,
             len(set(employee_emails)),
             len(anniversary_persons),
-            len(subscribed_emails),
             len(recipients),
         )
 
@@ -152,15 +120,15 @@ def send_work_anniversary_reminders():
             logger.info("Work anniversary reminders sent to team recipients for company=%s", company)
         else:
             logger.info(
-                "Work anniversary reminders skipped for company=%s: no subscribed recipients", company
+                "Work anniversary reminders skipped for company=%s: no active recipients", company
             )
 
         if len(anniversary_persons) > 1:
             for person in anniversary_persons:
                 person_email = _get_person_email(person)
-                if not person_email or person_email not in subscribed_emails:
+                if not person_email:
                     logger.info(
-                        "Work anniversary shared-reminder skipped for company=%s person=%s reason=not_subscribed_or_no_email",
+                        "Work anniversary shared-reminder skipped for company=%s person=%s reason=no_email",
                         company,
                         person.get("name"),
                     )
