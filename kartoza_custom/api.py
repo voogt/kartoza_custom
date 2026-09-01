@@ -759,7 +759,12 @@ def complete_checkout(paystack_reference, currency=None):
         invoice = make_sales_invoice(sales_order.name, ignore_permissions=True)
         invoice.flags.ignore_permissions = True
         invoice.submit()
-        frappe.db.set_value('Sales Invoice', invoice.name, 'status', 'Paid')
+        if settings.get('capture_payment_entries_automatically'):
+            frappe.db.set_value('Sales Invoice', invoice.name, 'status', 'Paid')
+        else:
+            # Funds are still held by Paystack; leave the invoice Unpaid until a
+            # Payment Entry is created manually once the payout reaches the bank.
+            frappe.db.set_value('Sales Invoice', invoice.name, 'status', 'Unpaid')
         frappe.db.set_value('Sales Order', sales_order.name, 'status', 'Closed')
         frappe.db.set_value('Sales Order', sales_order.name, 'per_billed', 100)
         frappe.db.commit()
