@@ -5,7 +5,7 @@ import frappe
 from frappe import whitelist
 from frappe import _
 from frappe.utils.global_search import search as default_search
-from frappe.utils import now_datetime, cint, escape_html
+from frappe.utils import now_datetime, cint, sbool, escape_html
 from frappe.model.naming import make_autoname
 from frappe.core.doctype.communication.email import make
 from frappe.rate_limiter import rate_limit
@@ -113,6 +113,39 @@ def confirm_password_reset(key: str, new_password: str) -> dict:
     frappe.db.commit()
 
     return _("Password updated successfully. You can now sign in with your new password.")
+
+
+# Role granted to every website/portal sign-up (see sign_up below, which reads
+# Portal Settings.default_role). Scoping the two_factor_auth flag to this role
+# - rather than the "All" role - keeps internal System Manager/desk logins
+# unaffected by the website's emailed verification-code requirement.
+WEBSITE_LOGIN_ROLE = "Customer"
+
+
+@frappe.whitelist(methods=["POST"])
+def set_two_factor_auth_enabled(enabled=True) -> dict:
+    """Turn Frappe's emailed two-factor login code on or off for website users.
+
+    Restricted to System Manager. Intended to be called once at container
+    startup by the kartoza-website deployment (see deployment/docker/entrypoint.sh),
+    driven by that environment's ENABLE_2FA setting, so each deployment
+    environment (prod/dev) controls enforcement without a manual System
+    Settings change.
+    """
+    frappe.only_for("System Manager")
+    enabled = 1 if sbool(enabled) else 0
+
+    frappe.db.set_single_value(
+        "System Settings",
+        {
+            "enable_two_factor_auth": enabled,
+            "two_factor_method": "Email",
+            "otp_issuer_name": "Kartoza",
+        },
+    )
+    frappe.db.set_value("Role", WEBSITE_LOGIN_ROLE, "two_factor_auth", enabled)
+
+    return {"enable_two_factor_auth": enabled}
 
 
 @frappe.whitelist(methods=['POST'])
