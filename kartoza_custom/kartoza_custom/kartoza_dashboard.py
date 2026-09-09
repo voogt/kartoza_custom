@@ -2254,9 +2254,36 @@ def get_overhead_cost_pty(start_date, end_date):
         overhead_fixed = 0
         overhead_variable = 0
 
-        fixed_overhead_accounts = ('5102 - Foreign Exchange Differencee on Salaries', '5104 - Sub-Contrator', '5112 - Domain Registration', '5115 - Hosting', '5117 - Salaries & Wages Non-Admin Staff', '5118 - Insurance as Cost of Sales', '5208 - Accounting Fees', '5232 - Insurance as Expense', '5245 - Rent Paid', '5247 - Salaries & Wages Admin Staff', '5250 - Directors remuneration')
+        fixed_overhead_accounts = (
+            '5102 - Foreign Exchange Differencee on Salaries', 
+            '5104 - Sub-Contrator', 
+            '5112 - Domain Registration', 
+            '5115 - Hosting as Cost of Sales', 
+            '5117 - Salaries & Wages Non-Admin Staff', 
+            '5118 - Insurance as Cost of Sales', 
+            '5208 - Accounting Fees', 
+            '5232 - Insurance as an Expense', 
+            '5245 - Rent Paid', 
+            '5247 - Salaries & Wages Admin Staff', 
+            '5250 - Directors remuneration'
+        )
 
-        overhead_variable_accounts = ('5120 - Training', '5122 - Bank Charges as Cost of Sales', '5123 - Exchange Gain/Loss as Cost of Sales', '5207 - Marketing', '5208-01 - Accounting Fees - MST', '5211 - Bank Charges as an Expense', '5217 - Communication', '5219 - Exchange Gain/Loss', '5220 - Gain/Loss on Asset Disposal', '5222 - Computer Expenses', '5223 - Consulting fees', '5241 - Overs and unders', '5242 - Printing & Stationary', '5250 - Travel as an Expense International')
+        overhead_variable_accounts = (
+            '5120 - Training', 
+            '5122 - Bank Charges as Cost of Sales', 
+            '5123 - Exchange Gain/Loss as Cost of Sales', 
+            '5207 - Marketing', 
+            '5208-01 - Accounting Fees - MST', 
+            '5211 - Bank Charges as an Expense', 
+            '5217 - Communication', 
+            '5219 - Exchange Gain/Loss', 
+            '5220 - Gain/Loss on Asset Disposal', 
+            '5222 - Computer Expenses', 
+            '5223 - Consulting fees', 
+            '5241 - Overs and unders', 
+            '5242 - Printing & Stationary', 
+            '5262 - Travel as an Expense International'
+        )
         
         for expense_row in expense:
             print(expense_row)
