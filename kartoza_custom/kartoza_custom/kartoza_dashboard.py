@@ -2808,7 +2808,7 @@ def get_tender_summary(start_date, end_date, type_filter=None):
     data = {
         "element_id": "tender_summary",
         "type": "single",
-        "title": "Tender Summary",
+        "title": "Proposals Report",
         "labels": labels,
         "isReverse": False,
         "showTotal": False,

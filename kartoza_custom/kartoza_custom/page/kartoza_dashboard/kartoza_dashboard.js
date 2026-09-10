@@ -235,7 +235,7 @@ function fetchDataAndPlot() {
         },
         {
             "method": 'kartoza_custom.kartoza_custom.kartoza_dashboard.get_tender_summary',
-            "title": "Tender Summary",
+            "title": "Proposals Report",
             "args": { start_date, end_date },
         },
         {
@@ -318,7 +318,7 @@ function fetchDataAndPlot() {
         if (methods[index]["title"] === "Current open SLA's") {
             setupOpenSlaCategoryFilter(chartRefs);
         }
-        if (methods[index]["title"] === "Tender Summary") {
+        if (methods[index]["title"] === "Proposals Report") {
             setupTenderSummaryTypeFilter(chartRefs);
         }
     }
@@ -648,7 +648,7 @@ function refreshOpenSlaChart(chartRefs, serviceCategory) {
     });
 }
 
-// Add "All / Opportunities only / Quotes only" buttons under the Tender Summary chart title,
+// Add "All / Opportunities only / Quotes only" buttons under the Proposals Report chart title,
 // and refresh that chart in place when the selection changes.
 function setupTenderSummaryTypeFilter(chartRefs) {
     if (!chartRefs) return;
